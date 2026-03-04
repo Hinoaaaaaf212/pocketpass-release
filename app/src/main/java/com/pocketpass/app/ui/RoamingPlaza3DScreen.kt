@@ -291,13 +291,6 @@ class FilamentRenderer(
         android.util.Log.d("FilamentRenderer", "  - Creating Camera")
         camera = engine.createCamera(engine.entityManager.create())
 
-        // Set sky blue background color through renderer clear options
-        android.util.Log.d("FilamentRenderer", "  - Setting clear color to sky blue (0.53, 0.81, 0.92, 1.0)")
-        renderer.setClearOptions(Renderer.ClearOptions().apply {
-            clearColor = floatArrayOf(0.53f, 0.81f, 0.92f, 1.0f) // Sky blue
-            clear = true
-        })
-
         // Initialize GLTF asset loader
         android.util.Log.d("FilamentRenderer", "  - Initializing AssetLoader and ResourceLoader")
         assetLoader = AssetLoader(engine, UbershaderProvider(engine), EntityManager.get())
@@ -306,6 +299,18 @@ class FilamentRenderer(
         // Configure view
         view.scene = scene
         view.camera = camera
+
+        // Set sky blue background color on the view
+        android.util.Log.d("FilamentRenderer", "  - Setting viewport clear color to sky blue")
+        view.viewport = Viewport(0, 0, 1, 1) // Will be resized properly in onResized
+        view.blendMode = View.BlendMode.OPAQUE
+
+        // Set clear options properly for Filament 1.69.5
+        val clearOptions = Renderer.ClearOptions()
+        clearOptions.clearColor = floatArrayOf(0.53f, 0.81f, 0.92f, 1.0f) // Sky blue (RGB: 135, 206, 235)
+        clearOptions.clear = true
+        renderer.clearOptions = clearOptions
+        android.util.Log.d("FilamentRenderer", "  - Clear options set: color=[${clearOptions.clearColor?.joinToString()}], clear=${clearOptions.clear}")
 
         // Setup camera position (bird's eye view)
         val eye = doubleArrayOf(0.0, 15.0, 15.0)  // Camera position
