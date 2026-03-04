@@ -42,6 +42,7 @@ fun RoamingPlaza3DScreen(
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
     val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val userProfile by db.userProfileDao().getUserProfile().collectAsState(initial = null)
 
     var selectedEncounter by remember { mutableStateOf<Encounter?>(null) }
 
@@ -84,12 +85,23 @@ fun RoamingPlaza3DScreen(
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
-                FilamentPlazaView(
-                    encounters = encounters,
-                    onMiiTapped = { encounter ->
-                        selectedEncounter = encounter
+                if (userProfile != null) {
+                    FilamentPlazaView(
+                        userProfile = userProfile!!,
+                        encounters = encounters,
+                        onMiiTapped = { encounter ->
+                            selectedEncounter = encounter
+                        }
+                    )
+                } else {
+                    // Show loading or placeholder
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("Loading...", color = DarkText)
                     }
-                )
+                }
             }
 
             // Info text
@@ -137,6 +149,7 @@ fun RoamingPlaza3DScreen(
 
 @Composable
 fun FilamentPlazaView(
+    userProfile: com.pocketpass.app.data.UserProfile,
     encounters: List<Encounter>,
     onMiiTapped: (Encounter) -> Unit
 ) {
@@ -146,7 +159,7 @@ fun FilamentPlazaView(
     AndroidView(
         factory = { ctx ->
             SurfaceView(ctx).apply {
-                val renderer = FilamentRenderer(ctx, this, encounters, onMiiTapped, coroutineScope)
+                val renderer = FilamentRenderer(ctx, this, userProfile, encounters, onMiiTapped, coroutineScope)
 
                 // Set up touch listener for Mii selection
                 setOnTouchListener { _, event ->
@@ -169,6 +182,7 @@ fun FilamentPlazaView(
 class FilamentRenderer(
     private val context: Context,
     private val surfaceView: SurfaceView,
+    private val userProfile: com.pocketpass.app.data.UserProfile,
     private val encounters: List<Encounter>,
     private val onMiiTapped: (Encounter) -> Unit,
     private val scope: CoroutineScope
@@ -188,6 +202,7 @@ class FilamentRenderer(
     // GLTF model loading
     private lateinit var assetLoader: AssetLoader
     private lateinit var resourceLoader: ResourceLoader
+    private lateinit var materialProvider: UbershaderProvider
     private val loadedAssets = mutableListOf<FilamentAsset>()
 
     // Mii characters
@@ -291,9 +306,10 @@ class FilamentRenderer(
         android.util.Log.d("FilamentRenderer", "  - Creating Camera")
         camera = engine.createCamera(engine.entityManager.create())
 
-        // Initialize GLTF asset loader
-        android.util.Log.d("FilamentRenderer", "  - Initializing AssetLoader and ResourceLoader")
-        assetLoader = AssetLoader(engine, UbershaderProvider(engine), EntityManager.get())
+        // Initialize GLTF asset loader and material provider
+        android.util.Log.d("FilamentRenderer", "  - Initializing MaterialProvider, AssetLoader and ResourceLoader")
+        materialProvider = UbershaderProvider(engine)
+        assetLoader = AssetLoader(engine, materialProvider, EntityManager.get())
         resourceLoader = ResourceLoader(engine)
 
         // Configure view
@@ -412,7 +428,11 @@ class FilamentRenderer(
     }
 
     private fun loadModels() {
-        // For each encounter, create a Mii character and load their 3D model
+        // First, add the user's Mii in the center of the plaza
+        android.util.Log.d("FilamentRenderer", "Creating user's Mii: ${userProfile.name}")
+        createUserMii()
+
+        // Then add encounter Miis
         encounters.forEach { encounter ->
             val miiChar = MiiCharacter3D.createRandom(encounter)
             miiCharacters.add(miiChar)
@@ -422,7 +442,132 @@ class FilamentRenderer(
             loadMiiPlaceholder(miiChar)
         }
 
-        android.util.Log.d("FilamentRenderer", "Loaded ${miiCharacters.size} Mii characters")
+        android.util.Log.d("FilamentRenderer", "Loaded 1 user Mii + ${miiCharacters.size} encounter Miis")
+    }
+
+    private fun createUserMii() {
+        // Create the user's Mii at the center of the plaza (0, 0)
+        // For now, we'll create a simple colored cube as a placeholder
+
+        try {
+            // Try to load a simple .glb model for the user
+            // If we don't have one, we'll create simple geometry
+            val userMiiEntity = createSimpleMiiCube(
+                x = 0.0f,
+                y = 0.0f,
+                z = 0.0f,
+                color = floatArrayOf(1.0f, 0.5f, 0.0f, 1.0f) // Orange color for user
+            )
+
+            if (userMiiEntity != 0) {
+                scene.addEntity(userMiiEntity)
+                miiEntities.add(userMiiEntity)
+                android.util.Log.d("FilamentRenderer", "✓ User Mii cube created at center (0, 0, 0)")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FilamentRenderer", "Failed to create user Mii: ${e.message}", e)
+        }
+    }
+
+    @Entity
+    private fun createSimpleMiiCube(x: Float, y: Float, z: Float, color: FloatArray): Int {
+        // Create a simple colored cube to represent a Mii
+        // This is a placeholder until we have actual .glb models
+
+        val entity = EntityManager.get().create()
+
+        val cubeSize = 1.0f
+        val half = cubeSize / 2f
+
+        // Vertex data: position (3) + color (4) = 7 floats per vertex
+        val vertices = floatArrayOf(
+            // Front face
+            -half, -half, half,   color[0], color[1], color[2], color[3],
+             half, -half, half,   color[0], color[1], color[2], color[3],
+             half,  half, half,   color[0], color[1], color[2], color[3],
+            -half,  half, half,   color[0], color[1], color[2], color[3],
+            // Back face
+            -half, -half, -half,  color[0], color[1], color[2], color[3],
+             half, -half, -half,  color[0], color[1], color[2], color[3],
+             half,  half, -half,  color[0], color[1], color[2], color[3],
+            -half,  half, -half,  color[0], color[1], color[2], color[3]
+        )
+
+        val vertexBuffer = ByteBuffer.allocate(vertices.size * 4)
+        vertexBuffer.order(java.nio.ByteOrder.nativeOrder())
+        vertexBuffer.asFloatBuffer().put(vertices)
+        vertexBuffer.rewind()
+
+        val vb = VertexBuffer.Builder()
+            .vertexCount(8)
+            .bufferCount(1)
+            .attribute(VertexBuffer.VertexAttribute.POSITION, 0,
+                VertexBuffer.AttributeType.FLOAT3, 0, 28)
+            .attribute(VertexBuffer.VertexAttribute.COLOR, 0,
+                VertexBuffer.AttributeType.FLOAT4, 12, 28)
+            .build(engine)
+
+        vb.setBufferAt(engine, 0, vertexBuffer)
+
+        // Index buffer for cube
+        val indices = shortArrayOf(
+            0, 1, 2, 0, 2, 3,  // Front
+            5, 4, 7, 5, 7, 6,  // Back
+            4, 0, 3, 4, 3, 7,  // Left
+            1, 5, 6, 1, 6, 2,  // Right
+            3, 2, 6, 3, 6, 7,  // Top
+            4, 5, 1, 4, 1, 0   // Bottom
+        )
+
+        val indexBuffer = ByteBuffer.allocate(indices.size * 2)
+        indexBuffer.order(java.nio.ByteOrder.nativeOrder())
+        indexBuffer.asShortBuffer().put(indices)
+        indexBuffer.rewind()
+
+        val ib = IndexBuffer.Builder()
+            .indexCount(indices.size)
+            .bufferType(IndexBuffer.Builder.IndexType.USHORT)
+            .build(engine)
+
+        ib.setBuffer(engine, indexBuffer)
+
+        // Create a simple unlit material using the material provider
+        // We'll create a basic colored material
+        try {
+            // Get a default unlit material from the provider
+            val material = materialProvider.createUnlitMaterial()
+            val materialInstance = material.defaultInstance
+
+            // Set the base color
+            materialInstance.setParameter("baseColorFactor", color[0], color[1], color[2], color[3])
+
+            // Build the renderable
+            RenderableManager.Builder(1)
+                .boundingBox(Box(x - half, y - half, z - half, x + half, y + half, z + half))
+                .geometry(0, RenderableManager.PrimitiveType.TRIANGLES, vb, ib)
+                .material(0, materialInstance)
+                .culling(false)
+                .receiveShadows(false)
+                .castShadows(false)
+                .build(engine, entity)
+
+            android.util.Log.d("FilamentRenderer", "Created cube with unlit material")
+
+        } catch (e: Exception) {
+            android.util.Log.e("FilamentRenderer", "Failed to create cube: ${e.message}", e)
+            e.printStackTrace()
+            return 0
+        }
+
+        // Set position
+        val transform = engine.transformManager
+        val instance = transform.getInstance(entity)
+        val matrix = FloatArray(16)
+        android.opengl.Matrix.setIdentityM(matrix, 0)
+        android.opengl.Matrix.translateM(matrix, 0, x, y + 1.0f, z) // Raise 1 unit above ground
+        transform.setTransform(instance, matrix)
+
+        return entity
     }
 
     private fun loadMiiPlaceholder(miiChar: MiiCharacter3D) {
