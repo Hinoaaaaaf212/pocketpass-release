@@ -250,6 +250,12 @@ class FilamentRenderer(
         view = engine.createView()
         camera = engine.createCamera(engine.entityManager.create())
 
+        // Set sky blue background color through renderer clear options
+        renderer.setClearOptions(Renderer.ClearOptions().apply {
+            clearColor = floatArrayOf(0.53f, 0.81f, 0.92f, 1.0f) // Sky blue
+            clear = true
+        })
+
         // Initialize GLTF asset loader
         assetLoader = AssetLoader(engine, UbershaderProvider(engine), EntityManager.get())
         resourceLoader = ResourceLoader(engine)
@@ -257,9 +263,6 @@ class FilamentRenderer(
         // Configure view
         view.scene = scene
         view.camera = camera
-
-        // Set a sky blue background color so the screen isn't black
-        view.clearColor = floatArrayOf(0.53f, 0.81f, 0.92f, 1.0f) // Sky blue (RGB: 135, 206, 235)
 
         // Setup camera position (bird's eye view)
         val eye = doubleArrayOf(0.0, 15.0, 15.0)  // Camera position
