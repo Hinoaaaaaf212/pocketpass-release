@@ -331,11 +331,12 @@ class FilamentRenderer(
         renderer.clearOptions = clearOptions
         android.util.Log.d("FilamentRenderer", "  - Clear options set: color=[${clearOptions.clearColor?.joinToString()}], clear=${clearOptions.clear}")
 
-        // Setup camera position (bird's eye view)
-        val eye = doubleArrayOf(0.0, 15.0, 15.0)  // Camera position
+        // Setup camera position (bird's eye view) - zoomed out more to see all Miis
+        val eye = doubleArrayOf(0.0, 20.0, 20.0)  // Camera position (higher and further back)
         val center = doubleArrayOf(0.0, 0.0, 0.0)  // Look at center
         val up = doubleArrayOf(0.0, 1.0, 0.0)      // Up vector
         camera.lookAt(eye[0], eye[1], eye[2], center[0], center[1], center[2], up[0], up[1], up[2])
+        android.util.Log.d("FilamentRenderer", "  - Camera positioned at (${eye[0]}, ${eye[1]}, ${eye[2]}) looking at (0, 0, 0)")
 
         // Setup display helper
         displayHelper = DisplayHelper(context)
@@ -479,7 +480,8 @@ class FilamentRenderer(
 
         val entity = EntityManager.get().create()
 
-        val cubeSize = 1.0f
+        // Make cubes larger so they're more visible
+        val cubeSize = 2.0f
         val half = cubeSize / 2f
 
         // Vertex data: position (3) + color (4) = 7 floats per vertex
@@ -540,15 +542,16 @@ class FilamentRenderer(
         try {
             // Build the renderable without material (it will use default)
             // Note: This may not show color, but will show geometry
-            RenderableManager.Builder(1)
+            val renderableBuilder = RenderableManager.Builder(1)
                 .boundingBox(Box(x - half, y - half, z - half, x + half, y + half, z + half))
                 .geometry(0, RenderableManager.PrimitiveType.TRIANGLES, vb, ib)
                 .culling(false)
                 .receiveShadows(false)
                 .castShadows(false)
-                .build(engine, entity)
 
-            android.util.Log.d("FilamentRenderer", "Created cube geometry (material-less)")
+            renderableBuilder.build(engine, entity)
+
+            android.util.Log.d("FilamentRenderer", "Created cube geometry at ($x, $y, $z) size=$cubeSize, color=${color.contentToString()}")
 
         } catch (e: Exception) {
             android.util.Log.e("FilamentRenderer", "Failed to create cube: ${e.message}", e)
@@ -594,7 +597,10 @@ class FilamentRenderer(
             if (miiEntity != 0) {
                 scene.addEntity(miiEntity)
                 miiEntities.add(miiEntity)
-                android.util.Log.d("FilamentRenderer", "✓ Created Mii cube for ${miiChar.encounter.otherUserName} at (${miiChar.x}, ${miiChar.z})")
+                android.util.Log.d("FilamentRenderer", "✓ Created Mii cube for ${miiChar.encounter.otherUserName} at (${miiChar.x}, ${miiChar.z}) with color ${color.contentToString()}")
+                android.util.Log.d("FilamentRenderer", "   Entity ID: $miiEntity, Total entities now: ${miiEntities.size}")
+            } else {
+                android.util.Log.e("FilamentRenderer", "!!! Failed to create Mii cube for ${miiChar.encounter.otherUserName}")
             }
         } catch (e: Exception) {
             android.util.Log.e("FilamentRenderer", "Failed to create Mii placeholder: ${e.message}", e)
