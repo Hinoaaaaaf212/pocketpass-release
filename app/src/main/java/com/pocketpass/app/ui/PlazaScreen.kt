@@ -160,7 +160,8 @@ fun PlazaScreen(
     onOpenSettings: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
     onOpenStatistics: () -> Unit = {},
-    onOpenFavorites: () -> Unit = {}
+    onOpenFavorites: () -> Unit = {},
+    onOpen3DPlaza: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
@@ -367,6 +368,26 @@ fun PlazaScreen(
                     imageVector = Icons.Filled.Add,
                     contentDescription = "Debug: Add Test Encounter",
                     modifier = Modifier.size(32.dp)
+                )
+            }
+        }
+
+        // 3D Plaza FAB (bottom left) - overlay on top
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.BottomStart
+        ) {
+            FloatingActionButton(
+                onClick = onOpen3DPlaza,
+                containerColor = PocketPassGreen,
+                contentColor = OffWhite
+            ) {
+                Text(
+                    text = "3D",
+                    fontWeight = FontWeight.Bold,
+                    style = MaterialTheme.typography.titleMedium
                 )
             }
         }

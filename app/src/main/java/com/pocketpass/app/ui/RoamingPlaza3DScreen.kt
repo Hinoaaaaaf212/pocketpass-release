@@ -1,0 +1,388 @@
+package com.pocketpass.app.ui
+
+import android.content.Context
+import android.view.Choreographer
+import android.view.Surface
+import android.view.SurfaceView
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import com.google.android.filament.*
+import com.google.android.filament.android.DisplayHelper
+import com.google.android.filament.android.UiHelper
+import com.google.android.filament.gltfio.AssetLoader
+import com.google.android.filament.gltfio.MaterialProvider
+import com.google.android.filament.gltfio.ResourceLoader
+import com.google.android.filament.utils.KTX1Loader
+import com.google.android.filament.utils.Utils
+import com.pocketpass.app.data.Encounter
+import com.pocketpass.app.data.PocketPassDatabase
+import com.pocketpass.app.ui.theme.DarkText
+import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.ui.theme.SkyBlue
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.nio.ByteBuffer
+import kotlin.math.cos
+import kotlin.math.sin
+
+@Composable
+fun RoamingPlaza3DScreen(
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val db = remember { PocketPassDatabase.getDatabase(context) }
+    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+
+    var selectedEncounter by remember { mutableStateOf<Encounter?>(null) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Checkered background
+        CheckeredBackground(
+            modifier = Modifier.fillMaxSize(),
+            gradientColors = listOf(PocketPassGreen, SkyBlue)
+        )
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Top bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        imageVector = Icons.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = DarkText
+                    )
+                }
+                Text(
+                    text = "Roaming Plaza",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = DarkText
+                )
+                Spacer(modifier = Modifier.width(48.dp)) // Balance the back button
+            }
+
+            // 3D Filament View
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                FilamentPlazaView(
+                    encounters = encounters,
+                    onMiiTapped = { encounter ->
+                        selectedEncounter = encounter
+                    }
+                )
+            }
+
+            // Info text
+            Text(
+                text = if (encounters.isEmpty()) {
+                    "No friends in the plaza yet!"
+                } else {
+                    "${encounters.size} Miis roaming around"
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = DarkText
+            )
+        }
+
+        // Show selected Mii card
+        if (selectedEncounter != null) {
+            AlertDialog(
+                onDismissRequest = { selectedEncounter = null },
+                title = {
+                    Text(selectedEncounter!!.otherUserName)
+                },
+                text = {
+                    Column {
+                        Text("Greeting: ${selectedEncounter!!.greeting}")
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("From: ${selectedEncounter!!.origin}")
+                        if (selectedEncounter!!.hobbies.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Hobbies: ${selectedEncounter!!.hobbies}")
+                        }
+                    }
+                },
+                confirmButton = {
+                    TextButton(onClick = { selectedEncounter = null }) {
+                        Text("Close")
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+fun FilamentPlazaView(
+    encounters: List<Encounter>,
+    onMiiTapped: (Encounter) -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    AndroidView(
+        factory = { ctx ->
+            SurfaceView(ctx).apply {
+                val renderer = FilamentRenderer(ctx, this, encounters, onMiiTapped, coroutineScope)
+                // Renderer will handle lifecycle
+            }
+        },
+        modifier = Modifier.fillMaxSize()
+    )
+}
+
+/**
+ * Filament 3D Renderer for the Roaming Plaza
+ */
+class FilamentRenderer(
+    private val context: Context,
+    private val surfaceView: SurfaceView,
+    private val encounters: List<Encounter>,
+    private val onMiiTapped: (Encounter) -> Unit,
+    private val scope: CoroutineScope
+) {
+    // Filament core components
+    private lateinit var engine: Engine
+    private lateinit var renderer: Renderer
+    private lateinit var scene: Scene
+    private lateinit var view: View
+    private lateinit var camera: Camera
+
+    // UI and display
+    private lateinit var uiHelper: UiHelper
+    private lateinit var displayHelper: DisplayHelper
+
+    // Asset loading
+    private lateinit var assetLoader: AssetLoader
+    private lateinit var resourceLoader: ResourceLoader
+    private lateinit var materialProvider: MaterialProvider
+
+    // Mii characters
+    private val miiCharacters = mutableListOf<MiiCharacter3D>()
+
+    // Frame callback
+    private val frameCallback = object : Choreographer.FrameCallback {
+        private var lastFrameTime = System.nanoTime()
+
+        override fun doFrame(frameTimeNanos: Long) {
+            val deltaTime = (frameTimeNanos - lastFrameTime) / 1_000_000_000f
+            lastFrameTime = frameTimeNanos
+
+            // Update Miis
+            updateMiis(deltaTime)
+
+            // Render frame
+            if (uiHelper.isReadyToRender) {
+                if (renderer.beginFrame(uiHelper.swap())) {
+                    renderer.render(view)
+                    renderer.endFrame()
+                }
+            }
+
+            Choreographer.getInstance().postFrameCallback(this)
+        }
+    }
+
+    init {
+        setupFilament()
+        createScene()
+        loadModels()
+
+        // Start rendering
+        Choreographer.getInstance().postFrameCallback(frameCallback)
+    }
+
+    private fun setupFilament() {
+        // Initialize Filament
+        Utils.init()
+
+        engine = Engine.create()
+        renderer = engine.createRenderer()
+        scene = engine.createScene()
+        view = engine.createView()
+        camera = engine.createCamera(engine.entityManager.create())
+
+        // Configure view
+        view.scene = scene
+        view.camera = camera
+
+        // Setup camera position (bird's eye view)
+        val eye = doubleArrayOf(0.0, 15.0, 15.0)  // Camera position
+        val center = doubleArrayOf(0.0, 0.0, 0.0)  // Look at center
+        val up = doubleArrayOf(0.0, 1.0, 0.0)      // Up vector
+        camera.lookAt(eye[0], eye[1], eye[2], center[0], center[1], center[2], up[0], up[1], up[2])
+
+        // Setup UI helper for surface management
+        uiHelper = UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK)
+        uiHelper.renderCallback = object : UiHelper.RendererCallback {
+            override fun onNativeWindowChanged(surface: Surface) {
+                displayHelper.attach(renderer, surface)
+            }
+
+            override fun onDetachedFromSurface() {
+                displayHelper.detach()
+            }
+
+            override fun onResized(width: Int, height: Int) {
+                view.viewport = Viewport(0, 0, width, height)
+                val aspect = width.toDouble() / height.toDouble()
+                camera.setProjection(45.0, aspect, 0.1, 100.0, Camera.Fov.VERTICAL)
+            }
+        }
+
+        uiHelper.attachTo(surfaceView)
+        displayHelper = DisplayHelper(context)
+
+        // Asset loader setup
+        materialProvider = MaterialProvider(engine)
+        assetLoader = AssetLoader(engine, materialProvider, EntityManager.get())
+        resourceLoader = ResourceLoader(engine)
+    }
+
+    private fun createScene() {
+        // Add lighting
+        val sunlight = EntityManager.get().create()
+        LightManager.Builder(LightManager.Type.SUN)
+            .color(1.0f, 1.0f, 1.0f)
+            .intensity(100_000.0f)
+            .direction(0.0f, -1.0f, 0.3f)
+            .castShadows(true)
+            .build(engine, sunlight)
+        scene.addEntity(sunlight)
+
+        // Add ambient light
+        val ibl = EntityManager.get().create()
+        LightManager.Builder(LightManager.Type.SUN)
+            .color(0.7f, 0.8f, 1.0f)
+            .intensity(20_000.0f)
+            .build(engine, ibl)
+        scene.addEntity(ibl)
+
+        // Create plaza floor
+        createPlazaFloor()
+    }
+
+    private fun createPlazaFloor() {
+        // Create a simple green floor plane
+        val floorEntity = EntityManager.get().create()
+
+        // Build a simple floor mesh (TODO: enhance with texture)
+        RenderableManager.Builder(1)
+            .boundingBox(Box(0.0f, -0.1f, 0.0f, 20.0f, 0.0f, 20.0f))
+            .geometry(0, RenderableManager.PrimitiveType.TRIANGLES,
+                createPlaneVertexBuffer(), createPlaneIndexBuffer())
+            .material(0, createGreenMaterial())
+            .build(engine, floorEntity)
+
+        scene.addEntity(floorEntity)
+    }
+
+    private fun createPlaneVertexBuffer(): VertexBuffer {
+        val vertices = floatArrayOf(
+            -10f, 0f, -10f,  // Position 0
+             10f, 0f, -10f,  // Position 1
+             10f, 0f,  10f,  // Position 2
+            -10f, 0f,  10f   // Position 3
+        )
+
+        val buffer = ByteBuffer.allocate(vertices.size * 4)
+        buffer.asFloatBuffer().put(vertices)
+        buffer.flip()
+
+        return VertexBuffer.Builder()
+            .vertexCount(4)
+            .bufferCount(1)
+            .attribute(VertexBuffer.VertexAttribute.POSITION, 0,
+                VertexBuffer.AttributeType.FLOAT3, 0, 12)
+            .build(engine)
+            .apply {
+                setBufferAt(engine, 0, buffer)
+            }
+    }
+
+    private fun createPlaneIndexBuffer(): IndexBuffer {
+        val indices = shortArrayOf(0, 1, 2, 0, 2, 3)
+
+        val buffer = ByteBuffer.allocate(indices.size * 2)
+        buffer.asShortBuffer().put(indices)
+        buffer.flip()
+
+        return IndexBuffer.Builder()
+            .indexCount(6)
+            .bufferType(IndexBuffer.Builder.IndexType.USHORT)
+            .build(engine)
+            .apply {
+                setBuffer(engine, buffer)
+            }
+    }
+
+    private fun createGreenMaterial(): MaterialInstance {
+        val material = Material.Builder()
+            .build(engine)
+        return material.createInstance()
+    }
+
+    private fun loadModels() {
+        scope.launch {
+            // For each encounter, create a Mii character
+            encounters.forEach { encounter ->
+                val miiChar = MiiCharacter3D.createRandom(encounter)
+                miiCharacters.add(miiChar)
+
+                // Load the Mii 3D model (simplified for now)
+                // TODO: Actually load the .glb models from assets
+                // createMiiModel(miiChar)
+            }
+        }
+    }
+
+    private fun updateMiis(deltaTime: Float) {
+        miiCharacters.forEach { mii ->
+            mii.update(deltaTime)
+            // TODO: Update 3D model position and rotation
+        }
+    }
+
+    fun cleanup() {
+        Choreographer.getInstance().removeFrameCallback(frameCallback)
+        uiHelper.detach()
+
+        // Cleanup Filament resources
+        engine.destroyRenderer(renderer)
+        engine.destroyView(view)
+        engine.destroyScene(scene)
+        engine.destroyCamera(camera)
+
+        assetLoader.destroy()
+        resourceLoader.destroy()
+        materialProvider.destroyMaterials()
+        materialProvider.destroy()
+
+        engine.destroy()
+    }
+}

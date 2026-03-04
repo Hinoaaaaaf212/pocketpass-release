@@ -26,6 +26,7 @@ import com.pocketpass.app.ui.FavoritesScreen
 import com.pocketpass.app.ui.PermissionsScreen
 import com.pocketpass.app.ui.PlazaScreen
 import com.pocketpass.app.ui.ProfileSetupScreen
+import com.pocketpass.app.ui.RoamingPlaza3DScreen
 import com.pocketpass.app.ui.SettingsScreen
 import com.pocketpass.app.ui.StatisticsScreen
 import com.pocketpass.app.ui.theme.PocketPassTheme
@@ -50,6 +51,7 @@ class MainActivity : ComponentActivity() {
                     var showHistory by remember { mutableStateOf(false) }
                     var showStatistics by remember { mutableStateOf(false) }
                     var showFavorites by remember { mutableStateOf(false) }
+                    var show3DPlaza by remember { mutableStateOf(false) }
                     var forceCreateNewMii by remember { mutableStateOf(false) }
 
                     if (!permissionsGranted) {
@@ -91,6 +93,10 @@ class MainActivity : ComponentActivity() {
                         FavoritesScreen(
                             onBack = { showFavorites = false }
                         )
+                    } else if (show3DPlaza) {
+                        RoamingPlaza3DScreen(
+                            onBack = { show3DPlaza = false }
+                        )
                     } else {
                         LaunchedEffect(Unit) {
                             try {
@@ -106,7 +112,8 @@ class MainActivity : ComponentActivity() {
                             onOpenSettings = { showSettings = true },
                             onOpenHistory = { showHistory = true },
                             onOpenStatistics = { showStatistics = true },
-                            onOpenFavorites = { showFavorites = true }
+                            onOpenFavorites = { showFavorites = true },
+                            onOpen3DPlaza = { show3DPlaza = true }
                         )
                     }
                 }
