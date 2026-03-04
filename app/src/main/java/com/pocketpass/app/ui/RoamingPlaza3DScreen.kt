@@ -200,63 +200,106 @@ class FilamentRenderer(
     // Frame callback
     private val frameCallback = object : Choreographer.FrameCallback {
         private var lastFrameTime = System.nanoTime()
+        private var frameCount = 0
 
         override fun doFrame(frameTimeNanos: Long) {
             try {
                 val deltaTime = (frameTimeNanos - lastFrameTime) / 1_000_000_000f
                 lastFrameTime = frameTimeNanos
+                frameCount++
+
+                // Log every 60 frames (about once per second at 60fps)
+                if (frameCount % 60 == 0) {
+                    android.util.Log.d("FilamentRenderer", "--- Frame $frameCount: isReadyToRender=$isReadyToRender, swapChain=$swapChain, uiHelper.isReadyToRender=${uiHelper.isReadyToRender}")
+                }
 
                 // Update Miis
                 updateMiis(deltaTime)
 
                 // Render frame only if swap chain is ready
                 if (isReadyToRender && swapChain != null && uiHelper.isReadyToRender) {
+                    if (frameCount == 1 || frameCount % 60 == 0) {
+                        android.util.Log.d("FilamentRenderer", "--- Rendering frame $frameCount")
+                    }
+
                     if (renderer.beginFrame(swapChain!!, 0)) {
                         renderer.render(view)
                         renderer.endFrame()
+
+                        if (frameCount == 1) {
+                            android.util.Log.d("FilamentRenderer", "--- First frame rendered successfully!")
+                        }
+                    } else {
+                        if (frameCount % 60 == 0) {
+                            android.util.Log.w("FilamentRenderer", "--- beginFrame returned false")
+                        }
+                    }
+                } else {
+                    if (frameCount % 60 == 0) {
+                        android.util.Log.w("FilamentRenderer", "--- Skipping frame (not ready): isReady=$isReadyToRender, swap=$swapChain, uiReady=${uiHelper.isReadyToRender}")
                     }
                 }
 
                 Choreographer.getInstance().postFrameCallback(this)
             } catch (e: Exception) {
-                android.util.Log.e("FilamentRenderer", "Error in render loop: ${e.message}", e)
+                android.util.Log.e("FilamentRenderer", "!!! Error in render loop: ${e.message}", e)
+                e.printStackTrace()
             }
         }
     }
 
     init {
         try {
-            android.util.Log.d("FilamentRenderer", "Initializing Filament renderer")
+            android.util.Log.d("FilamentRenderer", "=== Starting Filament initialization ===")
             setupFilament()
+            android.util.Log.d("FilamentRenderer", "✓ setupFilament() complete")
+
             createScene()
+            android.util.Log.d("FilamentRenderer", "✓ createScene() complete")
+
             loadModels()
+            android.util.Log.d("FilamentRenderer", "✓ loadModels() complete - ${miiCharacters.size} Miis created")
 
             // Start rendering
             Choreographer.getInstance().postFrameCallback(frameCallback)
-            android.util.Log.d("FilamentRenderer", "Filament renderer initialized successfully")
+            android.util.Log.d("FilamentRenderer", "✓ Frame callback registered")
+            android.util.Log.d("FilamentRenderer", "=== Filament initialization complete ===")
         } catch (e: Exception) {
-            android.util.Log.e("FilamentRenderer", "Failed to initialize Filament: ${e.message}", e)
+            android.util.Log.e("FilamentRenderer", "!!! Failed to initialize Filament: ${e.message}", e)
+            e.printStackTrace()
             throw e
         }
     }
 
     private fun setupFilament() {
         // Initialize Filament
+        android.util.Log.d("FilamentRenderer", "  - Initializing Filament Utils")
         Utils.init()
 
+        android.util.Log.d("FilamentRenderer", "  - Creating Engine")
         engine = Engine.create()
+
+        android.util.Log.d("FilamentRenderer", "  - Creating Renderer")
         renderer = engine.createRenderer()
+
+        android.util.Log.d("FilamentRenderer", "  - Creating Scene")
         scene = engine.createScene()
+
+        android.util.Log.d("FilamentRenderer", "  - Creating View")
         view = engine.createView()
+
+        android.util.Log.d("FilamentRenderer", "  - Creating Camera")
         camera = engine.createCamera(engine.entityManager.create())
 
         // Set sky blue background color through renderer clear options
+        android.util.Log.d("FilamentRenderer", "  - Setting clear color to sky blue (0.53, 0.81, 0.92, 1.0)")
         renderer.setClearOptions(Renderer.ClearOptions().apply {
             clearColor = floatArrayOf(0.53f, 0.81f, 0.92f, 1.0f) // Sky blue
             clear = true
         })
 
         // Initialize GLTF asset loader
+        android.util.Log.d("FilamentRenderer", "  - Initializing AssetLoader and ResourceLoader")
         assetLoader = AssetLoader(engine, UbershaderProvider(engine), EntityManager.get())
         resourceLoader = ResourceLoader(engine)
 
@@ -274,28 +317,32 @@ class FilamentRenderer(
         displayHelper = DisplayHelper(context)
 
         // Setup UI helper for surface management
+        android.util.Log.d("FilamentRenderer", "  - Setting up UiHelper")
         uiHelper = UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK)
         uiHelper.renderCallback = object : UiHelper.RendererCallback {
             override fun onNativeWindowChanged(surface: Surface) {
                 try {
-                    android.util.Log.d("FilamentRenderer", "Surface changed, creating swap chain")
+                    android.util.Log.d("FilamentRenderer", ">>> Surface changed, creating swap chain")
                     swapChain = engine.createSwapChain(surface)
+                    android.util.Log.d("FilamentRenderer", ">>> SwapChain created: $swapChain")
 
                     val display = displayHelper.display
+                    android.util.Log.d("FilamentRenderer", ">>> Display: $display")
                     if (display != null) {
                         displayHelper.attach(renderer, display)
                         isReadyToRender = true
-                        android.util.Log.d("FilamentRenderer", "Swap chain ready")
+                        android.util.Log.d("FilamentRenderer", ">>> Swap chain ready, isReadyToRender = true")
                     } else {
-                        android.util.Log.e("FilamentRenderer", "Display is null!")
+                        android.util.Log.e("FilamentRenderer", "!!! Display is null!")
                     }
                 } catch (e: Exception) {
-                    android.util.Log.e("FilamentRenderer", "Error creating swap chain: ${e.message}", e)
+                    android.util.Log.e("FilamentRenderer", "!!! Error creating swap chain: ${e.message}", e)
+                    e.printStackTrace()
                 }
             }
 
             override fun onDetachedFromSurface() {
-                android.util.Log.d("FilamentRenderer", "Surface detached")
+                android.util.Log.d("FilamentRenderer", ">>> Surface detached")
                 isReadyToRender = false
                 displayHelper.detach()
                 swapChain?.let { engine.destroySwapChain(it) }
@@ -303,17 +350,20 @@ class FilamentRenderer(
             }
 
             override fun onResized(width: Int, height: Int) {
-                android.util.Log.d("FilamentRenderer", "Surface resized: ${width}x${height}")
+                android.util.Log.d("FilamentRenderer", ">>> Surface resized: ${width}x${height}")
                 view.viewport = Viewport(0, 0, width, height)
                 val aspect = width.toDouble() / height.toDouble()
                 camera.setProjection(45.0, aspect, 0.1, 100.0, Camera.Fov.VERTICAL)
+                android.util.Log.d("FilamentRenderer", ">>> Viewport and camera projection set")
             }
         }
 
+        android.util.Log.d("FilamentRenderer", "  - Attaching UiHelper to SurfaceView")
         uiHelper.attachTo(surfaceView)
     }
 
     private fun createScene() {
+        android.util.Log.d("FilamentRenderer", "  - Creating sunlight")
         // Add lighting
         val sunlight = EntityManager.get().create()
         LightManager.Builder(LightManager.Type.SUN)
@@ -323,7 +373,9 @@ class FilamentRenderer(
             .castShadows(true)
             .build(engine, sunlight)
         scene.addEntity(sunlight)
+        android.util.Log.d("FilamentRenderer", "  - Sunlight added to scene")
 
+        android.util.Log.d("FilamentRenderer", "  - Creating ambient light")
         // Add ambient light
         val ibl = EntityManager.get().create()
         LightManager.Builder(LightManager.Type.SUN)
@@ -331,6 +383,7 @@ class FilamentRenderer(
             .intensity(20_000.0f)
             .build(engine, ibl)
         scene.addEntity(ibl)
+        android.util.Log.d("FilamentRenderer", "  - Ambient light added to scene")
 
         // Create simple reference grid on the floor level
         // This helps visualize the 3D space without needing materials
@@ -340,7 +393,7 @@ class FilamentRenderer(
     private fun createReferenceGrid() {
         // Create a simple grid of lines to visualize the plaza floor
         // We'll add Mii placeholder entities here too
-        android.util.Log.d("FilamentRenderer", "Creating reference grid (visual placeholder)")
+        android.util.Log.d("FilamentRenderer", "  - Reference grid placeholder (no geometry yet)")
         // TODO: Add actual floor geometry once we have proper material support
         // For now, the sky blue background and Mii entities will be enough to visualize
     }
