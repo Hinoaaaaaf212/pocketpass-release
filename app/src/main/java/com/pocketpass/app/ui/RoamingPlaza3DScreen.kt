@@ -309,68 +309,8 @@ class FilamentRenderer(
             .build(engine, ibl)
         scene.addEntity(ibl)
 
-        // Create plaza floor
-        createPlazaFloor()
-    }
-
-    private fun createPlazaFloor() {
-        // Create a simple green floor plane
-        val floorEntity = EntityManager.get().create()
-
-        // Build a simple floor mesh (TODO: enhance with texture)
-        RenderableManager.Builder(1)
-            .boundingBox(Box(0.0f, -0.1f, 0.0f, 20.0f, 0.0f, 20.0f))
-            .geometry(0, RenderableManager.PrimitiveType.TRIANGLES,
-                createPlaneVertexBuffer(), createPlaneIndexBuffer())
-            .material(0, createGreenMaterial())
-            .build(engine, floorEntity)
-
-        scene.addEntity(floorEntity)
-    }
-
-    private fun createPlaneVertexBuffer(): VertexBuffer {
-        val vertices = floatArrayOf(
-            -10f, 0f, -10f,  // Position 0
-             10f, 0f, -10f,  // Position 1
-             10f, 0f,  10f,  // Position 2
-            -10f, 0f,  10f   // Position 3
-        )
-
-        val buffer = ByteBuffer.allocate(vertices.size * 4)
-        buffer.asFloatBuffer().put(vertices)
-        buffer.flip()
-
-        return VertexBuffer.Builder()
-            .vertexCount(4)
-            .bufferCount(1)
-            .attribute(VertexBuffer.VertexAttribute.POSITION, 0,
-                VertexBuffer.AttributeType.FLOAT3, 0, 12)
-            .build(engine)
-            .apply {
-                setBufferAt(engine, 0, buffer)
-            }
-    }
-
-    private fun createPlaneIndexBuffer(): IndexBuffer {
-        val indices = shortArrayOf(0, 1, 2, 0, 2, 3)
-
-        val buffer = ByteBuffer.allocate(indices.size * 2)
-        buffer.asShortBuffer().put(indices)
-        buffer.flip()
-
-        return IndexBuffer.Builder()
-            .indexCount(6)
-            .bufferType(IndexBuffer.Builder.IndexType.USHORT)
-            .build(engine)
-            .apply {
-                setBuffer(engine, buffer)
-            }
-    }
-
-    private fun createGreenMaterial(): MaterialInstance {
-        val material = Material.Builder()
-            .build(engine)
-        return material.createInstance()
+        // TODO: Create plaza floor once we have proper materials
+        // Floor creation requires pre-compiled .filamat material files
     }
 
     private fun loadModels() {
