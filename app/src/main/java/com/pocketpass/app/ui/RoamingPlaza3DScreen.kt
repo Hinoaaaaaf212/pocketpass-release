@@ -175,11 +175,14 @@ class FilamentRenderer(
     private lateinit var uiHelper: UiHelper
     private lateinit var displayHelper: DisplayHelper
 
-    // Asset loading (simplified - removed for now to fix build)
-    // Will add back when implementing actual model loading
+    // GLTF model loading
+    private lateinit var assetLoader: AssetLoader
+    private lateinit var resourceLoader: ResourceLoader
+    private val loadedAssets = mutableListOf<FilamentAsset>()
 
     // Mii characters
     private val miiCharacters = mutableListOf<MiiCharacter3D>()
+    private val miiEntities = mutableListOf<@Entity Int>()
 
     // Track if we're ready to render
     private var isReadyToRender = false
@@ -236,6 +239,10 @@ class FilamentRenderer(
         scene = engine.createScene()
         view = engine.createView()
         camera = engine.createCamera(engine.entityManager.create())
+
+        // Initialize GLTF asset loader
+        assetLoader = AssetLoader(engine, MaterialProvider(engine), EntityManager.get())
+        resourceLoader = ResourceLoader(engine)
 
         // Configure view
         view.scene = scene
@@ -312,23 +319,95 @@ class FilamentRenderer(
             .build(engine, ibl)
         scene.addEntity(ibl)
 
-        // TODO: Create plaza floor once we have proper materials
-        // Floor creation requires pre-compiled .filamat material files
+        // Create simple reference grid on the floor level
+        // This helps visualize the 3D space without needing materials
+        createReferenceGrid()
+    }
+
+    private fun createReferenceGrid() {
+        // Create a simple grid of lines to visualize the plaza floor
+        // We'll add Mii placeholder entities here too
+        android.util.Log.d("FilamentRenderer", "Creating reference grid (visual placeholder)")
+        // TODO: Add actual floor geometry once we have proper material support
+        // For now, the sky blue background and Mii entities will be enough to visualize
     }
 
     private fun loadModels() {
-        // For each encounter, create a Mii character
+        // For each encounter, create a Mii character and load their 3D model
         encounters.forEach { encounter ->
             val miiChar = MiiCharacter3D.createRandom(encounter)
             miiCharacters.add(miiChar)
-            // TODO: Actually load and render the .glb models from assets
+
+            // Load a simple cube model for now as a placeholder
+            // TODO: Replace with actual Mii .glb models
+            loadMiiPlaceholder(miiChar)
         }
+
+        android.util.Log.d("FilamentRenderer", "Loaded ${miiCharacters.size} Mii characters")
+    }
+
+    private fun loadMiiPlaceholder(miiChar: MiiCharacter3D) {
+        // Create a simple colored sphere/cube as a placeholder for each Mii
+        // This will be replaced with actual .glb Mii models later
+
+        // For now, we'll use a simple approach: create a tiny cube entity at the Mii's position
+        // The cube will move around based on the miiChar's position updates
+
+        // We can't create geometry without materials, so let's try loading a default primitive
+        // from assets or wait until we have actual .glb files
+
+        android.util.Log.d("FilamentRenderer", "Placeholder for Mii at (${miiChar.position.x}, ${miiChar.position.z})")
+
+        // TODO: Load actual .glb model from assets
+        // Example code for when we have .glb files:
+        // try {
+        //     val buffer = context.assets.open("models/mii_${encounter.id}.glb").readBytes()
+        //     val asset = assetLoader.createAsset(ByteBuffer.wrap(buffer))
+        //     asset?.let {
+        //         resourceLoader.loadResources(it)
+        //         scene.addEntities(it.entities)
+        //         loadedAssets.add(it)
+        //         miiEntities.add(it.root)
+        //     }
+        // } catch (e: Exception) {
+        //     android.util.Log.e("FilamentRenderer", "Failed to load Mii model: ${e.message}")
+        // }
     }
 
     private fun updateMiis(deltaTime: Float) {
-        miiCharacters.forEach { mii ->
+        miiCharacters.forEachIndexed { index, mii ->
+            // Update Mii character logic (position, direction, etc.)
             mii.update(deltaTime)
-            // TODO: Update 3D model position and rotation
+
+            // Update 3D model position and rotation if entity exists
+            if (index < miiEntities.size) {
+                val entity = miiEntities[index]
+                val transform = engine.transformManager
+                val transformInstance = transform.getInstance(entity)
+
+                if (transformInstance != 0) {
+                    // Create transformation matrix
+                    val matrix = FloatArray(16)
+                    android.opengl.Matrix.setIdentityM(matrix, 0)
+
+                    // Translate to Mii's position
+                    android.opengl.Matrix.translateM(
+                        matrix, 0,
+                        mii.position.x,
+                        0.5f,  // Height above ground
+                        mii.position.z
+                    )
+
+                    // Rotate to face movement direction
+                    val angleInDegrees = Math.toDegrees(
+                        kotlin.math.atan2(mii.direction.z.toDouble(), mii.direction.x.toDouble())
+                    ).toFloat()
+                    android.opengl.Matrix.rotateM(matrix, 0, angleInDegrees - 90f, 0f, 1f, 0f)
+
+                    // Apply transformation
+                    transform.setTransform(transformInstance, matrix)
+                }
+            }
         }
     }
 
@@ -337,6 +416,13 @@ class FilamentRenderer(
             android.util.Log.d("FilamentRenderer", "Cleaning up Filament resources")
             Choreographer.getInstance().removeFrameCallback(frameCallback)
             uiHelper.detach()
+
+            // Cleanup loaded assets
+            loadedAssets.forEach { asset ->
+                assetLoader.destroyAsset(asset)
+            }
+            loadedAssets.clear()
+            miiEntities.clear()
 
             // Cleanup swap chain
             swapChain?.let { engine.destroySwapChain(it) }
