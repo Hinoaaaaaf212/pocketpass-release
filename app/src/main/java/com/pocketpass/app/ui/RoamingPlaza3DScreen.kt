@@ -19,11 +19,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.google.android.filament.*
 import com.google.android.filament.android.DisplayHelper
 import com.google.android.filament.android.UiHelper
-import com.google.android.filament.gltfio.AssetLoader
-import com.google.android.filament.gltfio.MaterialProvider
-import com.google.android.filament.gltfio.ResourceLoader
-import com.google.android.filament.utils.KTX1Loader
-import com.google.android.filament.utils.Utils
+import com.google.android.filament.gltfio.*
+import com.google.android.filament.utils.*
 import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.PocketPassDatabase
 import com.pocketpass.app.ui.theme.DarkText
@@ -172,15 +169,14 @@ class FilamentRenderer(
     private lateinit var scene: Scene
     private lateinit var view: View
     private lateinit var camera: Camera
+    private lateinit var swapChain: SwapChain
 
     // UI and display
     private lateinit var uiHelper: UiHelper
     private lateinit var displayHelper: DisplayHelper
 
-    // Asset loading
-    private lateinit var assetLoader: AssetLoader
-    private lateinit var resourceLoader: ResourceLoader
-    private lateinit var materialProvider: MaterialProvider
+    // Asset loading (simplified - removed for now to fix build)
+    // Will add back when implementing actual model loading
 
     // Mii characters
     private val miiCharacters = mutableListOf<MiiCharacter3D>()
@@ -198,7 +194,7 @@ class FilamentRenderer(
 
             // Render frame
             if (uiHelper.isReadyToRender) {
-                if (renderer.beginFrame(uiHelper.swap())) {
+                if (renderer.beginFrame(swapChain, 0)) {
                     renderer.render(view)
                     renderer.endFrame()
                 }
@@ -237,15 +233,20 @@ class FilamentRenderer(
         val up = doubleArrayOf(0.0, 1.0, 0.0)      // Up vector
         camera.lookAt(eye[0], eye[1], eye[2], center[0], center[1], center[2], up[0], up[1], up[2])
 
+        // Setup display helper
+        displayHelper = DisplayHelper(context)
+
         // Setup UI helper for surface management
         uiHelper = UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK)
         uiHelper.renderCallback = object : UiHelper.RendererCallback {
             override fun onNativeWindowChanged(surface: Surface) {
-                displayHelper.attach(renderer, surface)
+                swapChain = engine.createSwapChain(surface)
+                displayHelper.attach(renderer, displayHelper.display!!)
             }
 
             override fun onDetachedFromSurface() {
                 displayHelper.detach()
+                engine.destroySwapChain(swapChain)
             }
 
             override fun onResized(width: Int, height: Int) {
@@ -256,12 +257,6 @@ class FilamentRenderer(
         }
 
         uiHelper.attachTo(surfaceView)
-        displayHelper = DisplayHelper(context)
-
-        // Asset loader setup
-        materialProvider = MaterialProvider(engine)
-        assetLoader = AssetLoader(engine, materialProvider, EntityManager.get())
-        resourceLoader = ResourceLoader(engine)
     }
 
     private fun createScene() {
@@ -348,16 +343,11 @@ class FilamentRenderer(
     }
 
     private fun loadModels() {
-        scope.launch {
-            // For each encounter, create a Mii character
-            encounters.forEach { encounter ->
-                val miiChar = MiiCharacter3D.createRandom(encounter)
-                miiCharacters.add(miiChar)
-
-                // Load the Mii 3D model (simplified for now)
-                // TODO: Actually load the .glb models from assets
-                // createMiiModel(miiChar)
-            }
+        // For each encounter, create a Mii character
+        encounters.forEach { encounter ->
+            val miiChar = MiiCharacter3D.createRandom(encounter)
+            miiCharacters.add(miiChar)
+            // TODO: Actually load and render the .glb models from assets
         }
     }
 
@@ -376,12 +366,11 @@ class FilamentRenderer(
         engine.destroyRenderer(renderer)
         engine.destroyView(view)
         engine.destroyScene(scene)
-        engine.destroyCamera(camera)
 
-        assetLoader.destroy()
-        resourceLoader.destroy()
-        materialProvider.destroyMaterials()
-        materialProvider.destroy()
+        // Destroy camera entity
+        val cameraEntity = camera.entity
+        engine.destroyCameraComponent(cameraEntity)
+        EntityManager.get().destroy(cameraEntity)
 
         engine.destroy()
     }
