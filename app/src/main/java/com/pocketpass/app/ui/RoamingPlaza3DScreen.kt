@@ -241,6 +241,9 @@ class FilamentRenderer(
         view.scene = scene
         view.camera = camera
 
+        // Set a sky blue background color so the screen isn't black
+        view.setClearColor(0.53f, 0.81f, 0.92f, 1.0f) // Sky blue (RGB: 135, 206, 235)
+
         // Setup camera position (bird's eye view)
         val eye = doubleArrayOf(0.0, 15.0, 15.0)  // Camera position
         val center = doubleArrayOf(0.0, 0.0, 0.0)  // Look at center
