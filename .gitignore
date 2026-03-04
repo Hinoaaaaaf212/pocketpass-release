@@ -1,0 +1,27 @@
+# Markdown files
+*.md
+
+# Build directories
+app/build/
+build/
+.gradle/
+
+# IDE files
+.idea/
+*.iml
+.DS_Store
+
+# Local configuration
+local.properties
+.claude/
+
+# Generated files
+*.apk
+*.ap_
+*.aab
+*.dex
+*.class
+
+# Keystore files
+*.jks
+*.keystore

@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mii Render Test</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .test-case {
+            margin: 20px 0;
+            padding: 20px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        img {
+            max-width: 300px;
+            border: 2px solid #ddd;
+            margin: 10px 0;
+        }
+        .hex {
+            font-family: monospace;
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            word-break: break-all;
+            font-size: 12px;
+        }
+        .status {
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .success { color: green; }
+        .error { color: red; }
+    </style>
+</head>
+<body>
+    <h1>Mii Rendering API Test</h1>
+    <p>Testing different hex formats and API endpoints...</p>
+
+    <div class="test-case">
+        <h3>Test 1: Known Working Mii (Male Default)</h3>
+        <div class="hex">AwEAAAAAAAAAAAAAgP9wmQAAAAAAAAAAAABNAGkAaQAAAAAAAAAAAAAAAAAAAEBAAAAhAQJoRBgmNEYUgRIXaA0AACkAUkhQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMNn</div>
+        <div id="status1" class="status">Loading...</div>
+        <img id="img1" src="https://mii-unsecure.ariankordi.net/miis/image.png?data=AwEAAAAAAAAAAAAAgP9wmQAAAAAAAAAAAABNAGkAaQAAAAAAAAAAAAAAAAAAAEBAAAAhAQJoRBgmNEYUgRIXaA0AACkAUkhQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMNn&type=face&width=512&verifyCharInfo=0"
+             onload="document.getElementById('status1').className='status success'; document.getElementById('status1').textContent='✓ Loaded successfully';"
+             onerror="document.getElementById('status1').className='status error'; document.getElementById('status1').textContent='✗ Failed to load';" />
+    </div>
+
+    <div class="test-case">
+        <h3>Test 2: Hex Format (Converted to hex)</h3>
+        <div class="hex">030100000000000000000000008fff70990000000000000000000000004d00690069000000000000000000000000000000000000404000002101026844182634461481121768 0d00002900524850000000000000000000000000000000000000000000000000c367</div>
+        <div id="status2" class="status">Loading...</div>
+        <img id="img2" src="https://mii-unsecure.ariankordi.net/miis/image.png?data=030100000000000000000000008fff7099000000000000000000000000004d0069006900000000000000000000000000000000000040400000210102684418263446148112176 80d00002900524850000000000000000000000000000000000000000000000000c367&type=face&width=512"
+             onload="document.getElementById('status2').className='status success'; document.getElementById('status2').textContent='✓ Loaded successfully';"
+             onerror="document.getElementById('status2').className='status error'; document.getElementById('status2').textContent='✗ Failed to load';" />
+    </div>
+
+    <div class="test-case">
+        <h3>Test 3: Default/Empty Mii</h3>
+        <div class="hex">010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000</div>
+        <div id="status3" class="status">Loading...</div>
+        <img id="img3" src="https://mii-unsecure.ariankordi.net/miis/image.png?data=010000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000&type=face&width=512"
+             onload="document.getElementById('status3').className='status success'; document.getElementById('status3').textContent='✓ Loaded successfully';"
+             onerror="document.getElementById('status3').className='status error'; document.getElementById('status3').textContent='✗ Failed to load';" />
+    </div>
+
+    <div class="test-case">
+        <h3>Test 4: Full Body Render</h3>
+        <div class="hex">AwEAAAAAAAAAAAAAgP9wmQAAAAAAAAAAAABNAGkAaQAAAAAAAAAAAAAAAAAAAEBAAAAhAQJoRBgmNEYUgRIXaA0AACkAUkhQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMNn</div>
+        <div id="status4" class="status">Loading...</div>
+        <img id="img4" src="https://mii-unsecure.ariankordi.net/miis/image.png?data=AwEAAAAAAAAAAAAAgP9wmQAAAAAAAAAAAABNAGkAaQAAAAAAAAAAAAAAAAAAAEBAAAAhAQJoRBgmNEYUgRIXaA0AACkAUkhQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMNn&type=all_body&width=512&bgColor=00000000"
+             onload="document.getElementById('status4').className='status success'; document.getElementById('status4').textContent='✓ Loaded successfully';"
+             onerror="document.getElementById('status4').className='status error'; document.getElementById('status4').textContent='✗ Failed to load';" />
+    </div>
+
+    <script>
+        console.log('Test page loaded. Check each image to see which formats work.');
+        console.log('API endpoint: https://mii-unsecure.ariankordi.net/miis/image.png');
+    </script>
+</body>
+</html>

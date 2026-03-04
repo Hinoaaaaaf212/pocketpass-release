@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body>
+    <script type="module">
+      import MiiCreator from "./dist/api.js";
+
+      function showResult(result) {
+        const template = document.getElementById("template").cloneNode(true);
+
+        template.id = "";
+        template.style.display = "block";
+        document.body.appendChild(template);
+
+        template.querySelector("img").src = result.headshot;
+        template.querySelector("h2").innerText = result.name;
+      }
+
+      document
+        .getElementById("createNew")
+        .addEventListener("click", async () => {
+          const result = await MiiCreator.newMii();
+          console.log("Mii result:", result);
+          showResult(result);
+        });
+
+      document
+        .getElementById("editExisting")
+        .addEventListener("click", async () => {
+          const result = await MiiCreator.editMii(
+            "AwAAQKBBOMSghAAA27iHMb5gKyoqQgAAWS1KAGEAcwBtAGkAbgBlAAAAAAAAABw3EhB7ASFuQxwNZMcYAAgegg0AMEGzW4JtAABvAHMAaQBnAG8AbgBhAGwAAAAAAJA6"
+          );
+          console.log("Mii result:", result);
+          showResult(result);
+        });
+
+      document.getElementById("select").addEventListener("click", async () => {
+        const result = await MiiCreator.selectMii();
+        console.log("Mii result:", result);
+        showResult(result);
+      });
+    </script>
+
+    <div id="template" style="display: none">
+      <h2></h2>
+      <img src="" alt="" />
+    </div>
+
+    <button id="createNew">New Mii</button>
+    <button id="editExisting">Edit Existing Mii</button>
+    <button id="select">Select Existing Mii from your library</button>
+  </body>
+</html>
