@@ -2,6 +2,7 @@ package com.pocketpass.app.ui
 
 import android.content.Context
 import android.view.Choreographer
+import android.view.MotionEvent
 import android.view.Surface
 import android.view.SurfaceView
 import androidx.compose.foundation.background
@@ -146,7 +147,16 @@ fun FilamentPlazaView(
         factory = { ctx ->
             SurfaceView(ctx).apply {
                 val renderer = FilamentRenderer(ctx, this, encounters, onMiiTapped, coroutineScope)
-                // Renderer will handle lifecycle
+
+                // Set up touch listener for Mii selection
+                setOnTouchListener { _, event ->
+                    if (event.action == MotionEvent.ACTION_DOWN) {
+                        renderer.handleTouch(event.x, event.y)
+                        true
+                    } else {
+                        false
+                    }
+                }
             }
         },
         modifier = Modifier.fillMaxSize()
@@ -408,6 +418,48 @@ class FilamentRenderer(
                     transform.setTransform(transformInstance, matrix)
                 }
             }
+        }
+    }
+
+    fun handleTouch(x: Float, y: Float) {
+        // Handle touch events for Mii selection
+        try {
+            // Simple 2D distance check for now
+            // In a real implementation, we'd do proper 3D ray picking
+
+            // Get viewport dimensions
+            val viewport = view.viewport
+            if (viewport.width == 0 || viewport.height == 0) return
+
+            // Find the closest Mii to the touch point
+            var closestMii: MiiCharacter3D? = null
+            var closestDistance = Float.MAX_VALUE
+
+            miiCharacters.forEach { mii ->
+                // Project 3D position to screen space (simplified)
+                // For a proper implementation, we'd use the view-projection matrix
+                val screenX = viewport.width / 2 + mii.position.x * 20
+                val screenY = viewport.height / 2 - mii.position.z * 20
+
+                val dx = screenX - x
+                val dy = screenY - y
+                val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+
+                if (distance < closestDistance && distance < 100f) { // 100px tap radius
+                    closestDistance = distance
+                    closestMii = mii
+                }
+            }
+
+            // Trigger callback if a Mii was selected
+            closestMii?.let { mii ->
+                android.util.Log.d("FilamentRenderer", "Tapped Mii: ${mii.encounter.otherUserName}")
+                scope.launch {
+                    onMiiTapped(mii.encounter)
+                }
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FilamentRenderer", "Error handling touch: ${e.message}", e)
         }
     }
 
