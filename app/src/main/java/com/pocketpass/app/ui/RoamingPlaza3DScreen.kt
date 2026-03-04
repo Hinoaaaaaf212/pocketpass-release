@@ -568,31 +568,37 @@ class FilamentRenderer(
     }
 
     private fun loadMiiPlaceholder(miiChar: MiiCharacter3D) {
-        // Create a simple colored sphere/cube as a placeholder for each Mii
-        // This will be replaced with actual .glb Mii models later
+        // Create a simple colored cube for each encounter Mii
+        try {
+            // Use different colors for different Miis
+            val colors = listOf(
+                floatArrayOf(0.3f, 0.6f, 1.0f, 1.0f),  // Blue
+                floatArrayOf(1.0f, 0.3f, 0.6f, 1.0f),  // Pink
+                floatArrayOf(0.3f, 1.0f, 0.6f, 1.0f),  // Green
+                floatArrayOf(1.0f, 1.0f, 0.3f, 1.0f),  // Yellow
+                floatArrayOf(0.6f, 0.3f, 1.0f, 1.0f),  // Purple
+                floatArrayOf(1.0f, 0.6f, 0.3f, 1.0f),  // Orange
+            )
 
-        // For now, we'll use a simple approach: create a tiny cube entity at the Mii's position
-        // The cube will move around based on the miiChar's position updates
+            // Pick a color based on the encounter ID
+            val colorIndex = miiChar.encounter.id.hashCode() % colors.size
+            val color = colors[colorIndex.coerceAtLeast(0)]
 
-        // We can't create geometry without materials, so let's try loading a default primitive
-        // from assets or wait until we have actual .glb files
+            val miiEntity = createSimpleMiiCube(
+                x = miiChar.x,
+                y = 0.0f,
+                z = miiChar.z,
+                color = color
+            )
 
-        android.util.Log.d("FilamentRenderer", "Placeholder for Mii at (${miiChar.x}, ${miiChar.z})")
-
-        // TODO: Load actual .glb model from assets
-        // Example code for when we have .glb files:
-        // try {
-        //     val buffer = context.assets.open("models/mii_${encounter.id}.glb").readBytes()
-        //     val asset = assetLoader.createAsset(ByteBuffer.wrap(buffer))
-        //     asset?.let {
-        //         resourceLoader.loadResources(it)
-        //         scene.addEntities(it.entities)
-        //         loadedAssets.add(it)
-        //         miiEntities.add(it.root)
-        //     }
-        // } catch (e: Exception) {
-        //     android.util.Log.e("FilamentRenderer", "Failed to load Mii model: ${e.message}")
-        // }
+            if (miiEntity != 0) {
+                scene.addEntity(miiEntity)
+                miiEntities.add(miiEntity)
+                android.util.Log.d("FilamentRenderer", "✓ Created Mii cube for ${miiChar.encounter.otherUserName} at (${miiChar.x}, ${miiChar.z})")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FilamentRenderer", "Failed to create Mii placeholder: ${e.message}", e)
+        }
     }
 
     private fun updateMiis(deltaTime: Float) {
@@ -601,8 +607,10 @@ class FilamentRenderer(
             mii.update(deltaTime)
 
             // Update 3D model position and rotation if entity exists
-            if (index < miiEntities.size) {
-                val entity = miiEntities[index]
+            // Note: index+1 because miiEntities[0] is the user's Mii
+            val entityIndex = index + 1
+            if (entityIndex < miiEntities.size) {
+                val entity = miiEntities[entityIndex]
                 val transform = engine.transformManager
                 val transformInstance = transform.getInstance(entity)
 
@@ -615,7 +623,7 @@ class FilamentRenderer(
                     android.opengl.Matrix.translateM(
                         matrix, 0,
                         mii.x,
-                        0.5f,  // Height above ground
+                        1.0f,  // Height above ground
                         mii.z
                     )
 
