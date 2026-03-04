@@ -326,15 +326,19 @@ class FilamentRenderer(
                     swapChain = engine.createSwapChain(surface)
                     android.util.Log.d("FilamentRenderer", ">>> SwapChain created: $swapChain")
 
+                    // Try to attach display helper if available, but don't require it
                     val display = displayHelper.display
                     android.util.Log.d("FilamentRenderer", ">>> Display: $display")
                     if (display != null) {
                         displayHelper.attach(renderer, display)
-                        isReadyToRender = true
-                        android.util.Log.d("FilamentRenderer", ">>> Swap chain ready, isReadyToRender = true")
+                        android.util.Log.d("FilamentRenderer", ">>> DisplayHelper attached to renderer")
                     } else {
-                        android.util.Log.e("FilamentRenderer", "!!! Display is null!")
+                        android.util.Log.w("FilamentRenderer", ">>> Display is null, continuing without DisplayHelper (this is OK)")
                     }
+
+                    // Mark as ready to render - we don't need the display helper for basic rendering
+                    isReadyToRender = true
+                    android.util.Log.d("FilamentRenderer", ">>> Swap chain ready, isReadyToRender = true")
                 } catch (e: Exception) {
                     android.util.Log.e("FilamentRenderer", "!!! Error creating swap chain: ${e.message}", e)
                     e.printStackTrace()
@@ -344,7 +348,11 @@ class FilamentRenderer(
             override fun onDetachedFromSurface() {
                 android.util.Log.d("FilamentRenderer", ">>> Surface detached")
                 isReadyToRender = false
-                displayHelper.detach()
+                try {
+                    displayHelper.detach()
+                } catch (e: Exception) {
+                    android.util.Log.w("FilamentRenderer", ">>> Error detaching display helper (safe to ignore): ${e.message}")
+                }
                 swapChain?.let { engine.destroySwapChain(it) }
                 swapChain = null
             }
