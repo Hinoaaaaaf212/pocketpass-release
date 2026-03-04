@@ -159,28 +159,34 @@ fun FilamentPlazaView(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
-    // Use a key to force recreation when encounters change
-    key(encounters.size) {
-        AndroidView(
-            factory = { ctx ->
-                android.util.Log.d("FilamentPlazaView", "Creating 3D view with ${encounters.size} encounters")
-                SurfaceView(ctx).apply {
-                    val renderer = FilamentRenderer(ctx, this, userName, encounters, onMiiTapped, coroutineScope)
+    // Store the renderer in a state so we can update it
+    var renderer by remember { mutableStateOf<FilamentRenderer?>(null) }
 
-                    // Set up touch listener for Mii selection
-                    setOnTouchListener { _, event ->
-                        if (event.action == MotionEvent.ACTION_DOWN) {
-                            renderer.handleTouch(event.x, event.y)
-                            true
-                        } else {
-                            false
-                        }
+    AndroidView(
+        factory = { ctx ->
+            android.util.Log.d("FilamentPlazaView", "Creating 3D view with ${encounters.size} encounters")
+            SurfaceView(ctx).apply {
+                val newRenderer = FilamentRenderer(ctx, this, userName, encounters, onMiiTapped, coroutineScope)
+                renderer = newRenderer
+
+                // Set up touch listener for Mii selection
+                setOnTouchListener { _, event ->
+                    if (event.action == MotionEvent.ACTION_DOWN) {
+                        newRenderer.handleTouch(event.x, event.y)
+                        true
+                    } else {
+                        false
                     }
                 }
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-    }
+            }
+        },
+        modifier = Modifier.fillMaxSize(),
+        update = { view ->
+            // Update encounters when they change
+            renderer?.updateEncounters(encounters)
+            android.util.Log.d("FilamentPlazaView", "Updated encounters: ${encounters.size} total")
+        }
+    )
 
     // Log encounters for debugging
     LaunchedEffect(encounters.size) {
@@ -698,6 +704,30 @@ class FilamentRenderer(
         } catch (e: Exception) {
             android.util.Log.e("FilamentRenderer", "Error handling touch: ${e.message}", e)
         }
+    }
+
+    fun updateEncounters(newEncounters: List<Encounter>) {
+        android.util.Log.d("FilamentRenderer", "updateEncounters called with ${newEncounters.size} encounters")
+
+        // Remove old encounter entities (keep user Mii at index 0)
+        if (miiEntities.size > 1) {
+            for (i in 1 until miiEntities.size) {
+                val entity = miiEntities[i]
+                scene.removeEntity(entity)
+                EntityManager.get().destroy(entity)
+            }
+            miiEntities.subList(1, miiEntities.size).clear()
+        }
+        miiCharacters.clear()
+
+        // Add new encounter Miis
+        newEncounters.forEach { encounter ->
+            val miiChar = MiiCharacter3D.createRandom(encounter)
+            miiCharacters.add(miiChar)
+            loadMiiPlaceholder(miiChar)
+        }
+
+        android.util.Log.d("FilamentRenderer", "Updated to ${miiCharacters.size} encounter Miis, ${miiEntities.size} total entities")
     }
 
     fun cleanup() {
