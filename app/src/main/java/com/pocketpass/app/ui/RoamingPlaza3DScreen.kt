@@ -159,8 +159,11 @@ fun FilamentPlazaView(
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
+    // Use encounters.size as key to recreate the view when encounters change
+    // This ensures the FilamentRenderer gets the updated encounters list
     AndroidView(
         factory = { ctx ->
+            android.util.Log.d("FilamentPlazaView", "Creating 3D view with ${encounters.size} encounters")
             SurfaceView(ctx).apply {
                 val renderer = FilamentRenderer(ctx, this, userName, encounters, onMiiTapped, coroutineScope)
 
@@ -175,8 +178,20 @@ fun FilamentPlazaView(
                 }
             }
         },
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        // Important: recreate the view when encounters change
+        update = { view ->
+            android.util.Log.d("FilamentPlazaView", "Update called with ${encounters.size} encounters")
+        }
     )
+
+    // Log encounters for debugging
+    LaunchedEffect(encounters.size) {
+        android.util.Log.d("FilamentPlazaView", "Encounters changed: ${encounters.size} total")
+        encounters.forEach { enc ->
+            android.util.Log.d("FilamentPlazaView", "  - ${enc.otherUserName} (${enc.encounterId})")
+        }
+    }
 }
 
 /**
