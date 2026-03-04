@@ -192,7 +192,7 @@ class FilamentRenderer(
 
     // Mii characters
     private val miiCharacters = mutableListOf<MiiCharacter3D>()
-    private val miiEntities = mutableListOf<@Entity Int>()
+    private val miiEntities = mutableListOf<Int>()
 
     // Track if we're ready to render
     private var isReadyToRender = false
@@ -251,7 +251,7 @@ class FilamentRenderer(
         camera = engine.createCamera(engine.entityManager.create())
 
         // Initialize GLTF asset loader
-        assetLoader = AssetLoader(engine, MaterialProvider(engine), EntityManager.get())
+        assetLoader = AssetLoader(engine, UbershaderProvider(engine), EntityManager.get())
         resourceLoader = ResourceLoader(engine)
 
         // Configure view
@@ -259,7 +259,7 @@ class FilamentRenderer(
         view.camera = camera
 
         // Set a sky blue background color so the screen isn't black
-        view.setClearColor(0.53f, 0.81f, 0.92f, 1.0f) // Sky blue (RGB: 135, 206, 235)
+        view.clearColor = floatArrayOf(0.53f, 0.81f, 0.92f, 1.0f) // Sky blue (RGB: 135, 206, 235)
 
         // Setup camera position (bird's eye view)
         val eye = doubleArrayOf(0.0, 15.0, 15.0)  // Camera position
@@ -366,7 +366,7 @@ class FilamentRenderer(
         // We can't create geometry without materials, so let's try loading a default primitive
         // from assets or wait until we have actual .glb files
 
-        android.util.Log.d("FilamentRenderer", "Placeholder for Mii at (${miiChar.position.x}, ${miiChar.position.z})")
+        android.util.Log.d("FilamentRenderer", "Placeholder for Mii at (${miiChar.x}, ${miiChar.z})")
 
         // TODO: Load actual .glb model from assets
         // Example code for when we have .glb files:
@@ -403,14 +403,14 @@ class FilamentRenderer(
                     // Translate to Mii's position
                     android.opengl.Matrix.translateM(
                         matrix, 0,
-                        mii.position.x,
+                        mii.x,
                         0.5f,  // Height above ground
-                        mii.position.z
+                        mii.z
                     )
 
                     // Rotate to face movement direction
                     val angleInDegrees = Math.toDegrees(
-                        kotlin.math.atan2(mii.direction.z.toDouble(), mii.direction.x.toDouble())
+                        kotlin.math.atan2(mii.velocityZ.toDouble(), mii.velocityX.toDouble())
                     ).toFloat()
                     android.opengl.Matrix.rotateM(matrix, 0, angleInDegrees - 90f, 0f, 1f, 0f)
 
@@ -438,12 +438,12 @@ class FilamentRenderer(
             miiCharacters.forEach { mii ->
                 // Project 3D position to screen space (simplified)
                 // For a proper implementation, we'd use the view-projection matrix
-                val screenX = viewport.width / 2 + mii.position.x * 20
-                val screenY = viewport.height / 2 - mii.position.z * 20
+                val screenX = viewport.width / 2 + mii.x * 20
+                val screenY = viewport.height / 2 - mii.z * 20
 
                 val dx = screenX - x
                 val dy = screenY - y
-                val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+                val distance = kotlin.math.sqrt(dx * dx + dy * dy).toFloat()
 
                 if (distance < closestDistance && distance < 100f) { // 100px tap radius
                     closestDistance = distance
