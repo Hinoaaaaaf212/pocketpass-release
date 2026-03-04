@@ -85,7 +85,7 @@ dependencies {
     implementation("io.coil-kt:coil-compose:2.5.0")
 
     // Filament 3D rendering engine
-    val filament_version = "1.51.5"
+    val filament_version = "1.17.0"
     implementation("com.google.android.filament:filament-android:$filament_version")
     implementation("com.google.android.filament:filament-utils-android:$filament_version")
     implementation("com.google.android.filament:gltfio-android:$filament_version")
