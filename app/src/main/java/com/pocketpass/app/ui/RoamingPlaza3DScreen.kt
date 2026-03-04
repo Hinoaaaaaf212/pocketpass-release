@@ -169,7 +169,7 @@ class FilamentRenderer(
     private lateinit var scene: Scene
     private lateinit var view: View
     private lateinit var camera: Camera
-    private lateinit var swapChain: SwapChain
+    private var swapChain: SwapChain? = null
 
     // UI and display
     private lateinit var uiHelper: UiHelper
@@ -181,36 +181,50 @@ class FilamentRenderer(
     // Mii characters
     private val miiCharacters = mutableListOf<MiiCharacter3D>()
 
+    // Track if we're ready to render
+    private var isReadyToRender = false
+
     // Frame callback
     private val frameCallback = object : Choreographer.FrameCallback {
         private var lastFrameTime = System.nanoTime()
 
         override fun doFrame(frameTimeNanos: Long) {
-            val deltaTime = (frameTimeNanos - lastFrameTime) / 1_000_000_000f
-            lastFrameTime = frameTimeNanos
+            try {
+                val deltaTime = (frameTimeNanos - lastFrameTime) / 1_000_000_000f
+                lastFrameTime = frameTimeNanos
 
-            // Update Miis
-            updateMiis(deltaTime)
+                // Update Miis
+                updateMiis(deltaTime)
 
-            // Render frame
-            if (uiHelper.isReadyToRender) {
-                if (renderer.beginFrame(swapChain, 0)) {
-                    renderer.render(view)
-                    renderer.endFrame()
+                // Render frame only if swap chain is ready
+                if (isReadyToRender && swapChain != null && uiHelper.isReadyToRender) {
+                    if (renderer.beginFrame(swapChain!!, 0)) {
+                        renderer.render(view)
+                        renderer.endFrame()
+                    }
                 }
-            }
 
-            Choreographer.getInstance().postFrameCallback(this)
+                Choreographer.getInstance().postFrameCallback(this)
+            } catch (e: Exception) {
+                android.util.Log.e("FilamentRenderer", "Error in render loop: ${e.message}", e)
+            }
         }
     }
 
     init {
-        setupFilament()
-        createScene()
-        loadModels()
+        try {
+            android.util.Log.d("FilamentRenderer", "Initializing Filament renderer")
+            setupFilament()
+            createScene()
+            loadModels()
 
-        // Start rendering
-        Choreographer.getInstance().postFrameCallback(frameCallback)
+            // Start rendering
+            Choreographer.getInstance().postFrameCallback(frameCallback)
+            android.util.Log.d("FilamentRenderer", "Filament renderer initialized successfully")
+        } catch (e: Exception) {
+            android.util.Log.e("FilamentRenderer", "Failed to initialize Filament: ${e.message}", e)
+            throw e
+        }
     }
 
     private fun setupFilament() {
@@ -240,16 +254,33 @@ class FilamentRenderer(
         uiHelper = UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK)
         uiHelper.renderCallback = object : UiHelper.RendererCallback {
             override fun onNativeWindowChanged(surface: Surface) {
-                swapChain = engine.createSwapChain(surface)
-                displayHelper.attach(renderer, displayHelper.display!!)
+                try {
+                    android.util.Log.d("FilamentRenderer", "Surface changed, creating swap chain")
+                    swapChain = engine.createSwapChain(surface)
+
+                    val display = displayHelper.display
+                    if (display != null) {
+                        displayHelper.attach(renderer, display)
+                        isReadyToRender = true
+                        android.util.Log.d("FilamentRenderer", "Swap chain ready")
+                    } else {
+                        android.util.Log.e("FilamentRenderer", "Display is null!")
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("FilamentRenderer", "Error creating swap chain: ${e.message}", e)
+                }
             }
 
             override fun onDetachedFromSurface() {
+                android.util.Log.d("FilamentRenderer", "Surface detached")
+                isReadyToRender = false
                 displayHelper.detach()
-                engine.destroySwapChain(swapChain)
+                swapChain?.let { engine.destroySwapChain(it) }
+                swapChain = null
             }
 
             override fun onResized(width: Int, height: Int) {
+                android.util.Log.d("FilamentRenderer", "Surface resized: ${width}x${height}")
                 view.viewport = Viewport(0, 0, width, height)
                 val aspect = width.toDouble() / height.toDouble()
                 camera.setProjection(45.0, aspect, 0.1, 100.0, Camera.Fov.VERTICAL)
@@ -359,19 +390,28 @@ class FilamentRenderer(
     }
 
     fun cleanup() {
-        Choreographer.getInstance().removeFrameCallback(frameCallback)
-        uiHelper.detach()
+        try {
+            android.util.Log.d("FilamentRenderer", "Cleaning up Filament resources")
+            Choreographer.getInstance().removeFrameCallback(frameCallback)
+            uiHelper.detach()
 
-        // Cleanup Filament resources
-        engine.destroyRenderer(renderer)
-        engine.destroyView(view)
-        engine.destroyScene(scene)
+            // Cleanup swap chain
+            swapChain?.let { engine.destroySwapChain(it) }
 
-        // Destroy camera entity
-        val cameraEntity = camera.entity
-        engine.destroyCameraComponent(cameraEntity)
-        EntityManager.get().destroy(cameraEntity)
+            // Cleanup Filament resources
+            engine.destroyRenderer(renderer)
+            engine.destroyView(view)
+            engine.destroyScene(scene)
 
-        engine.destroy()
+            // Destroy camera entity
+            val cameraEntity = camera.entity
+            engine.destroyCameraComponent(cameraEntity)
+            EntityManager.get().destroy(cameraEntity)
+
+            engine.destroy()
+            android.util.Log.d("FilamentRenderer", "Filament cleanup complete")
+        } catch (e: Exception) {
+            android.util.Log.e("FilamentRenderer", "Error during cleanup: ${e.message}", e)
+        }
     }
 }
