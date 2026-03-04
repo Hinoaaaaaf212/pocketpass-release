@@ -581,7 +581,7 @@ class FilamentRenderer(
             )
 
             // Pick a color based on the encounter ID
-            val colorIndex = miiChar.encounter.id.hashCode() % colors.size
+            val colorIndex = miiChar.encounter.encounterId.hashCode() % colors.size
             val color = colors[colorIndex.coerceAtLeast(0)]
 
             val miiEntity = createSimpleMiiCube(
