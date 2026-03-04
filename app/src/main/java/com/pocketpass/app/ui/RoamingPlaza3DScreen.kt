@@ -300,14 +300,14 @@ class FilamentRenderer(
         view.scene = scene
         view.camera = camera
 
-        // Set sky blue background color on the view
-        android.util.Log.d("FilamentRenderer", "  - Setting viewport clear color to sky blue")
+        // Set vibrant sky blue background color
+        android.util.Log.d("FilamentRenderer", "  - Setting viewport clear color to vibrant sky blue")
         view.viewport = Viewport(0, 0, 1, 1) // Will be resized properly in onResized
         view.blendMode = View.BlendMode.OPAQUE
 
-        // Set clear options properly for Filament 1.69.5
+        // Set clear options with a more vibrant, saturated sky blue
         val clearOptions = Renderer.ClearOptions()
-        clearOptions.clearColor = floatArrayOf(0.53f, 0.81f, 0.92f, 1.0f) // Sky blue (RGB: 135, 206, 235)
+        clearOptions.clearColor = floatArrayOf(0.4f, 0.7f, 1.0f, 1.0f) // Bright saturated sky blue
         clearOptions.clear = true
         renderer.clearOptions = clearOptions
         android.util.Log.d("FilamentRenderer", "  - Clear options set: color=[${clearOptions.clearColor?.joinToString()}], clear=${clearOptions.clear}")
