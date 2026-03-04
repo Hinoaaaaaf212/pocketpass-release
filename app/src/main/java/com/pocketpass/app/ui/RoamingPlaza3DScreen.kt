@@ -158,6 +158,8 @@ fun FilamentPlazaView(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    val userPreferences = remember { com.pocketpass.app.data.UserPreferences(context) }
+    val userAvatarHex by userPreferences.avatarHexFlow.collectAsState(initial = null)
 
     // Store the renderer in a state so we can update it
     var renderer by remember { mutableStateOf<FilamentRenderer?>(null) }
@@ -166,7 +168,7 @@ fun FilamentPlazaView(
         factory = { ctx ->
             android.util.Log.d("FilamentPlazaView", "Creating 3D view with ${encounters.size} encounters")
             SurfaceView(ctx).apply {
-                val newRenderer = FilamentRenderer(ctx, this, userName, encounters, onMiiTapped, coroutineScope)
+                val newRenderer = FilamentRenderer(ctx, this, userName, userAvatarHex, encounters, onMiiTapped, coroutineScope)
                 renderer = newRenderer
 
                 // Set up touch listener for Mii selection
@@ -204,6 +206,7 @@ class FilamentRenderer(
     private val context: Context,
     private val surfaceView: SurfaceView,
     private val userName: String,
+    private val userAvatarHex: String?,
     private val encounters: List<Encounter>,
     private val onMiiTapped: (Encounter) -> Unit,
     private val scope: CoroutineScope
@@ -469,25 +472,106 @@ class FilamentRenderer(
 
     private fun createUserMii() {
         // Create the user's Mii at the center of the plaza (0, 0)
-        // For now, we'll create a simple colored cube as a placeholder
+        android.util.Log.d("FilamentRenderer", "Creating user Mii with hex: ${userAvatarHex?.take(20)}...")
 
-        try {
-            // Try to load a simple .glb model for the user
-            // If we don't have one, we'll create simple geometry
-            val userMiiEntity = createSimpleMiiCube(
-                x = 0.0f,
-                y = 0.0f,
-                z = 0.0f,
-                color = floatArrayOf(1.0f, 0.5f, 0.0f, 1.0f) // Orange color for user
-            )
+        if (userAvatarHex != null && userAvatarHex.isNotBlank()) {
+            // Try to load the .glb model from the API
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val glbUrl = "https://mii-unsecure.ariankordi.net/mii/$userAvatarHex.glb"
+                    android.util.Log.d("FilamentRenderer", "Fetching user Mii model from: $glbUrl")
 
-            if (userMiiEntity != 0) {
-                scene.addEntity(userMiiEntity)
-                miiEntities.add(userMiiEntity)
-                android.util.Log.d("FilamentRenderer", "✓ User Mii cube created at center (0, 0, 0)")
+                    val glbData = fetchGlbFromUrl(glbUrl)
+
+                    withContext(Dispatchers.Main) {
+                        if (glbData != null) {
+                            loadGlbModel(glbData, 0.0f, 0.0f, 0.0f, isUserMii = true)
+                        } else {
+                            // Fallback to cube
+                            createFallbackCube(0.0f, 0.0f, 0.0f, floatArrayOf(1.0f, 0.5f, 0.0f, 1.0f), isUserMii = true)
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("FilamentRenderer", "Error loading user Mii model: ${e.message}", e)
+                    withContext(Dispatchers.Main) {
+                        createFallbackCube(0.0f, 0.0f, 0.0f, floatArrayOf(1.0f, 0.5f, 0.0f, 1.0f), isUserMii = true)
+                    }
+                }
+            }
+        } else {
+            // No hex data, use cube
+            createFallbackCube(0.0f, 0.0f, 0.0f, floatArrayOf(1.0f, 0.5f, 0.0f, 1.0f), isUserMii = true)
+        }
+    }
+
+    private fun fetchGlbFromUrl(url: String): ByteArray? {
+        return try {
+            val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+            connection.requestMethod = "GET"
+            connection.connectTimeout = 10000
+            connection.readTimeout = 10000
+
+            if (connection.responseCode == 200) {
+                val bytes = connection.inputStream.readBytes()
+                android.util.Log.d("FilamentRenderer", "Successfully fetched ${bytes.size} bytes from $url")
+                bytes
+            } else {
+                android.util.Log.e("FilamentRenderer", "HTTP ${connection.responseCode} for $url")
+                null
             }
         } catch (e: Exception) {
-            android.util.Log.e("FilamentRenderer", "Failed to create user Mii: ${e.message}", e)
+            android.util.Log.e("FilamentRenderer", "Failed to fetch from $url: ${e.message}")
+            null
+        }
+    }
+
+    private fun loadGlbModel(glbData: ByteArray, x: Float, y: Float, z: Float, isUserMii: Boolean) {
+        try {
+            val buffer = ByteBuffer.wrap(glbData)
+            val asset = assetLoader.createAsset(buffer)
+
+            if (asset != null) {
+                resourceLoader.loadResources(asset)
+                resourceLoader.asyncBeginLoad(asset)
+
+                // Add all entities from the model to the scene
+                asset.entities.forEach { entity ->
+                    scene.addEntity(entity)
+                }
+
+                // Store the root entity
+                miiEntities.add(asset.root)
+                loadedAssets.add(asset)
+
+                // Position the model
+                val transform = engine.transformManager
+                val instance = transform.getInstance(asset.root)
+                if (instance != 0) {
+                    val matrix = FloatArray(16)
+                    android.opengl.Matrix.setIdentityM(matrix, 0)
+                    android.opengl.Matrix.translateM(matrix, 0, x, y + 1.0f, z)
+                    transform.setTransform(instance, matrix)
+                }
+
+                val name = if (isUserMii) userName else "encounter"
+                android.util.Log.d("FilamentRenderer", "✓ Loaded .glb model for $name at ($x, $y, $z)")
+            } else {
+                android.util.Log.e("FilamentRenderer", "Failed to create asset from .glb data")
+                createFallbackCube(x, y, z, floatArrayOf(1.0f, 0.5f, 0.0f, 1.0f), isUserMii)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("FilamentRenderer", "Error loading .glb model: ${e.message}", e)
+            createFallbackCube(x, y, z, floatArrayOf(1.0f, 0.5f, 0.0f, 1.0f), isUserMii)
+        }
+    }
+
+    private fun createFallbackCube(x: Float, y: Float, z: Float, color: FloatArray, isUserMii: Boolean) {
+        val cubeEntity = createSimpleMiiCube(x, y, z, color)
+        if (cubeEntity != 0) {
+            scene.addEntity(cubeEntity)
+            miiEntities.add(cubeEntity)
+            val name = if (isUserMii) "User" else "Encounter"
+            android.util.Log.d("FilamentRenderer", "✓ $name Mii fallback cube created at ($x, $y, $z)")
         }
     }
 
@@ -589,40 +673,55 @@ class FilamentRenderer(
     }
 
     private fun loadMiiPlaceholder(miiChar: MiiCharacter3D) {
-        // Create a simple colored cube for each encounter Mii
-        try {
-            // Use different colors for different Miis
-            val colors = listOf(
-                floatArrayOf(0.3f, 0.6f, 1.0f, 1.0f),  // Blue
-                floatArrayOf(1.0f, 0.3f, 0.6f, 1.0f),  // Pink
-                floatArrayOf(0.3f, 1.0f, 0.6f, 1.0f),  // Green
-                floatArrayOf(1.0f, 1.0f, 0.3f, 1.0f),  // Yellow
-                floatArrayOf(0.6f, 0.3f, 1.0f, 1.0f),  // Purple
-                floatArrayOf(1.0f, 0.6f, 0.3f, 1.0f),  // Orange
-            )
+        // Try to load .glb model from the API using the encounter's avatar hex
+        val avatarHex = miiChar.encounter.otherUserAvatarHex
 
-            // Pick a color based on the encounter ID
-            val colorIndex = miiChar.encounter.encounterId.hashCode() % colors.size
-            val color = colors[colorIndex.coerceAtLeast(0)]
+        if (avatarHex.isNotBlank()) {
+            scope.launch(Dispatchers.IO) {
+                try {
+                    val glbUrl = "https://mii-unsecure.ariankordi.net/mii/$avatarHex.glb"
+                    android.util.Log.d("FilamentRenderer", "Fetching Mii model for ${miiChar.encounter.otherUserName} from: $glbUrl")
 
-            val miiEntity = createSimpleMiiCube(
-                x = miiChar.x,
-                y = 0.0f,
-                z = miiChar.z,
-                color = color
-            )
+                    val glbData = fetchGlbFromUrl(glbUrl)
 
-            if (miiEntity != 0) {
-                scene.addEntity(miiEntity)
-                miiEntities.add(miiEntity)
-                android.util.Log.d("FilamentRenderer", "✓ Created Mii cube for ${miiChar.encounter.otherUserName} at (${miiChar.x}, ${miiChar.z}) with color ${color.contentToString()}")
-                android.util.Log.d("FilamentRenderer", "   Entity ID: $miiEntity, Total entities now: ${miiEntities.size}")
-            } else {
-                android.util.Log.e("FilamentRenderer", "!!! Failed to create Mii cube for ${miiChar.encounter.otherUserName}")
+                    withContext(Dispatchers.Main) {
+                        if (glbData != null) {
+                            loadGlbModel(glbData, miiChar.x, 0.0f, miiChar.z, isUserMii = false)
+                        } else {
+                            // Fallback to colored cube
+                            createEncounterFallbackCube(miiChar)
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("FilamentRenderer", "Error loading Mii model for ${miiChar.encounter.otherUserName}: ${e.message}", e)
+                    withContext(Dispatchers.Main) {
+                        createEncounterFallbackCube(miiChar)
+                    }
+                }
             }
-        } catch (e: Exception) {
-            android.util.Log.e("FilamentRenderer", "Failed to create Mii placeholder: ${e.message}", e)
+        } else {
+            // No hex data, use cube
+            createEncounterFallbackCube(miiChar)
         }
+    }
+
+    private fun createEncounterFallbackCube(miiChar: MiiCharacter3D) {
+        // Use different colors for different Miis
+        val colors = listOf(
+            floatArrayOf(0.3f, 0.6f, 1.0f, 1.0f),  // Blue
+            floatArrayOf(1.0f, 0.3f, 0.6f, 1.0f),  // Pink
+            floatArrayOf(0.3f, 1.0f, 0.6f, 1.0f),  // Green
+            floatArrayOf(1.0f, 1.0f, 0.3f, 1.0f),  // Yellow
+            floatArrayOf(0.6f, 0.3f, 1.0f, 1.0f),  // Purple
+            floatArrayOf(1.0f, 0.6f, 0.3f, 1.0f),  // Orange
+        )
+
+        // Pick a color based on the encounter ID
+        val colorIndex = miiChar.encounter.encounterId.hashCode() % colors.size
+        val color = colors[colorIndex.coerceAtLeast(0)]
+
+        createFallbackCube(miiChar.x, 0.0f, miiChar.z, color, isUserMii = false)
+        android.util.Log.d("FilamentRenderer", "Created fallback cube for ${miiChar.encounter.otherUserName}")
     }
 
     private fun updateMiis(deltaTime: Float) {
