@@ -478,7 +478,9 @@ class FilamentRenderer(
             // Try to load the .glb model from the API
             scope.launch(Dispatchers.IO) {
                 try {
-                    val glbUrl = "https://mii-unsecure.ariankordi.net/mii/$userAvatarHex.glb"
+                    // URL encode the hex data to handle special characters
+                    val encodedHex = java.net.URLEncoder.encode(userAvatarHex, "UTF-8")
+                    val glbUrl = "https://mii-unsecure.ariankordi.net/mii/$encodedHex.glb"
                     android.util.Log.d("FilamentRenderer", "Fetching user Mii model from: $glbUrl")
 
                     val glbData = fetchGlbFromUrl(glbUrl)
@@ -679,7 +681,9 @@ class FilamentRenderer(
         if (avatarHex.isNotBlank()) {
             scope.launch(Dispatchers.IO) {
                 try {
-                    val glbUrl = "https://mii-unsecure.ariankordi.net/mii/$avatarHex.glb"
+                    // URL encode the hex data to handle special characters like / and +
+                    val encodedHex = java.net.URLEncoder.encode(avatarHex, "UTF-8")
+                    val glbUrl = "https://mii-unsecure.ariankordi.net/mii/$encodedHex.glb"
                     android.util.Log.d("FilamentRenderer", "Fetching Mii model for ${miiChar.encounter.otherUserName} from: $glbUrl")
 
                     val glbData = fetchGlbFromUrl(glbUrl)
