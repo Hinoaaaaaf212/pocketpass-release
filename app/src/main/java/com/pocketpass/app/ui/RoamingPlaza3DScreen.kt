@@ -42,7 +42,10 @@ fun RoamingPlaza3DScreen(
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
     val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val userProfile by db.userProfileDao().getUserProfile().collectAsState(initial = null)
+
+    // Get user preferences from DataStore
+    val userPreferences = remember { com.pocketpass.app.data.UserPreferences(context) }
+    val userName by userPreferences.userNameFlow.collectAsState(initial = null)
 
     var selectedEncounter by remember { mutableStateOf<Encounter?>(null) }
 
@@ -85,9 +88,9 @@ fun RoamingPlaza3DScreen(
                     .fillMaxWidth()
                     .padding(16.dp)
             ) {
-                if (userProfile != null) {
+                if (userName != null) {
                     FilamentPlazaView(
-                        userProfile = userProfile!!,
+                        userName = userName!!,
                         encounters = encounters,
                         onMiiTapped = { encounter ->
                             selectedEncounter = encounter
@@ -149,7 +152,7 @@ fun RoamingPlaza3DScreen(
 
 @Composable
 fun FilamentPlazaView(
-    userProfile: com.pocketpass.app.data.UserProfile,
+    userName: String,
     encounters: List<Encounter>,
     onMiiTapped: (Encounter) -> Unit
 ) {
@@ -159,7 +162,7 @@ fun FilamentPlazaView(
     AndroidView(
         factory = { ctx ->
             SurfaceView(ctx).apply {
-                val renderer = FilamentRenderer(ctx, this, userProfile, encounters, onMiiTapped, coroutineScope)
+                val renderer = FilamentRenderer(ctx, this, userName, encounters, onMiiTapped, coroutineScope)
 
                 // Set up touch listener for Mii selection
                 setOnTouchListener { _, event ->
@@ -182,7 +185,7 @@ fun FilamentPlazaView(
 class FilamentRenderer(
     private val context: Context,
     private val surfaceView: SurfaceView,
-    private val userProfile: com.pocketpass.app.data.UserProfile,
+    private val userName: String,
     private val encounters: List<Encounter>,
     private val onMiiTapped: (Encounter) -> Unit,
     private val scope: CoroutineScope
@@ -429,7 +432,7 @@ class FilamentRenderer(
 
     private fun loadModels() {
         // First, add the user's Mii in the center of the plaza
-        android.util.Log.d("FilamentRenderer", "Creating user's Mii: ${userProfile.name}")
+        android.util.Log.d("FilamentRenderer", "Creating user's Mii: $userName")
         createUserMii()
 
         // Then add encounter Miis
@@ -531,27 +534,21 @@ class FilamentRenderer(
 
         ib.setBuffer(engine, indexBuffer)
 
-        // Create a simple unlit material using the material provider
-        // We'll create a basic colored material
+        // Create a simple material using Filament's basic approach
+        // For now, we'll just create the geometry without a proper colored material
+        // This is a limitation of not having pre-built materials
         try {
-            // Get a default unlit material from the provider
-            val material = materialProvider.createUnlitMaterial()
-            val materialInstance = material.defaultInstance
-
-            // Set the base color
-            materialInstance.setParameter("baseColorFactor", color[0], color[1], color[2], color[3])
-
-            // Build the renderable
+            // Build the renderable without material (it will use default)
+            // Note: This may not show color, but will show geometry
             RenderableManager.Builder(1)
                 .boundingBox(Box(x - half, y - half, z - half, x + half, y + half, z + half))
                 .geometry(0, RenderableManager.PrimitiveType.TRIANGLES, vb, ib)
-                .material(0, materialInstance)
                 .culling(false)
                 .receiveShadows(false)
                 .castShadows(false)
                 .build(engine, entity)
 
-            android.util.Log.d("FilamentRenderer", "Created cube with unlit material")
+            android.util.Log.d("FilamentRenderer", "Created cube geometry (material-less)")
 
         } catch (e: Exception) {
             android.util.Log.e("FilamentRenderer", "Failed to create cube: ${e.message}", e)
