@@ -531,13 +531,15 @@ class FilamentRenderer(
         try {
             android.util.Log.d("FilamentRenderer", "Loading .glb model: ${glbData.size} bytes")
 
-            // Filament requires a DIRECT ByteBuffer, not a wrapped one
+            // Filament requires a DIRECT ByteBuffer with native byte order
             val buffer = ByteBuffer.allocateDirect(glbData.size)
-            buffer.order(java.nio.ByteOrder.LITTLE_ENDIAN)
+            buffer.order(java.nio.ByteOrder.nativeOrder())
             buffer.put(glbData)
-            buffer.rewind()
+            buffer.flip()
 
             android.util.Log.d("FilamentRenderer", "Buffer created: capacity=${buffer.capacity()}, remaining=${buffer.remaining()}, isDirect=${buffer.isDirect}")
+
+            android.util.Log.d("FilamentRenderer", "Buffer position=${buffer.position()}, limit=${buffer.limit()}, remaining=${buffer.remaining()}")
 
             val asset = assetLoader.createAsset(buffer)
 
