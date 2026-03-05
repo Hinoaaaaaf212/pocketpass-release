@@ -531,53 +531,45 @@ class FilamentRenderer(
         try {
             android.util.Log.d("FilamentRenderer", "Loading .glb model: ${glbData.size} bytes")
 
-            // Filament requires a DIRECT ByteBuffer with native byte order
-            val buffer = ByteBuffer.allocateDirect(glbData.size)
-            buffer.order(java.nio.ByteOrder.nativeOrder())
-            buffer.put(glbData)
-            buffer.flip()
+            // Match exactly what Filament's ModelViewer.loadModelGlb() does:
+            // Use ByteBuffer.wrap() - NOT allocateDirect()
+            val buffer = ByteBuffer.wrap(glbData)
 
-            android.util.Log.d("FilamentRenderer", "Buffer created: capacity=${buffer.capacity()}, remaining=${buffer.remaining()}, isDirect=${buffer.isDirect}")
-
-            android.util.Log.d("FilamentRenderer", "Buffer position=${buffer.position()}, limit=${buffer.limit()}, remaining=${buffer.remaining()}")
+            android.util.Log.d("FilamentRenderer", "Buffer: capacity=${buffer.capacity()}, remaining=${buffer.remaining()}")
 
             val asset = assetLoader.createAsset(buffer)
 
             if (asset != null) {
-                android.util.Log.d("FilamentRenderer", "Asset created with ${asset.entities.size} entities, root=${asset.root}")
+                android.util.Log.d("FilamentRenderer", "Asset created with ${asset.entities.size} entities")
 
-                // Load resources synchronously
-                resourceLoader.loadResources(asset)
+                // Match ModelViewer: asyncBeginLoad then releaseSourceData
+                resourceLoader.asyncBeginLoad(asset)
+                asset.releaseSourceData()
 
-                // Add root entity to scene (this adds all children too)
+                // Add all entities to scene
                 scene.addEntities(asset.entities)
 
-                // Store the root entity
+                // Store root entity
                 miiEntities.add(asset.root)
                 loadedAssets.add(asset)
 
-                // Position and scale the model
+                // Position and scale
                 val transform = engine.transformManager
                 val instance = transform.getInstance(asset.root)
                 if (instance != 0) {
                     val matrix = FloatArray(16)
                     android.opengl.Matrix.setIdentityM(matrix, 0)
                     android.opengl.Matrix.translateM(matrix, 0, x, y + 1.0f, z)
-                    // Scale the model (Mii heads might be very small or very large)
                     android.opengl.Matrix.scaleM(matrix, 0, 3.0f, 3.0f, 3.0f)
                     transform.setTransform(instance, matrix)
-                    android.util.Log.d("FilamentRenderer", "Transform applied: translate($x, ${y+1.0f}, $z) scale(3.0)")
-                } else {
-                    android.util.Log.w("FilamentRenderer", "No transform instance for root entity")
                 }
 
                 val name = if (isUserMii) userName else "encounter"
                 android.util.Log.d("FilamentRenderer", "✓ Loaded .glb model for $name at ($x, $y, $z)")
             } else {
-                android.util.Log.e("FilamentRenderer", "Failed to create asset from .glb data (${glbData.size} bytes)")
-                // Log first few bytes to verify it's a valid glb
+                android.util.Log.e("FilamentRenderer", "createAsset returned null for ${glbData.size} bytes")
                 val header = glbData.take(12).map { String.format("%02X", it) }.joinToString(" ")
-                android.util.Log.e("FilamentRenderer", "GLB header bytes: $header")
+                android.util.Log.e("FilamentRenderer", "GLB header: $header")
                 createFallbackCube(x, y, z, floatArrayOf(1.0f, 0.5f, 0.0f, 1.0f), isUserMii)
             }
         } catch (e: Exception) {
