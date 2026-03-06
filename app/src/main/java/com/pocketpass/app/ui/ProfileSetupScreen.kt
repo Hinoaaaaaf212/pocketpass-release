@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.Button
@@ -20,8 +22,8 @@ import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +43,7 @@ import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.ui.theme.SkyBlue
+import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.RegionFlags
 import kotlinx.coroutines.launch
 
@@ -49,6 +52,7 @@ import kotlinx.coroutines.launch
 fun ProfileSetupScreen(
     onProfileSaved: () -> Unit
 ) {
+    val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val userPreferences = remember { UserPreferences(context) }
@@ -74,9 +78,9 @@ fun ProfileSetupScreen(
                 .fillMaxWidth(0.9f)
                 .clip(RoundedCornerShape(32.dp))
                 .background(OffWhite)
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+                .padding(24.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = "Who are you?",
@@ -95,9 +99,9 @@ fun ProfileSetupScreen(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            val textFieldColors = TextFieldDefaults.outlinedTextFieldColors(
+            val textFieldColors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = PocketPassGreen,
                 unfocusedBorderColor = DarkText.copy(alpha = 0.3f),
                 cursorColor = PocketPassGreen
@@ -168,6 +172,7 @@ fun ProfileSetupScreen(
                                 Text("${RegionFlags.getFlagForRegion(regionOption)} $regionOption")
                             },
                             onClick = {
+                                soundManager.playSelect()
                                 region = regionOption
                                 regionExpanded = false
                             }
@@ -176,10 +181,11 @@ fun ProfileSetupScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
             Button(
                 onClick = {
+                    soundManager.playSuccess()
                     coroutineScope.launch {
                         val finalName = if (name.isNotBlank()) name else "Stranger"
                         userPreferences.saveUserProfile(finalName, age, hobbies, region)

@@ -88,7 +88,10 @@ import kotlinx.coroutines.launch
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
@@ -100,10 +103,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.TextButton
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.pocketpass.app.util.LocalSoundManager
+import com.pocketpass.app.util.gamepadFocusable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 
 /**
  * Nintendo-style checkered background pattern
@@ -154,6 +166,48 @@ fun CheckeredBackground(
     }
 }
 
+/**
+ * Miiverse-style navigation button with icon and label.
+ * Inspired by the Nintendo Miiverse sidebar icons.
+ */
+@Composable
+private fun MiiverseNavButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    tint: androidx.compose.ui.graphics.Color = DarkText,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .gamepadFocusable(
+                shape = RoundedCornerShape(8.dp),
+                onSelect = onClick
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = tint,
+            modifier = Modifier.size(36.dp)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = DarkText,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1
+        )
+    }
+}
+
+// Persists across navigation so we don't false-trigger on re-entering the screen
+private var lastKnownEncounterCount: Int = -1
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun PlazaScreen(
@@ -161,11 +215,14 @@ fun PlazaScreen(
     onOpenHistory: () -> Unit = {},
     onOpenStatistics: () -> Unit = {},
     onOpenFavorites: () -> Unit = {},
-    onOpen3DPlaza: () -> Unit = {}
+    onOpenPlazaOverview: () -> Unit = {},
+    onOpenGames: () -> Unit = {}
 ) {
+    val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encountersLoaded by db.encounterDao().getAllEncountersFlow().collectAsState(initial = null)
+    val encounters = encountersLoaded ?: emptyList()
     val userPreferences = remember { UserPreferences(context) }
     val coroutineScope = rememberCoroutineScope()
 
@@ -185,20 +242,20 @@ fun PlazaScreen(
     // New encounter animation state
     var showNewEncounterAnimation by remember { mutableStateOf(false) }
     var newEncounter by remember { mutableStateOf<Encounter?>(null) }
-    var previousEncounterCount by remember { mutableStateOf(0) }
 
-    // Detect new encounters
-    LaunchedEffect(encounters.size) {
-        if (encounters.size > previousEncounterCount && previousEncounterCount > 0) {
-            // New encounter detected!
-            newEncounter = encounters.maxByOrNull { it.timestamp }
+    // Detect new encounters - only after initial DB load completes
+    LaunchedEffect(encountersLoaded) {
+        val loaded = encountersLoaded ?: return@LaunchedEffect // Still loading
+
+        if (lastKnownEncounterCount >= 0 && loaded.size > lastKnownEncounterCount) {
+            // Count increased since we last checked - new encounter
+            newEncounter = loaded.maxByOrNull { it.timestamp }
             showNewEncounterAnimation = true
 
-            // Auto-dismiss after animation (reduced time for less lag)
             kotlinx.coroutines.delay(3500)
             showNewEncounterAnimation = false
         }
-        previousEncounterCount = encounters.size
+        lastKnownEncounterCount = loaded.size
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -210,59 +267,100 @@ fun PlazaScreen(
 
         // Main content column
         Column(modifier = Modifier.fillMaxSize()) {
-            // Top bar with navigation buttons
-            Row(
+            // Miiverse-style glossy navigation bar
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .clip(RoundedCornerShape(bottomStart = 16.dp, bottomEnd = 16.dp))
             ) {
-                // Left side - History button
-                IconButton(onClick = onOpenHistory) {
-                    Icon(
-                        imageVector = Icons.Filled.List,
-                        contentDescription = "Encounter History",
-                        tint = DarkText,
-                        modifier = Modifier.size(28.dp)
+                // Base bar background
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    androidx.compose.ui.graphics.Color(0xFFF8F8F8),
+                                    androidx.compose.ui.graphics.Color(0xFFE8E8E8)
+                                )
+                            )
+                        ),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MiiverseNavButton(
+                        icon = Icons.Filled.List,
+                        label = "History",
+                        onClick = { soundManager.playNavigate(); onOpenHistory() },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(48.dp)
+                            .background(DarkText.copy(alpha = 0.15f))
+                    )
+                    MiiverseNavButton(
+                        icon = Icons.Filled.Star,
+                        label = "Favorites",
+                        tint = androidx.compose.ui.graphics.Color(0xFFFFC107),
+                        onClick = { soundManager.playNavigate(); onOpenFavorites() },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(48.dp)
+                            .background(DarkText.copy(alpha = 0.15f))
+                    )
+                    MiiverseNavButton(
+                        icon = Icons.Filled.DateRange,
+                        label = "Stats",
+                        onClick = { soundManager.playNavigate(); onOpenStatistics() },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(48.dp)
+                            .background(DarkText.copy(alpha = 0.15f))
+                    )
+                    MiiverseNavButton(
+                        icon = Icons.Filled.Favorite,
+                        label = "Games",
+                        tint = PocketPassGreen,
+                        onClick = { soundManager.playNavigate(); onOpenGames() },
+                        modifier = Modifier.weight(1f)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(48.dp)
+                            .background(DarkText.copy(alpha = 0.15f))
+                    )
+                    MiiverseNavButton(
+                        icon = Icons.Filled.Settings,
+                        label = "Settings",
+                        onClick = { soundManager.playNavigate(); onOpenSettings() },
+                        modifier = Modifier.weight(1f)
                     )
                 }
-
-                // Center - Logo/Title
-                Text(
-                    text = "PocketPass Plaza",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = DarkText
+                // Glossy highlight overlay (top half shine)
+                Box(
+                    modifier = Modifier
+                        .matchParentSize()
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    androidx.compose.ui.graphics.Color.White.copy(alpha = 0.55f),
+                                    androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f),
+                                    androidx.compose.ui.graphics.Color.Transparent
+                                ),
+                                startY = 0f,
+                                endY = Float.POSITIVE_INFINITY
+                            )
+                        )
                 )
-
-                // Right side - Favorites, Stats and Settings
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    IconButton(onClick = onOpenFavorites) {
-                        Icon(
-                            imageVector = Icons.Filled.Star,
-                            contentDescription = "Favorites",
-                            tint = androidx.compose.ui.graphics.Color(0xFFFFC107), // Gold star
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                    IconButton(onClick = onOpenStatistics) {
-                        Icon(
-                            imageVector = Icons.Filled.List,
-                            contentDescription = "Statistics",
-                            tint = DarkText,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                    IconButton(onClick = onOpenSettings) {
-                        Icon(
-                            imageVector = Icons.Filled.Settings,
-                            contentDescription = "Settings",
-                            tint = DarkText,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                }
             }
 
             // Content area (always show user's profile first, then encounters)
@@ -314,7 +412,34 @@ fun PlazaScreen(
                     Column(modifier = Modifier.fillMaxSize()) {
                         HorizontalPager(
                             state = pagerState,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .weight(1f)
+                                .focusable()
+                                .onPreviewKeyEvent { event ->
+                                    if (event.type == KeyEventType.KeyDown) {
+                                        when (event.nativeKeyEvent.keyCode) {
+                                            android.view.KeyEvent.KEYCODE_DPAD_LEFT -> {
+                                                if (pagerState.currentPage > 0) {
+                                                    coroutineScope.launch {
+                                                        pagerState.animateScrollToPage(pagerState.currentPage - 1)
+                                                    }
+                                                    soundManager.playNavigate()
+                                                }
+                                                true
+                                            }
+                                            android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                                if (pagerState.currentPage < pagerState.pageCount - 1) {
+                                                    coroutineScope.launch {
+                                                        pagerState.animateScrollToPage(pagerState.currentPage + 1)
+                                                    }
+                                                    soundManager.playNavigate()
+                                                }
+                                                true
+                                            }
+                                            else -> false
+                                        }
+                                    } else false
+                                }
                         ) { page ->
                             if (page == 0) {
                                 // User's own profile
@@ -360,9 +485,13 @@ fun PlazaScreen(
             contentAlignment = Alignment.BottomEnd
         ) {
             FloatingActionButton(
-                onClick = { showDebugDialog = true },
+                onClick = { soundManager.playTap(); showDebugDialog = true },
                 containerColor = androidx.compose.ui.graphics.Color(0xFFFF6B9D),
-                contentColor = OffWhite
+                contentColor = OffWhite,
+                modifier = Modifier.gamepadFocusable(
+                    shape = RoundedCornerShape(16.dp),
+                    onSelect = { soundManager.playTap(); showDebugDialog = true }
+                )
             ) {
                 Icon(
                     imageVector = Icons.Filled.Add,
@@ -372,7 +501,7 @@ fun PlazaScreen(
             }
         }
 
-        // 3D Plaza FAB (bottom left) - overlay on top
+        // Plaza overview FAB (bottom left) - overlay on top
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -380,14 +509,17 @@ fun PlazaScreen(
             contentAlignment = Alignment.BottomStart
         ) {
             FloatingActionButton(
-                onClick = onOpen3DPlaza,
+                onClick = { soundManager.playNavigate(); onOpenPlazaOverview() },
                 containerColor = PocketPassGreen,
-                contentColor = OffWhite
+                contentColor = OffWhite,
+                modifier = Modifier.gamepadFocusable(
+                    shape = RoundedCornerShape(16.dp),
+                    onSelect = { soundManager.playNavigate(); onOpenPlazaOverview() }
+                )
             ) {
-                Text(
-                    text = "3D",
-                    fontWeight = FontWeight.Bold,
-                    style = MaterialTheme.typography.titleMedium
+                Icon(
+                    imageVector = Icons.Filled.Person,
+                    contentDescription = "View All Miis"
                 )
             }
         }
@@ -415,6 +547,15 @@ fun PlazaScreen(
                                 } else {
                                     // New encounter
                                     db.encounterDao().insertEncounter(encounter)
+                                }
+                            }
+                            // Grant token + chance at puzzle piece
+                            userPreferences.addTokens(com.pocketpass.app.data.TokenSystem.TOKENS_PER_NEW_ENCOUNTER)
+                            if (kotlin.random.Random.nextFloat() < com.pocketpass.app.data.TokenSystem.PUZZLE_PIECE_DROP_CHANCE) {
+                                val progress = userPreferences.puzzleProgressFlow.first()
+                                val uncollected = progress.allUncollectedPieces(com.pocketpass.app.data.PuzzlePanels.getAll())
+                                if (uncollected.isNotEmpty()) {
+                                    userPreferences.addPuzzlePiece(uncollected.random())
                                 }
                             }
                             showDebugDialog = false
@@ -557,11 +698,13 @@ fun NewEncounterAnimation(
         onDismiss()
     }
 
+    val soundManager = LocalSoundManager.current
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.7f * alpha.value))
-            .clickable { onDismiss() },
+            .clickable { soundManager.playTap(); onDismiss() },
         contentAlignment = Alignment.Center
     ) {
         Column(
@@ -675,7 +818,7 @@ fun NewEncounterAnimation(
 }
 
 @Composable
-fun ConfettiEffect(visible: Boolean = true) {
+fun ConfettiEffect(@Suppress("UNUSED_PARAMETER") visible: Boolean = true) {
     val infiniteTransition = rememberInfiniteTransition(label = "confetti")
 
     // Create multiple confetti pieces with smooth animations (reduced count for performance)
@@ -992,6 +1135,7 @@ fun DebugAddEncounterDialog(
     isLoading: Boolean = false,
     onAddEncounter: (Encounter) -> Unit
 ) {
+    val soundManager = LocalSoundManager.current
     var name by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
     var hobbies by remember { mutableStateOf("") }
@@ -1090,6 +1234,7 @@ fun DebugAddEncounterDialog(
                     ) {
                         Button(
                             onClick = {
+                                soundManager.playTap()
                                 name = "Link"
                                 age = "17"
                                 hobbies = "Adventuring, Sword Fighting"
@@ -1103,6 +1248,7 @@ fun DebugAddEncounterDialog(
                         }
                         Button(
                             onClick = {
+                                soundManager.playTap()
                                 name = "Mario"
                                 age = "26"
                                 hobbies = "Plumbing, Jumping"
@@ -1122,6 +1268,7 @@ fun DebugAddEncounterDialog(
                     ) {
                         Button(
                             onClick = {
+                                soundManager.playTap()
                                 name = "Samus"
                                 age = "Unknown"
                                 hobbies = "Bounty Hunting, Exploration"
@@ -1135,6 +1282,7 @@ fun DebugAddEncounterDialog(
                         }
                         Button(
                             onClick = {
+                                soundManager.playTap()
                                 name = "Kirby"
                                 age = "???"
                                 hobbies = "Eating, Copying Abilities"
@@ -1154,6 +1302,7 @@ fun DebugAddEncounterDialog(
             Button(
                 onClick = {
                     if (name.isNotBlank() && greeting.isNotBlank() && !isLoading) {
+                        soundManager.playSuccess()
                         val encounter = Encounter(
                             encounterId = "debug_${System.currentTimeMillis()}",
                             timestamp = System.currentTimeMillis(),
@@ -1183,7 +1332,7 @@ fun DebugAddEncounterDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(onClick = { soundManager.playBack(); onDismiss() }) {
                 Icon(Icons.Filled.Close, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(4.dp))
                 Text("Cancel")

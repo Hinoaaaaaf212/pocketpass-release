@@ -1,5 +1,10 @@
 package com.pocketpass.app.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -27,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,19 +55,27 @@ import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.ui.theme.SkyBlue
+import com.pocketpass.app.util.LocalSoundManager
+import com.pocketpass.app.util.gamepadFocusable
 import com.pocketpass.app.util.RegionFlags
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.focus.FocusRequester
 import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
 
 @Composable
 fun FavoritesScreen(onBack: () -> Unit) {
+    val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
     val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
     val coroutineScope = rememberCoroutineScope()
 
     var selectedEncounter by remember { mutableStateOf<Encounter?>(null) }
+
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // Checkered background
@@ -70,6 +84,13 @@ fun FavoritesScreen(onBack: () -> Unit) {
             gradientColors = listOf(PocketPassGreen, SkyBlue)
         )
 
+        AnimatedVisibility(
+            visible = visible,
+            enter = slideInHorizontally(
+                initialOffsetX = { fullWidth -> fullWidth },
+                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
+            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
+        ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Top Bar
             Row(
@@ -78,7 +99,15 @@ fun FavoritesScreen(onBack: () -> Unit) {
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
+                val backFocus = remember { FocusRequester() }
+                IconButton(
+                    onClick = { soundManager.playBack(); onBack() },
+                    modifier = Modifier.gamepadFocusable(
+                        focusRequester = backFocus,
+                        shape = CircleShape,
+                        onSelect = { soundManager.playBack(); onBack() }
+                    )
+                ) {
                     Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = DarkText)
                 }
                 Column(modifier = Modifier.padding(start = 8.dp)) {
@@ -137,7 +166,7 @@ fun FavoritesScreen(onBack: () -> Unit) {
                     items(encounters.sortedByDescending { it.timestamp }) { encounter ->
                         FavoriteCard(
                             encounter = encounter,
-                            onClick = { selectedEncounter = encounter }
+                            onClick = { soundManager.playSelect(); selectedEncounter = encounter }
                         )
                     }
 
@@ -151,6 +180,7 @@ fun FavoritesScreen(onBack: () -> Unit) {
                 }
             }
         }
+        } // AnimatedVisibility
 
         // Detail Dialog
         selectedEncounter?.let { encounter ->
@@ -178,6 +208,10 @@ fun FavoriteCard(
         modifier = Modifier
             .fillMaxWidth()
             .height(200.dp)
+            .gamepadFocusable(
+                shape = RoundedCornerShape(16.dp),
+                onSelect = onClick
+            )
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = OffWhite),
@@ -257,6 +291,7 @@ fun FavoriteDetailDialog(
     onDismiss: () -> Unit,
     onDelete: (Encounter) -> Unit
 ) {
+    val soundManager = LocalSoundManager.current
     Dialog(onDismissRequest = onDismiss) {
         Card(
             modifier = Modifier.fillMaxWidth(),
@@ -356,10 +391,16 @@ fun FavoriteDetailDialog(
                     // Delete button
                     androidx.compose.material3.OutlinedButton(
                         onClick = {
+                            soundManager.playDelete()
                             onDelete(encounter)
                             onDismiss()
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier
+                            .weight(1f)
+                            .gamepadFocusable(
+                                shape = RoundedCornerShape(24.dp),
+                                onSelect = { soundManager.playDelete(); onDelete(encounter); onDismiss() }
+                            ),
                         colors = androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
                             contentColor = androidx.compose.ui.graphics.Color(0xFFD32F2F)
                         ),
@@ -373,8 +414,13 @@ fun FavoriteDetailDialog(
 
                     // Close button
                     androidx.compose.material3.Button(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
+                        onClick = { soundManager.playBack(); onDismiss() },
+                        modifier = Modifier
+                            .weight(1f)
+                            .gamepadFocusable(
+                                shape = RoundedCornerShape(24.dp),
+                                onSelect = { soundManager.playBack(); onDismiss() }
+                            ),
                         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                             containerColor = PocketPassGreen
                         )

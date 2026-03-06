@@ -1,5 +1,10 @@
 package com.pocketpass.app.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -25,9 +30,12 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,32 +53,50 @@ import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.ui.theme.SkyBlue
+import com.pocketpass.app.util.LocalSoundManager
+import com.pocketpass.app.util.gamepadFocusable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.focus.FocusRequester
 import java.text.DateFormat
 import java.util.Date
 
 @Composable
 fun StatisticsScreen(onBack: () -> Unit) {
+    val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
     val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
 
-    // Calculate statistics
+    // Calculate statistics (memoized to avoid recomputation during animations)
     val totalEncounters = encounters.size
-    val uniqueLocations = encounters.map { it.origin }.distinct().size
-    val uniquePeople = encounters.map { it.otherUserName }.distinct().size
-    val locationCounts = encounters.groupingBy { it.origin }.eachCount()
-        .entries.sortedByDescending { it.value }
+    val uniqueLocations = remember(encounters) { encounters.map { it.origin }.distinct().size }
+    val uniquePeople = remember(encounters) { encounters.map { it.otherUserName }.distinct().size }
+    val locationCounts = remember(encounters) {
+        encounters.groupingBy { it.origin }.eachCount()
+            .entries.sortedByDescending { it.value }
+    }
 
-    val firstEncounter = encounters.minByOrNull { it.timestamp }
-    val latestEncounter = encounters.maxByOrNull { it.timestamp }
+    val firstEncounter = remember(encounters) { encounters.minByOrNull { it.timestamp } }
+    val latestEncounter = remember(encounters) { encounters.maxByOrNull { it.timestamp } }
+    val allAchievements = remember { Achievements.getAll() }
+    val unlockedCount = remember(encounters) { allAchievements.count { it.isUnlocked(encounters) } }
+
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Checkered background
         CheckeredBackground(
             modifier = Modifier.fillMaxSize(),
             gradientColors = listOf(PocketPassGreen, SkyBlue)
         )
 
+        AnimatedVisibility(
+            visible = visible,
+            enter = slideInHorizontally(
+                initialOffsetX = { fullWidth -> fullWidth },
+                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
+            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
+        ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Top Bar
             Row(
@@ -79,7 +105,15 @@ fun StatisticsScreen(onBack: () -> Unit) {
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
+                val backFocus = remember { FocusRequester() }
+                IconButton(
+                    onClick = { soundManager.playBack(); onBack() },
+                    modifier = Modifier.gamepadFocusable(
+                        focusRequester = backFocus,
+                        shape = CircleShape,
+                        onSelect = { soundManager.playBack(); onBack() }
+                    )
+                ) {
                     Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = DarkText)
                 }
                 Text(
@@ -233,9 +267,6 @@ fun StatisticsScreen(onBack: () -> Unit) {
                 }
 
                 // Achievements
-                val allAchievements = Achievements.getAll()
-                val unlockedCount = allAchievements.count { it.isUnlocked(encounters) }
-
                 item {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -331,6 +362,7 @@ fun StatisticsScreen(onBack: () -> Unit) {
                 }
             }
         }
+        } // AnimatedVisibility
     }
 }
 

@@ -16,6 +16,9 @@ val LightText = Color(0xFF757575)  // For tertiary text (ratio 4.6:1 on white)
 // Accent colors
 val BubbleTailGreen = Color(0xFFB1E772)
 
+// Gamepad focus indicator
+val GamepadFocusBorder = Color(0xFF7BC63B)
+
 // Nintendo-style checkered pattern colors
 val CheckerLight = Color(0xFFFFFFFF).copy(alpha = 0.15f)
 val CheckerDark = Color(0xFF000000).copy(alpha = 0.05f)

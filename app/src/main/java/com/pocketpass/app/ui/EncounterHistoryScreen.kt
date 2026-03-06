@@ -1,5 +1,10 @@
 package com.pocketpass.app.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,10 +31,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,25 +52,39 @@ import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.ui.theme.SkyBlue
+import com.pocketpass.app.util.LocalSoundManager
+import com.pocketpass.app.util.gamepadFocusable
 import com.pocketpass.app.util.RegionFlags
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.focus.FocusRequester
 import kotlinx.coroutines.launch
 import java.text.DateFormat
 import java.util.Date
 
 @Composable
 fun EncounterHistoryScreen(onBack: () -> Unit) {
+    val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
     val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
     val coroutineScope = rememberCoroutineScope()
 
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { visible = true }
+
     Box(modifier = Modifier.fillMaxSize()) {
-        // Checkered background
         CheckeredBackground(
             modifier = Modifier.fillMaxSize(),
             gradientColors = listOf(PocketPassGreen, SkyBlue)
         )
 
+        AnimatedVisibility(
+            visible = visible,
+            enter = slideInHorizontally(
+                initialOffsetX = { fullWidth -> fullWidth },
+                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
+            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
+        ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Top Bar
             Row(
@@ -71,7 +93,15 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = onBack) {
+                val backFocus = remember { FocusRequester() }
+                IconButton(
+                    onClick = { soundManager.playBack(); onBack() },
+                    modifier = Modifier.gamepadFocusable(
+                        focusRequester = backFocus,
+                        shape = CircleShape,
+                        onSelect = { soundManager.playBack(); onBack() }
+                    )
+                ) {
                     Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = DarkText)
                 }
                 Text(
@@ -140,11 +170,13 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
                 }
             }
         }
+        } // AnimatedVisibility
     }
 }
 
 @Composable
 fun EncounterHistoryCard(encounter: Encounter, onDelete: () -> Unit) {
+    val soundManager = LocalSoundManager.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -233,7 +265,13 @@ fun EncounterHistoryCard(encounter: Encounter, onDelete: () -> Unit) {
             }
 
             // Delete button
-            IconButton(onClick = onDelete) {
+            IconButton(
+                onClick = { soundManager.playDelete(); onDelete() },
+                modifier = Modifier.gamepadFocusable(
+                    shape = CircleShape,
+                    onSelect = { soundManager.playDelete(); onDelete() }
+                )
+            ) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
                     contentDescription = "Delete Encounter",

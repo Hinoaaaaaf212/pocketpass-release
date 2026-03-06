@@ -84,11 +84,8 @@ dependencies {
     // Coil for async image loading
     implementation("io.coil-kt:coil-compose:2.5.0")
 
-    // Filament 3D rendering engine
-    val filament_version = "1.69.5"
-    implementation("com.google.android.filament:filament-android:$filament_version")
-    implementation("com.google.android.filament:filament-utils-android:$filament_version")
-    implementation("com.google.android.filament:gltfio-android:$filament_version")
+    // ZXing for QR code generation and scanning
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
 
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

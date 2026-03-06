@@ -30,6 +30,7 @@ import com.google.accompanist.permissions.rememberMultiplePermissionsState
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.ui.theme.SkyBlue
+import com.pocketpass.app.util.LocalSoundManager
 
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
@@ -54,6 +55,9 @@ fun PermissionsScreen(
         permissionsToRequest.add(android.Manifest.permission.POST_NOTIFICATIONS)
     }
 
+    // Camera for QR code scanning
+    permissionsToRequest.add(android.Manifest.permission.CAMERA)
+
     val permissionsState = rememberMultiplePermissionsState(permissionsToRequest)
 
     if (permissionsState.allPermissionsGranted) {
@@ -68,6 +72,7 @@ fun PermissionsScreen(
 @OptIn(ExperimentalPermissionsApi::class)
 @Composable
 private fun PermissionsRequestUI(permissionsState: MultiplePermissionsState) {
+    val soundManager = LocalSoundManager.current
     val backgroundBrush = Brush.verticalGradient(
         colors = listOf(PocketPassGreen, SkyBlue)
     )
@@ -107,7 +112,7 @@ private fun PermissionsRequestUI(permissionsState: MultiplePermissionsState) {
             Spacer(modifier = Modifier.height(32.dp))
 
             Button(
-                onClick = { permissionsState.launchMultiplePermissionRequest() },
+                onClick = { soundManager.playSuccess(); permissionsState.launchMultiplePermissionRequest() },
                 shape = RoundedCornerShape(24.dp),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = PocketPassGreen,

@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewAssetLoader
 import com.pocketpass.app.data.UserPreferences
+import com.pocketpass.app.util.LocalSoundManager
 import kotlinx.coroutines.launch
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -56,6 +57,7 @@ import kotlinx.coroutines.launch
 fun AvatarCreatorScreen(
     onAvatarSaved: () -> Unit
 ) {
+    val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val userPreferences = remember { UserPreferences(context) }
 
@@ -102,26 +104,22 @@ fun AvatarCreatorScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = {
-                // If user has saved Miis, go back to Plaza
-                if (miiCount > 0) {
-                    onAvatarSaved()
-                } else if (webViewRef?.canGoBack() == true) {
-                    webViewRef?.goBack()
-                } else {
-                    webViewRef?.loadUrl("https://appassets.androidplatform.net/assets/miicreator/index.html")
+            if (miiCount > 0) {
+                IconButton(onClick = { soundManager.playBack(); onAvatarSaved() }) {
+                    Icon(
+                        Icons.Filled.ArrowBack,
+                        contentDescription = "Go Back",
+                        tint = com.pocketpass.app.ui.theme.DarkText
+                    )
                 }
-            }) {
-                Icon(
-                    Icons.Filled.ArrowBack, 
-                    contentDescription = "Go Back",
-                    tint = com.pocketpass.app.ui.theme.DarkText
-                )
+            } else {
+                Spacer(modifier = Modifier.size(48.dp))
             }
 
             Button(
                 onClick = {
                     if (isSaving) return@Button
+                    soundManager.playSuccess()
                     isSaving = true
 
                     // Extract the Mii data with validation
@@ -208,7 +206,9 @@ fun AvatarCreatorScreen(
                             allowFileAccess = true
                             allowContentAccess = true
                             // CRITICAL FOR WEBGL: Allow the web app to load local json/glb files from itself
+                            @Suppress("DEPRECATION")
                             allowFileAccessFromFileURLs = true
+                            @Suppress("DEPRECATION")
                             allowUniversalAccessFromFileURLs = true
                             mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
@@ -222,55 +222,16 @@ fun AvatarCreatorScreen(
                             blockNetworkImage = false
                             blockNetworkLoads = false
 
+                            // Force desktop mode (user agent only - no viewport scaling)
+                            userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
                             // Enable hardware acceleration for better WebGL performance
+                            @Suppress("DEPRECATION")
                             setRenderPriority(WebSettings.RenderPriority.HIGH)
                         }
 
                         // Enable hardware acceleration
                         setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
-
-                        webViewClient = object : WebViewClient() {
-                            override fun shouldInterceptRequest(
-                                view: WebView,
-                                request: WebResourceRequest
-                            ): WebResourceResponse? {
-                                val response = assetLoader.shouldInterceptRequest(request.url)
-                                if (response != null && response.mimeType == null) {
-                                    val path = request.url.path ?: ""
-                                    if (path.endsWith(".bin") || path.endsWith(".obj") || path.endsWith(".gltf") || path.endsWith(".glb")) {
-                                        response.mimeType = "model/gltf-binary"
-                                    } else if (path.endsWith(".json")) {
-                                        response.mimeType = "application/json"
-                                    }
-                                }
-                                return response
-                            }
-
-                            override fun onReceivedError(
-                                view: WebView?,
-                                request: WebResourceRequest?,
-                                error: android.webkit.WebResourceError?
-                            ) {
-                                super.onReceivedError(view, request, error)
-                                val url = request?.url?.toString() ?: "unknown"
-                                android.util.Log.e("AvatarCreator", "WebView error: ${error?.description} for $url")
-
-                                // If it's a .glb file failing, this might be a network issue
-                                if (url.contains(".glb")) {
-                                    android.util.Log.e("AvatarCreator", "!!! 3D HEAD MODEL FETCH FAILED !!!")
-                                    android.util.Log.e("AvatarCreator", "Check if WiFi is enabled and working")
-                                }
-                            }
-
-                            override fun onReceivedHttpError(
-                                view: WebView?,
-                                request: WebResourceRequest?,
-                                errorResponse: WebResourceResponse?
-                            ) {
-                                super.onReceivedHttpError(view, request, errorResponse)
-                                android.util.Log.e("AvatarCreator", "HTTP error: ${errorResponse?.statusCode} for ${request?.url}")
-                            }
-                        }
 
                         webChromeClient = object : android.webkit.WebChromeClient() {
                             override fun onConsoleMessage(consoleMessage: android.webkit.ConsoleMessage?): Boolean {
@@ -300,6 +261,74 @@ fun AvatarCreatorScreen(
                             },
                             "PocketPassBridge"
                         )
+
+                        // Hide the built-in save button — we use our own "Save & Continue"
+                        webViewClient = object : WebViewClient() {
+                            override fun shouldInterceptRequest(
+                                view: WebView,
+                                request: WebResourceRequest
+                            ): WebResourceResponse? {
+                                val response = assetLoader.shouldInterceptRequest(request.url)
+                                if (response != null && response.mimeType == null) {
+                                    val path = request.url.path ?: ""
+                                    if (path.endsWith(".bin") || path.endsWith(".obj") || path.endsWith(".gltf") || path.endsWith(".glb")) {
+                                        response.mimeType = "model/gltf-binary"
+                                    } else if (path.endsWith(".json")) {
+                                        response.mimeType = "application/json"
+                                    }
+                                }
+                                return response
+                            }
+
+                            override fun onPageFinished(view: WebView?, url: String?) {
+                                super.onPageFinished(view, url)
+                                view?.evaluateJavascript(
+                                    """
+                                    (function() {
+                                        var style = document.createElement('style');
+                                        style.textContent = '.tab-save { display: none !important; } .library-sidebar .sidebar-credits { display: none !important; } .ui-base { display: flex !important; flex-direction: row !important; height: 100vh !important; } .ui-base > .tab-content { flex: 1 !important; overflow: auto !important; } .ui-base > .tab-list { flex-shrink: 0 !important; }';
+                                        document.head.appendChild(style);
+
+                                        function hideButtons() {
+                                            var btns = document.querySelectorAll('.library-sidebar .sidebar-buttons button');
+                                            btns.forEach(function(btn) {
+                                                var text = btn.textContent.trim().toLowerCase();
+                                                if (text.indexOf('settings') !== -1 || text.indexOf('help') !== -1 || text.indexOf('contact') !== -1 || text.indexOf('about') !== -1) {
+                                                    btn.style.display = 'none';
+                                                }
+                                            });
+                                        }
+                                        hideButtons();
+                                        new MutationObserver(hideButtons).observe(document.body, {childList: true, subtree: true});
+                                    })();
+                                    """.trimIndent(),
+                                    null
+                                )
+                            }
+
+                            override fun onReceivedError(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                                error: android.webkit.WebResourceError?
+                            ) {
+                                super.onReceivedError(view, request, error)
+                                val urlStr = request?.url?.toString() ?: "unknown"
+                                android.util.Log.e("AvatarCreator", "WebView error: ${error?.description} for $urlStr")
+                                if (urlStr.contains(".glb")) {
+                                    android.util.Log.e("AvatarCreator", "!!! 3D HEAD MODEL FETCH FAILED !!!")
+                                    android.util.Log.e("AvatarCreator", "Check if WiFi is enabled and working")
+                                }
+                            }
+
+                            override fun onReceivedHttpError(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                                errorResponse: WebResourceResponse?
+                            ) {
+                                super.onReceivedHttpError(view, request, errorResponse)
+                                android.util.Log.e("AvatarCreator", "HTTP error: ${errorResponse?.statusCode} for ${request?.url}")
+                            }
+                        }
 
                         // Load from the virtual local domain
                         loadUrl("https://appassets.androidplatform.net/assets/miicreator/index.html")
