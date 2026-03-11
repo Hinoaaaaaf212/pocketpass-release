@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <full-backup-content>
     <include domain="file" path="."/>
+    <include domain="database" path="."/>
     <exclude domain="file" path="datastore/pocketpass_prefs.preferences_pb"/>
     <exclude domain="database" path="pocketpass_database"/>
     <exclude domain="database" path="pocketpass_database-wal"/>
     <exclude domain="database" path="pocketpass_database-shm"/>
-    <exclude domain="sharedpref" path="."/>
 </full-backup-content>
