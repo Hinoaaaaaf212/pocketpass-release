@@ -8,12 +8,18 @@ object PuzzlePanels {
 
     fun getAll(): List<PuzzlePanel> = listOf(
         createParkPanel(),
-        createBeachPanel(),
+        createHandheldPanel(),
         createSpacePanel(),
         createCastlePanel()
     )
 
     fun getById(id: String): PuzzlePanel? = getAll().find { it.id == id }
+
+    fun getAllIncludingSpotPass(claimed: List<SpotPassItemEntity>): List<PuzzlePanel> =
+        getAll() + claimed.mapNotNull { it.toPuzzlePanel() }
+
+    fun getByIdIncludingSpotPass(id: String, claimed: List<SpotPassItemEntity>): PuzzlePanel? =
+        getById(id) ?: claimed.firstOrNull { it.panelId == id }?.toPuzzlePanel()
 
     // ── Park: 3x3 grid ──
     // Corners are RARE, edges/center are COMMON
@@ -39,14 +45,14 @@ object PuzzlePanels {
         )
     }
 
-    // ── Beach: 4x4 grid ──
-    // Center 4 pieces are RARE, outer ring is COMMON
+    // ── Handheld: 4x4 grid ──
+    // Center 4 pieces are RARE (the screens), outer ring is COMMON
     //  [C] [C] [C] [C]
     //  [C] [R] [R] [C]
     //  [C] [R] [R] [C]
     //  [C] [C] [C] [C]
-    private fun createBeachPanel(): PuzzlePanel {
-        val id = "beach"
+    private fun createHandheldPanel(): PuzzlePanel {
+        val id = "handheld"
         val pieces = mutableListOf<PuzzlePiece>()
         for (r in 0 until 4) {
             for (c in 0 until 4) {
@@ -56,10 +62,10 @@ object PuzzlePanels {
         }
         return PuzzlePanel(
             id = id,
-            name = "Tropical Beach",
-            description = "Waves, sand, and a colorful umbrella",
+            name = "Ayn Thor",
+            description = "A dual-screen gaming handheld",
             gridSize = 4,
-            theme = PuzzleTheme.BEACH,
+            theme = PuzzleTheme.HANDHELD,
             pieces = pieces
         )
     }

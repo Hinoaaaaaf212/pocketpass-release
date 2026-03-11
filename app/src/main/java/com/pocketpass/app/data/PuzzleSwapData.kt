@@ -17,9 +17,10 @@ enum class PieceRarity(val color: Color, val label: String) {
  */
 enum class PuzzleTheme(val displayName: String) {
     PARK("Sunny Park"),
-    BEACH("Tropical Beach"),
+    HANDHELD("Ayn Thor"),
     SPACE("Outer Space"),
-    CASTLE("Royal Castle")
+    CASTLE("Royal Castle"),
+    SPOTPASS("SpotPass")
 }
 
 /**
@@ -44,7 +45,9 @@ data class PuzzlePanel(
     val description: String,
     val gridSize: Int,
     val theme: PuzzleTheme,
-    val pieces: List<PuzzlePiece>
+    val pieces: List<PuzzlePiece>,
+    val colorHex: String? = null,
+    val imageUrl: String? = null
 ) {
     val totalPieces: Int get() = pieces.size
     val commonCount: Int get() = pieces.count { it.rarity == PieceRarity.COMMON }

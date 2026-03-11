@@ -48,11 +48,12 @@ import com.pocketpass.app.data.Achievements
 import com.pocketpass.app.data.PocketPassDatabase
 import com.pocketpass.app.ui.theme.AchievementIcon
 import com.pocketpass.app.ui.theme.AchievementIconView
+import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
+import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
-import com.pocketpass.app.ui.theme.SkyBlue
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
 import androidx.compose.foundation.shape.CircleShape
@@ -87,7 +88,7 @@ fun StatisticsScreen(onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         CheckeredBackground(
             modifier = Modifier.fillMaxSize(),
-            gradientColors = listOf(PocketPassGreen, SkyBlue)
+            gradientColors = BackgroundGradient
         )
 
         AnimatedVisibility(
@@ -290,7 +291,7 @@ fun StatisticsScreen(onBack: () -> Unit) {
                                     text = "$unlockedCount/${allAchievements.size}",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = PocketPassGreen
+                                    color = GreenText
                                 )
                             }
                             Spacer(modifier = Modifier.height(4.dp))

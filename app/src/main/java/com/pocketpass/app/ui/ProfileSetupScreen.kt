@@ -39,10 +39,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.UserPreferences
+import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
-import com.pocketpass.app.ui.theme.SkyBlue
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.RegionFlags
 import kotlinx.coroutines.launch
@@ -64,7 +64,7 @@ fun ProfileSetupScreen(
     var regionExpanded by remember { mutableStateOf(false) }
 
     val backgroundBrush = Brush.verticalGradient(
-        colors = listOf(PocketPassGreen, SkyBlue)
+        colors = BackgroundGradient
     )
 
     Box(

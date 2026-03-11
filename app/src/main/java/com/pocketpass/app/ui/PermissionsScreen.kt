@@ -1,6 +1,10 @@
 package com.pocketpass.app.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -27,9 +32,10 @@ import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.pocketpass.app.ui.theme.BackgroundGradient
+import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
-import com.pocketpass.app.ui.theme.SkyBlue
 import com.pocketpass.app.util.LocalSoundManager
 
 @OptIn(ExperimentalPermissionsApi::class)
@@ -58,10 +64,26 @@ fun PermissionsScreen(
     // Camera for QR code scanning
     permissionsToRequest.add(android.Manifest.permission.CAMERA)
 
+    // Step counter for earning tokens by walking (Android 10+)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        permissionsToRequest.add(android.Manifest.permission.ACTIVITY_RECOGNITION)
+    }
+
     val permissionsState = rememberMultiplePermissionsState(permissionsToRequest)
 
     if (permissionsState.allPermissionsGranted) {
+        // Request battery optimization exemption so the proximity service isn't killed
+        val context = LocalContext.current
         LaunchedEffect(Unit) {
+            val pm = context.getSystemService(android.content.Context.POWER_SERVICE) as? PowerManager
+            if (pm != null && !pm.isIgnoringBatteryOptimizations(context.packageName)) {
+                try {
+                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                        data = Uri.parse("package:${context.packageName}")
+                    }
+                    context.startActivity(intent)
+                } catch (_: Exception) { }
+            }
             onPermissionsGranted()
         }
     } else {
@@ -74,7 +96,7 @@ fun PermissionsScreen(
 private fun PermissionsRequestUI(permissionsState: MultiplePermissionsState) {
     val soundManager = LocalSoundManager.current
     val backgroundBrush = Brush.verticalGradient(
-        colors = listOf(PocketPassGreen, SkyBlue)
+        colors = BackgroundGradient
     )
 
     Box(
@@ -99,17 +121,32 @@ private fun PermissionsRequestUI(permissionsState: MultiplePermissionsState) {
                 color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center
             )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
+
+            Spacer(modifier = Modifier.height(12.dp))
+
             Text(
-                text = "To find friends nearby and exchange digital profile cards, we need your permission to use Bluetooth and Location.",
+                text = "We need a few permissions to get started:",
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onBackground,
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                PermissionExplanation("Bluetooth", "Find and connect with people nearby")
+                PermissionExplanation("Location", "Discover friends in your area")
+                PermissionExplanation("Camera", "Scan QR codes to add friends")
+                PermissionExplanation("Notifications", "Know when someone is nearby")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    PermissionExplanation("Activity", "Count your steps to earn tokens")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
 
             Button(
                 onClick = { soundManager.playSuccess(); permissionsState.launchMultiplePermissionRequest() },
@@ -129,5 +166,22 @@ private fun PermissionsRequestUI(permissionsState: MultiplePermissionsState) {
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun PermissionExplanation(label: String, description: String) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Text(
+            text = description,
+            style = MaterialTheme.typography.bodySmall,
+            color = MediumText
+        )
     }
 }

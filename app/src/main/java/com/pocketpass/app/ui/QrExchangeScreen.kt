@@ -40,18 +40,29 @@ import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.PocketPassDatabase
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.service.ExchangePayload
+import com.pocketpass.app.data.AuthRepository
+import com.pocketpass.app.data.FriendRepository
+import com.pocketpass.app.data.SupabaseFriendship
+import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.LightText
+import com.pocketpass.app.ui.theme.LocalAppDimensions
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
+import com.pocketpass.app.ui.theme.ErrorText
+import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
-import com.pocketpass.app.ui.theme.SkyBlue
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.RegionFlags
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.UUID
+import android.graphics.Canvas
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.RectF
+import android.graphics.Shader
+import android.graphics.Typeface
 
 private const val TAG = "QrExchange"
 
@@ -63,6 +74,8 @@ fun QrExchangeScreen(onBack: () -> Unit) {
     val gson = remember { Gson() }
     val db = remember { PocketPassDatabase.getDatabase(context) }
     val userPreferences = remember { UserPreferences(context) }
+    val authRepo = remember { AuthRepository() }
+    val friendRepo = remember { FriendRepository() }
 
     // User profile data
     val userName by userPreferences.userNameFlow.collectAsState(initial = null)
@@ -71,17 +84,25 @@ fun QrExchangeScreen(onBack: () -> Unit) {
     val origin by userPreferences.userOriginFlow.collectAsState(initial = "")
     val age by userPreferences.userAgeFlow.collectAsState(initial = "")
     val hobbies by userPreferences.userHobbiesFlow.collectAsState(initial = "")
+    val selectedGames by userPreferences.selectedGamesFlow.collectAsState(initial = emptyList())
 
     // Scan result state
-    var scanResultName by remember { mutableStateOf<String?>(null) }
     var scanError by remember { mutableStateOf<String?>(null) }
+    var saveStatus by remember { mutableStateOf("idle") } // idle, saving, saved, failed
 
-    // Stable userId for self-scan detection
-    val userId = remember { UUID.randomUUID().toString() }
+    // Friend preview state after scanning
+    var scannedPayload by remember { mutableStateOf<ExchangePayload?>(null) }
+    var friendshipStatus by remember { mutableStateOf<String?>(null) } // null, "none", "pending_sent", "pending_received", "accepted", "sending", "sent"
+    var friendshipId by remember { mutableStateOf<String?>(null) }
+    var friendError by remember { mutableStateOf<String?>(null) }
 
-    // Build QR payload
-    val qrPayloadJson = remember(userName, avatarHex, greeting, origin, age, hobbies) {
-        if (userName.isNullOrBlank()) null
+    // Use the authenticated user's ID for the QR payload
+    val userId = authRepo.currentUserId ?: ""
+
+    // Build QR payload with auth-linked ID and selected games
+    val gamesJson = remember(selectedGames) { gson.toJson(selectedGames) }
+    val qrPayloadJson = remember(userName, avatarHex, greeting, origin, age, hobbies, userId, gamesJson) {
+        if (userName.isNullOrBlank() || userId.isBlank()) null
         else gson.toJson(ExchangePayload(
             userId = userId,
             userName = userName!!,
@@ -89,7 +110,8 @@ fun QrExchangeScreen(onBack: () -> Unit) {
             greeting = greeting,
             origin = origin ?: "",
             age = age ?: "",
-            hobbies = hobbies ?: ""
+            hobbies = hobbies ?: "",
+            games = gamesJson
         ))
     }
 
@@ -117,47 +139,81 @@ fun QrExchangeScreen(onBack: () -> Unit) {
         }
     }
 
-    // Process scanned QR content (shared by camera scan and image pick)
+    // Save QR launcher — opens system "Save As" picker
+    val saveQrLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("image/png")
+    ) { uri: Uri? ->
+        if (uri != null && qrBitmap != null) {
+            coroutineScope.launch {
+                val saved = withContext(Dispatchers.IO) {
+                    try {
+                        val cardBitmap = buildCardBitmap(
+                            qrBitmap = qrBitmap,
+                            name = userName ?: "",
+                            originText = origin ?: "",
+                            regionFlag = RegionFlags.getFlagForRegion(origin ?: ""),
+                            greetingText = greeting,
+                            ageText = age ?: "",
+                            hobbiesText = hobbies ?: ""
+                        )
+                        context.contentResolver.openOutputStream(uri)?.use { out ->
+                            cardBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)
+                        }
+                        cardBitmap.recycle()
+                        true
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to save QR card: ${e.message}", e)
+                        false
+                    }
+                }
+                saveStatus = if (saved) "saved" else "failed"
+                if (saved) soundManager.playSuccess()
+            }
+        }
+    }
+
+    // Process scanned QR content — show preview instead of auto-adding
     fun processQrContent(contents: String) {
         coroutineScope.launch {
             try {
-                val payload = gson.fromJson(contents, ExchangePayload::class.java)
+                if (contents.toByteArray(Charsets.UTF_8).size > ExchangePayload.MAX_PAYLOAD_SIZE_BYTES) {
+                    scanError = "QR data too large"
+                    return@launch
+                }
 
-                if (payload.userName.isBlank()) {
+                val payload = ExchangePayload.fromJsonSafe(contents, gson)
+
+                if (payload == null) {
                     scanError = "Invalid QR code data"
                     return@launch
                 }
 
-                if (payload.userName == userName) {
+                if (payload.userId == userId) {
                     scanError = "That's your own QR code!"
                     return@launch
                 }
 
-                withContext(Dispatchers.IO) {
-                    val existing = db.encounterDao().getEncounterByUserName(payload.userName)
-                    if (existing != null) {
-                        db.encounterDao().updateEncounter(
-                            existing.copy(
-                                timestamp = System.currentTimeMillis(),
-                                meetCount = existing.meetCount + 1
-                            )
-                        )
-                    } else {
-                        db.encounterDao().insertEncounter(Encounter(
-                            encounterId = "qr_${System.currentTimeMillis()}",
-                            timestamp = System.currentTimeMillis(),
-                            otherUserAvatarHex = payload.avatarHex,
-                            otherUserName = payload.userName,
-                            greeting = payload.greeting,
-                            origin = payload.origin,
-                            age = payload.age,
-                            hobbies = payload.hobbies
-                        ))
-                    }
-                }
+                // Show the scanned user's preview
+                scannedPayload = payload
 
-                scanResultName = payload.userName
-                Log.d(TAG, "QR encounter saved: ${payload.userName}")
+                // Check existing friendship status
+                friendshipStatus = "none"
+                friendshipId = null
+                try {
+                    val existing = withContext(Dispatchers.IO) {
+                        friendRepo.getFriendshipWith(payload.userId)
+                    }
+                    if (existing != null) {
+                        friendshipId = existing.id
+                        friendshipStatus = when {
+                            existing.status == "accepted" -> "accepted"
+                            existing.requesterId == userId -> "pending_sent"
+                            else -> "pending_received"
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to check friendship: ${e.message}", e)
+                }
 
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to parse QR: ${e.message}", e)
@@ -216,7 +272,7 @@ fun QrExchangeScreen(onBack: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize()) {
         CheckeredBackground(
             modifier = Modifier.fillMaxSize(),
-            gradientColors = listOf(PocketPassGreen, SkyBlue)
+            gradientColors = BackgroundGradient
         )
 
         Column(modifier = Modifier.fillMaxSize()) {
@@ -325,12 +381,12 @@ fun QrExchangeScreen(onBack: () -> Unit) {
                                 Image(
                                     bitmap = qrBitmap.asImageBitmap(),
                                     contentDescription = "Your QR Code",
-                                    modifier = Modifier.size(180.dp),
+                                    modifier = Modifier.size(LocalAppDimensions.current.qrCodeSize),
                                     contentScale = ContentScale.Fit
                                 )
                             } else {
                                 Box(
-                                    modifier = Modifier.size(180.dp),
+                                    modifier = Modifier.size(LocalAppDimensions.current.qrCodeSize),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     CircularProgressIndicator(color = PocketPassGreen)
@@ -338,7 +394,36 @@ fun QrExchangeScreen(onBack: () -> Unit) {
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Save to Photos button
+                        if (qrBitmap != null) {
+                            Button(
+                                onClick = {
+                                    soundManager.playTap()
+                                    saveStatus = "idle"
+                                    saveQrLauncher.launch("PocketPass_QR_${userName ?: "code"}.png")
+                                },
+                                modifier = Modifier.fillMaxWidth(0.7f),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (saveStatus == "saved") PocketPassGreen.copy(alpha = 0.7f) else PocketPassGreen,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text(
+                                    text = when (saveStatus) {
+                                        "saved" -> "Saved!"
+                                        "failed" -> "Save Failed - Retry"
+                                        else -> "Save to Photos"
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         // Profile info
                         Text(
@@ -472,18 +557,218 @@ fun QrExchangeScreen(onBack: () -> Unit) {
         }
     }
 
-    // Success dialog
-    if (scanResultName != null) {
+    // Friend preview dialog after scanning
+    if (scannedPayload != null) {
+        val payload = scannedPayload!!
         AlertDialog(
-            onDismissRequest = { scanResultName = null },
-            title = { Text("New Friend!", fontWeight = FontWeight.Bold) },
-            text = { Text("$scanResultName has been added to your plaza!") },
-            confirmButton = {
-                Button(
-                    onClick = { soundManager.playSuccess(); scanResultName = null },
-                    colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
+            onDismissRequest = { scannedPayload = null; friendshipStatus = null; friendError = null },
+            title = {
+                Text("PocketPass User", fontWeight = FontWeight.Bold)
+            },
+            text = {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Awesome!", fontWeight = FontWeight.Bold)
+                    // Mii Avatar
+                    if (payload.avatarHex.isNotBlank()) {
+                        Box(
+                            modifier = Modifier
+                                .size(100.dp)
+                                .clip(CircleShape)
+                                .background(Color(0xFFE3F2FD)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            MiiAvatarViewer(hexData = payload.avatarHex)
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+
+                    Text(
+                        text = payload.userName,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = DarkText
+                    )
+
+                    if (payload.origin.isNotBlank()) {
+                        Text(
+                            text = "${RegionFlags.getFlagForRegion(payload.origin)} ${payload.origin}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MediumText
+                        )
+                    }
+
+                    if (payload.greeting.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "\"${payload.greeting}\"",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MediumText,
+                            fontWeight = FontWeight.Medium,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    if (payload.hobbies.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = payload.hobbies,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = LightText
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Friendship action
+                    when (friendshipStatus) {
+                        "accepted" -> {
+                            Text(
+                                text = "You're already friends!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = GreenText,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        "pending_sent" -> {
+                            Text(
+                                text = "Friend request already sent",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MediumText,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        "pending_received" -> {
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        friendshipStatus = "sending"
+                                        val result = friendRepo.acceptFriendRequest(friendshipId!!)
+                                        result.onSuccess {
+                                            soundManager.playSuccess()
+                                            friendshipStatus = "accepted"
+                                            friendError = null
+                                            // Also save encounter locally
+                                            withContext(Dispatchers.IO) {
+                                                val existing = db.encounterDao().getEncounterByUserName(payload.userName)
+                                                if (existing == null) {
+                                                    db.encounterDao().insertEncounter(Encounter(
+                                                        encounterId = "qr_${System.currentTimeMillis()}",
+                                                        timestamp = System.currentTimeMillis(),
+                                                        otherUserAvatarHex = payload.avatarHex,
+                                                        otherUserName = payload.userName,
+                                                        otherUserId = payload.userId,
+                                                        greeting = payload.greeting,
+                                                        origin = payload.origin,
+                                                        age = payload.age,
+                                                        hobbies = payload.hobbies,
+                                                        games = payload.games
+                                                    ))
+                                                }
+                                            }
+                                        }.onFailure { e ->
+                                            Log.e(TAG, "Failed to accept friend request", e)
+                                            soundManager.playError()
+                                            friendError = e.message ?: "Failed to accept request"
+                                            friendshipStatus = "pending_received"
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = PocketPassGreen,
+                                    contentColor = Color.White
+                                ),
+                                enabled = friendshipStatus != "sending"
+                            ) {
+                                Text("Accept Friend Request", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        "sent" -> {
+                            Text(
+                                text = "Friend request sent!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = GreenText,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        "sending" -> {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = PocketPassGreen,
+                                strokeWidth = 2.dp
+                            )
+                        }
+                        else -> {
+                            // "none" — can send friend request
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        friendshipStatus = "sending"
+                                        val result = friendRepo.sendFriendRequest(payload.userId)
+                                        result.onSuccess {
+                                            soundManager.playSuccess()
+                                            friendshipStatus = "sent"
+                                            friendError = null
+                                            // Save encounter locally
+                                            withContext(Dispatchers.IO) {
+                                                val existing = db.encounterDao().getEncounterByUserName(payload.userName)
+                                                if (existing == null) {
+                                                    db.encounterDao().insertEncounter(Encounter(
+                                                        encounterId = "qr_${System.currentTimeMillis()}",
+                                                        timestamp = System.currentTimeMillis(),
+                                                        otherUserAvatarHex = payload.avatarHex,
+                                                        otherUserName = payload.userName,
+                                                        otherUserId = payload.userId,
+                                                        greeting = payload.greeting,
+                                                        origin = payload.origin,
+                                                        age = payload.age,
+                                                        hobbies = payload.hobbies,
+                                                        games = payload.games
+                                                    ))
+                                                }
+                                            }
+                                        }.onFailure { e ->
+                                            Log.e(TAG, "Failed to send friend request", e)
+                                            soundManager.playError()
+                                            friendError = e.message ?: "Failed to send request"
+                                            friendshipStatus = "none"
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = PocketPassGreen,
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Text("Add Friend", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    // Show error message if friend request failed
+                    if (friendError != null) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = friendError!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = ErrorText,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scannedPayload = null
+                    friendshipStatus = null
+                    friendError = null
+                }) {
+                    Text("Close", color = DarkText)
                 }
             }
         )
@@ -493,8 +778,8 @@ fun QrExchangeScreen(onBack: () -> Unit) {
     if (scanError != null) {
         AlertDialog(
             onDismissRequest = { scanError = null },
-            title = { Text("Scan Failed", fontWeight = FontWeight.Bold) },
-            text = { Text(scanError!!) },
+            title = { Text("Scan Failed", fontWeight = FontWeight.Bold, color = ErrorText) },
+            text = { Text(scanError!!, color = ErrorText) },
             confirmButton = {
                 Button(
                     onClick = { soundManager.playBack(); scanError = null },
@@ -505,4 +790,124 @@ fun QrExchangeScreen(onBack: () -> Unit) {
             }
         )
     }
+}
+
+/** Renders a profile card bitmap matching the on-screen QR card preview. */
+private fun buildCardBitmap(
+    qrBitmap: Bitmap,
+    name: String,
+    originText: String,
+    regionFlag: String,
+    greetingText: String,
+    ageText: String,
+    hobbiesText: String
+): Bitmap {
+    val cardWidth = 600
+    val padding = 40f
+    val cornerRadius = 48f
+    val headerHeight = 120f
+    val qrSize = 360
+    val qrPadding = 16f
+
+    // Pre-calculate text heights for dynamic card sizing
+    val namePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFFFFFFF.toInt(); textSize = 40f; typeface = Typeface.DEFAULT_BOLD
+    }
+    val originPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xE6FFFFFF.toInt(); textSize = 28f
+    }
+    val greetingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF666666.toInt(); textSize = 30f
+        typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD_ITALIC)
+    }
+    val infoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF999999.toInt(); textSize = 26f
+    }
+    val brandPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFFAAAAAA.toInt(); textSize = 22f; textAlign = Paint.Align.CENTER
+    }
+
+    // Build info line
+    val infoLine = buildString {
+        if (ageText.isNotBlank()) append("Age: $ageText")
+        if (ageText.isNotBlank() && hobbiesText.isNotBlank()) append("  •  ")
+        if (hobbiesText.isNotBlank()) append(hobbiesText)
+    }
+
+    // Calculate total card height
+    var totalHeight = padding // top padding
+    totalHeight += headerHeight // green header
+    totalHeight += 24f // spacer
+    totalHeight += qrSize + qrPadding * 2 // QR with padding
+    totalHeight += 20f // spacer
+    if (greetingText.isNotBlank()) totalHeight += 44f // greeting
+    if (infoLine.isNotBlank()) totalHeight += 40f // info line
+    totalHeight += 32f // spacer before brand
+    totalHeight += 30f // brand text
+    totalHeight += padding // bottom padding
+
+    val cardHeight = totalHeight.toInt()
+    val bitmap = Bitmap.createBitmap(cardWidth, cardHeight, Bitmap.Config.ARGB_8888)
+    val canvas = Canvas(bitmap)
+
+    // Card background (white with rounded corners)
+    val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFAFAFA.toInt() }
+    canvas.drawRoundRect(RectF(0f, 0f, cardWidth.toFloat(), cardHeight.toFloat()), cornerRadius, cornerRadius, bgPaint)
+
+    // Green header gradient
+    val headerRect = RectF(padding, padding, cardWidth - padding, padding + headerHeight)
+    val headerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        shader = LinearGradient(
+            headerRect.left, 0f, headerRect.right, 0f,
+            0xFF4CAF50.toInt(), 0xFF9BD85B.toInt(),
+            Shader.TileMode.CLAMP
+        )
+    }
+    canvas.drawRoundRect(headerRect, 32f, 32f, headerPaint)
+
+    // Name on header
+    val nameX = padding + 24f
+    val nameY = padding + headerHeight / 2f - 4f
+    canvas.drawText(name, nameX, nameY, namePaint)
+
+    // Origin under name
+    if (originText.isNotBlank()) {
+        val originStr = "$regionFlag $originText"
+        canvas.drawText(originStr, nameX, nameY + 36f, originPaint)
+    }
+
+    // QR code (centered, white background box)
+    var y = padding + headerHeight + 24f
+    val qrBoxLeft = (cardWidth - qrSize - qrPadding * 2) / 2f
+    val qrBoxPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFFFFF.toInt() }
+    canvas.drawRoundRect(
+        RectF(qrBoxLeft, y, qrBoxLeft + qrSize + qrPadding * 2, y + qrSize + qrPadding * 2),
+        24f, 24f, qrBoxPaint
+    )
+    val scaledQr = Bitmap.createScaledBitmap(qrBitmap, qrSize, qrSize, true)
+    canvas.drawBitmap(scaledQr, qrBoxLeft + qrPadding, y + qrPadding, null)
+    scaledQr.recycle()
+
+    y += qrSize + qrPadding * 2 + 20f
+
+    // Greeting
+    if (greetingText.isNotBlank()) {
+        val quoted = "\"$greetingText\""
+        val greetingWidth = greetingPaint.measureText(quoted)
+        canvas.drawText(quoted, (cardWidth - greetingWidth) / 2f, y + 30f, greetingPaint)
+        y += 44f
+    }
+
+    // Age / Hobbies info
+    if (infoLine.isNotBlank()) {
+        val infoWidth = infoPaint.measureText(infoLine)
+        canvas.drawText(infoLine, (cardWidth - infoWidth) / 2f, y + 28f, infoPaint)
+        y += 40f
+    }
+
+    // Brand footer
+    y += 32f
+    canvas.drawText("PocketPass", cardWidth / 2f, y, brandPaint)
+
+    return bitmap
 }

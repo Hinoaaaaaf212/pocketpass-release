@@ -1,0 +1,46 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Card background -->
+    <path
+        android:fillColor="#4CA318"
+        android:pathData="M3,3h18v18H3z"
+        android:strokeColor="#2E7D0E"
+        android:strokeWidth="0.5" />
+    <!-- Grid lines horizontal -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M3,7.5h18v0.5H3zM3,12h18v0.5H3zM3,16.5h18v0.5H3z" />
+    <!-- Grid lines vertical -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M7.5,3v18h0.5V3zM12,3v18h0.5V3zM16.5,3v18h0.5V3z" />
+    <!-- Checkmarks on completed cells -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M4.5,5L5.5,6L7,4.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="0.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M9,9.5L10,10.5L11.5,9"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="0.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M13.5,14L14.5,15L16,13.5"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="0.8"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <!-- Star in center cell (free space) -->
+    <path
+        android:fillColor="#FFD700"
+        android:pathData="M12.25,10L12.75,11.5L14.25,11.5L13,12.5L13.5,14L12.25,13L11,14L11.5,12.5L10.25,11.5L11.75,11.5z" />
+</vector>

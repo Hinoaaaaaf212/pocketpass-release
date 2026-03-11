@@ -5,10 +5,12 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [Encounter::class], version = 3, exportSchema = false)
+@Database(entities = [Encounter::class, CachedMessage::class, SpotPassItemEntity::class], version = 13, exportSchema = false)
 abstract class PocketPassDatabase : RoomDatabase() {
 
     abstract fun encounterDao(): EncounterDao
+    abstract fun messageDao(): MessageDao
+    abstract fun spotPassDao(): SpotPassDao
 
     companion object {
         @Volatile
@@ -21,7 +23,7 @@ abstract class PocketPassDatabase : RoomDatabase() {
                     PocketPassDatabase::class.java,
                     "pocketpass_database"
                 )
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigration(dropAllTables = true)
                 .build()
                 INSTANCE = instance
                 instance

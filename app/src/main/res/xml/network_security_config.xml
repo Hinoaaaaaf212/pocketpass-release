@@ -1,20 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
-    <!-- Allow all network traffic for development -->
-    <base-config cleartextTrafficPermitted="true">
+    <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
             <certificates src="system" />
-            <certificates src="user" />
         </trust-anchors>
     </base-config>
-
-    <!-- Explicitly allow the Mii rendering API -->
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="true">mii-unsecure.ariankordi.net</domain>
-        <domain includeSubdomains="true">ariankordi.net</domain>
-        <trust-anchors>
-            <certificates src="system" />
-            <certificates src="user" />
-        </trust-anchors>
-    </domain-config>
 </network-security-config>

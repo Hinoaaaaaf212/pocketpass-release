@@ -1,16 +1,20 @@
 package com.pocketpass.app.ui
 
-import android.app.Presentation
 import android.hardware.display.DisplayManager
 import android.view.Display
-import androidx.activity.ComponentActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInHorizontally
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.ui.res.painterResource
+import com.pocketpass.app.R
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,7 +43,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -52,30 +55,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.setViewTreeLifecycleOwner
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.pocketpass.app.data.UserPreferences
+import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
+import com.pocketpass.app.ui.theme.LocalAppDimensions
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.LightText
 import com.pocketpass.app.ui.theme.MoodIcon
 import com.pocketpass.app.ui.theme.MoodType
 import com.pocketpass.app.ui.theme.OffWhite
+import com.pocketpass.app.ui.theme.ErrorText
+import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.ui.theme.SkyBlue
-import com.pocketpass.app.ui.theme.PocketPassTheme
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.focus.FocusRequester
+import com.pocketpass.app.data.AuthRepository
+import com.pocketpass.app.data.PocketPassDatabase
+import com.pocketpass.app.data.ShopItems
+import com.pocketpass.app.data.SyncRepository
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import kotlinx.coroutines.launch
 
 @Composable
@@ -83,7 +89,9 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onCreateNewMii: () -> Unit,
     onOpenQrExchange: () -> Unit = {},
-    onOpenAppSettings: () -> Unit = {}
+    onOpenAppSettings: () -> Unit = {},
+    onOpenProfileSettings: () -> Unit = {},
+    onOpenAuth: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -105,57 +113,15 @@ fun SettingsScreen(
     val canCreateNewMii = miiCount < maxMiis
 
     // Detect secondary display (Ayn Thor bottom screen)
+    // Presentation is now managed centrally in MainActivity
     val displayManager = remember {
         context.getSystemService(android.content.Context.DISPLAY_SERVICE) as? DisplayManager
     }
     val secondaryDisplay = remember {
         displayManager?.displays?.firstOrNull { it.displayId != Display.DEFAULT_DISPLAY }
     }
-    val isDualScreen = secondaryDisplay != null
-
-    // (transition handled by AnimatedContent in MainActivity)
-
-    // Manage secondary display Presentation (Ayn Thor bottom screen)
-    if (isDualScreen && secondaryDisplay != null) {
-        val activity = context as ComponentActivity
-        val lifecycleOwner = LocalLifecycleOwner.current
-        DisposableEffect(Unit) {
-            val composeView = ComposeView(activity).apply {
-                setViewTreeLifecycleOwner(activity)
-                setViewTreeSavedStateRegistryOwner(activity)
-                setContent {
-                    PocketPassTheme {
-                        SettingsSecondaryScreen(
-                            onCreateNewMii = onCreateNewMii,
-                            soundManager = soundManager
-                        )
-                    }
-                }
-            }
-            val presentation = Presentation(activity, secondaryDisplay)
-            presentation.setContentView(composeView)
-            presentation.show()
-
-            // Dismiss when app goes to background, re-show when back
-            val observer = LifecycleEventObserver { _, event ->
-                when (event) {
-                    Lifecycle.Event.ON_STOP -> {
-                        if (presentation.isShowing) presentation.dismiss()
-                    }
-                    Lifecycle.Event.ON_START -> {
-                        if (!presentation.isShowing) presentation.show()
-                    }
-                    else -> {}
-                }
-            }
-            lifecycleOwner.lifecycle.addObserver(observer)
-
-            onDispose {
-                lifecycleOwner.lifecycle.removeObserver(observer)
-                if (presentation.isShowing) presentation.dismiss()
-            }
-        }
-    }
+    val dualScreenEnabled by userPreferences.dualScreenModeFlow.collectAsState(initial = true)
+    val isDualScreen = secondaryDisplay != null && dualScreenEnabled
 
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
@@ -163,7 +129,7 @@ fun SettingsScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         CheckeredBackground(
             modifier = Modifier.fillMaxSize(),
-            gradientColors = listOf(PocketPassGreen, SkyBlue)
+            gradientColors = BackgroundGradient
         )
 
         AnimatedVisibility(
@@ -213,10 +179,11 @@ fun SettingsScreen(
                     verticalArrangement = Arrangement.Center
                 ) {
                     // Large Mii avatar preview
+                    val settingsDims = LocalAppDimensions.current
                     if (!activeMiiHex.isNullOrBlank()) {
                         Box(
                             modifier = Modifier
-                                .size(180.dp)
+                                .size(settingsDims.avatarLarge)
                                 .clip(RoundedCornerShape(24.dp))
                                 .background(
                                     Brush.verticalGradient(
@@ -249,44 +216,14 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = DarkText
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            Button(
-                                onClick = { soundManager.playNavigate(); onOpenQrExchange() },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = PocketPassGreen,
-                                    contentColor = OffWhite
-                                )
-                            ) {
-                                Text("Share QR Code", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                            }
-
                             Spacer(modifier = Modifier.height(8.dp))
-
-                            Button(
-                                onClick = { soundManager.playNavigate(); onOpenAppSettings() },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = DarkText.copy(alpha = 0.7f),
-                                    contentColor = OffWhite
-                                )
-                            ) {
-                                Text("App Settings", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                            }
+                            Text(
+                                text = "Use the bottom screen for settings",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MediumText
+                            )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = "Customization options on bottom screen",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MediumText,
-                        textAlign = TextAlign.Center
-                    )
                 }
             } else {
                 // ── Single-screen: Everything in one LazyColumn (normal devices) ──
@@ -301,23 +238,15 @@ fun SettingsScreen(
                             userName = userName,
                             onOpenQrExchange = onOpenQrExchange,
                             onOpenAppSettings = onOpenAppSettings,
+                            onOpenProfileSettings = onOpenProfileSettings,
+                            onOpenAuth = onOpenAuth,
                             soundManager = soundManager
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                     }
 
                     item {
-                        SettingsCustomizationContent(
-                            userPreferences = userPreferences,
-                            userGreeting = userGreeting,
-                            customGreeting = customGreeting,
-                            onCustomGreetingChange = { customGreeting = it },
-                            userMood = userMood,
-                            userCardStyle = userCardStyle,
-                            coroutineScope = coroutineScope,
-                            soundManager = soundManager
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
 
                     item {
@@ -329,7 +258,7 @@ fun SettingsScreen(
                         SettingsMiiRow(
                             miiHex = miiHex,
                             isActive = miiHex == activeMiiHex,
-                            onSetActive = { soundManager.playSelect(); coroutineScope.launch { userPreferences.setActiveMii(miiHex) } },
+                            onSetActive = { soundManager.playSelect(); coroutineScope.launch { userPreferences.setActiveMii(miiHex); try { SyncRepository(context).syncProfile() } catch (_: Exception) { } } },
                             onDelete = { soundManager.playDelete(); coroutineScope.launch { userPreferences.deleteMii(miiHex) } }
                         )
                     }
@@ -343,88 +272,15 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.height(32.dp))
                     }
+
+                    item {
+                        SettingsCreditsSection()
+                        Spacer(modifier = Modifier.height(32.dp))
+                    }
                 }
             }
         }
         } // AnimatedVisibility
-    }
-}
-
-// ── Content shown on the secondary (bottom) display on Ayn Thor ──
-
-@Composable
-private fun SettingsSecondaryScreen(
-    onCreateNewMii: () -> Unit,
-    soundManager: com.pocketpass.app.util.SoundManager
-) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-    val userPreferences = remember { UserPreferences(context) }
-
-    val userGreeting by userPreferences.userGreetingFlow.collectAsState(initial = "Hello! Nice to meet you!")
-    val userMood by userPreferences.userMoodFlow.collectAsState(initial = "\uD83D\uDE0A")
-    val userCardStyle by userPreferences.cardStyleFlow.collectAsState(initial = "classic")
-    val savedMiis by userPreferences.savedMiisFlow.collectAsState(initial = emptyList())
-    val activeMiiHex by userPreferences.avatarHexFlow.collectAsState(initial = "")
-    val miiCount by userPreferences.getMiiCount().collectAsState(initial = 0)
-
-    var customGreeting by remember { mutableStateOf(userGreeting) }
-    val maxMiis = 3
-    val canCreateNewMii = miiCount < maxMiis
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = listOf(PocketPassGreen, SkyBlue)
-        )
-
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            item {
-                Spacer(modifier = Modifier.height(12.dp))
-
-                SettingsCustomizationContent(
-                    userPreferences = userPreferences,
-                    userGreeting = userGreeting,
-                    customGreeting = customGreeting,
-                    onCustomGreetingChange = { customGreeting = it },
-                    userMood = userMood,
-                    userCardStyle = userCardStyle,
-                    coroutineScope = coroutineScope,
-                    soundManager = soundManager
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            item {
-                SettingsMiisHeader(miiCount = miiCount, maxMiis = maxMiis)
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            items(savedMiis) { miiHex ->
-                SettingsMiiRow(
-                    miiHex = miiHex,
-                    isActive = miiHex == activeMiiHex,
-                    onSetActive = { soundManager.playSelect(); coroutineScope.launch { userPreferences.setActiveMii(miiHex) } },
-                    onDelete = { soundManager.playDelete(); coroutineScope.launch { userPreferences.deleteMii(miiHex) } }
-                )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-                SettingsCreateMiiButton(
-                    canCreateNewMii = canCreateNewMii,
-                    onCreateNewMii = onCreateNewMii,
-                    soundManager = soundManager
-                )
-                Spacer(modifier = Modifier.height(32.dp))
-            }
-        }
     }
 }
 
@@ -435,8 +291,35 @@ private fun SettingsProfileCard(
     userName: String?,
     onOpenQrExchange: () -> Unit,
     onOpenAppSettings: () -> Unit,
+    onOpenProfileSettings: () -> Unit = {},
+    onOpenAuth: () -> Unit = {},
     soundManager: com.pocketpass.app.util.SoundManager
 ) {
+    val authRepo = remember { AuthRepository() }
+    val isLoggedIn by authRepo.isLoggedIn.collectAsState(initial = false)
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val syncRepo = remember { SyncRepository(context) }
+    var syncStatus by remember { mutableStateOf("idle") } // idle, syncing, synced, failed
+    var showSignOutConfirm by remember { mutableStateOf(false) }
+
+    // Run sync when logged in and screen opens
+    LaunchedEffect(isLoggedIn) {
+        if (isLoggedIn) {
+            syncStatus = "syncing"
+            try {
+                // Use NonCancellable so the network request finishes
+                // even if the user navigates away mid-sync
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
+                    syncRepo.fullSync()
+                }
+                syncStatus = "synced"
+            } catch (_: Exception) {
+                syncStatus = "failed"
+            }
+        }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -454,8 +337,118 @@ private fun SettingsProfileCard(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Auth status
+            if (isLoggedIn) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    when (syncStatus) {
+                        "syncing" -> {
+                            androidx.compose.material3.CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                color = PocketPassGreen,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Syncing to cloud...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MediumText,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        "synced" -> {
+                            Icon(
+                                Icons.Filled.CheckCircle,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = GreenText
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Synced to cloud",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = GreenText,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        "failed" -> {
+                            Text(
+                                text = "Sync failed",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = ErrorText,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                        else -> {
+                            Text(
+                                text = "Signed in",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = GreenText,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Button(
+                    onClick = {
+                        soundManager.playTap()
+                        showSignOutConfirm = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFC62828),
+                        contentColor = OffWhite
+                    )
+                ) {
+                    Text("Sign Out", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                }
+            } else {
+                Button(
+                    onClick = { soundManager.playNavigate(); onOpenAuth() },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PocketPassGreen,
+                        contentColor = Color.White
+                    )
+                ) {
+                    Text("Sign In to Sync", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Button(
-                onClick = { soundManager.playNavigate(); onOpenQrExchange() },
+                onClick = {
+                    if (isLoggedIn) {
+                        soundManager.playNavigate(); onOpenQrExchange()
+                    } else {
+                        soundManager.playError()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                enabled = isLoggedIn,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PocketPassGreen,
+                    contentColor = Color.White
+                )
+            ) {
+                Text(
+                    text = if (isLoggedIn) "Share QR Code" else "Sign in to Share QR Code",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Button(
+                onClick = { soundManager.playNavigate(); onOpenProfileSettings() },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -463,7 +456,7 @@ private fun SettingsProfileCard(
                     contentColor = OffWhite
                 )
             ) {
-                Text("Share QR Code", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                Text("Profile Settings", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -481,6 +474,46 @@ private fun SettingsProfileCard(
             }
         }
     }
+
+    if (showSignOutConfirm) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { showSignOutConfirm = false },
+            title = { Text("Sign Out", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to sign out? All local data (profile, encounters, messages, tokens, and settings) will be removed from this device.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showSignOutConfirm = false
+                        coroutineScope.launch {
+                            authRepo.signOut()
+                            // Clear all local data
+                            val userPreferences = UserPreferences(context)
+                            userPreferences.clearAll()
+                            val db = PocketPassDatabase.getDatabase(context)
+                            db.encounterDao().deleteAllEncounters()
+                            db.messageDao().deleteAll()
+                            // Restart activity to reset all in-memory navigation state
+                            val activity = context as? android.app.Activity
+                            activity?.recreate()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFC62828),
+                        contentColor = OffWhite
+                    )
+                ) {
+                    Text("Sign Out", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                androidx.compose.material3.TextButton(
+                    onClick = { showSignOutConfirm = false }
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -492,7 +525,8 @@ private fun SettingsCustomizationContent(
     userMood: String,
     userCardStyle: String,
     coroutineScope: kotlinx.coroutines.CoroutineScope,
-    soundManager: com.pocketpass.app.util.SoundManager
+    soundManager: com.pocketpass.app.util.SoundManager,
+    onOpenGameSearch: () -> Unit = {}
 ) {
     Column {
         // Customization header
@@ -513,6 +547,15 @@ private fun SettingsCustomizationContent(
                 .background(OffWhite)
                 .padding(16.dp)
         ) {
+            var greetingSaved by remember { mutableStateOf(false) }
+
+            LaunchedEffect(greetingSaved) {
+                if (greetingSaved) {
+                    kotlinx.coroutines.delay(2000)
+                    greetingSaved = false
+                }
+            }
+
             Column {
                 Text(
                     text = "Greeting Message",
@@ -578,11 +621,12 @@ private fun SettingsCustomizationContent(
                         coroutineScope.launch {
                             userPreferences.saveGreeting(customGreeting)
                         }
+                        greetingSaved = true
                     },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
                 ) {
-                    Text("Save Custom Greeting")
+                    Text(if (greetingSaved) "Saved!" else "Save Custom Greeting")
                 }
             }
         }
@@ -659,7 +703,84 @@ private fun SettingsCustomizationContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Card Style Selector
+        // About Me Section
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(16.dp))
+                .background(OffWhite)
+                .padding(16.dp)
+        ) {
+            val currentAge by userPreferences.userAgeFlow.collectAsState(initial = null)
+            val currentHobbies by userPreferences.userHobbiesFlow.collectAsState(initial = null)
+            var ageText by remember(currentAge) { mutableStateOf(currentAge ?: "") }
+            var hobbiesText by remember(currentHobbies) { mutableStateOf(currentHobbies ?: "") }
+            var showSaved by remember { mutableStateOf(false) }
+
+            LaunchedEffect(showSaved) {
+                if (showSaved) {
+                    kotlinx.coroutines.delay(2000)
+                    showSaved = false
+                }
+            }
+
+            Column {
+                Text(
+                    text = "About Me",
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DarkText
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = ageText,
+                    onValueChange = { newValue ->
+                        val digits = newValue.filter { it.isDigit() }
+                        val num = digits.toIntOrNull()
+                        if (digits.isEmpty() || (num != null && num in 1..99)) {
+                            ageText = digits
+                        }
+                    },
+                    label = { Text("Age (1-99)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Number)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = hobbiesText,
+                    onValueChange = { hobbiesText = it },
+                    label = { Text("Hobby (e.g. Gaming, Drawing)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Button(
+                    onClick = {
+                        soundManager.playSuccess()
+                        coroutineScope.launch {
+                            userPreferences.saveAge(ageText)
+                            userPreferences.saveHobbies(hobbiesText)
+                        }
+                        showSaved = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
+                ) {
+                    Text(if (showSaved) "Saved!" else "Save")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Card Style Selector — shows owned themes from shop
+        val ownedItems by userPreferences.ownedShopItemsFlow.collectAsState(initial = emptySet())
+        val ownedThemes = ShopItems.cardThemes.filter { it.id in ownedItems }
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -676,38 +797,130 @@ private fun SettingsCustomizationContent(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val cardStyles = listOf(
-                    "classic" to "Classic",
-                    "gradient" to "Sunny",
-                    "cool" to "Cool",
-                    "warm" to "Warm"
-                )
-
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    cardStyles.forEach { (styleId, styleName) ->
-                        Button(
-                            onClick = {
-                                soundManager.playSelect()
-                                coroutineScope.launch { userPreferences.saveCardStyle(styleId) }
-                            },
+                    ownedThemes.forEach { theme ->
+                        val isSelected = userCardStyle == theme.id
+                        val gradientColors = theme.previewColors?.map { Color(it.toInt()) }
+                            ?: listOf(PocketPassGreen, PocketPassGreen)
+                        Box(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (userCardStyle == styleId) PocketPassGreen else DarkText.copy(alpha = 0.7f)
-                            ),
-                            shape = RoundedCornerShape(12.dp)
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Brush.linearGradient(gradientColors))
+                                .then(
+                                    if (isSelected) Modifier.border(3.dp, PocketPassGreen, RoundedCornerShape(12.dp))
+                                    else Modifier.border(1.dp, DarkText.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
+                                )
+                                .clickable {
+                                    soundManager.playSelect()
+                                    coroutineScope.launch { userPreferences.saveCardStyle(theme.id) }
+                                },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text(styleName, color = OffWhite, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = theme.icon,
+                                style = MaterialTheme.typography.titleMedium
+                            )
                         }
                     }
                 }
             }
         }
 
+        // ── Favourite Games ──
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = "Favourite Games",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = DarkText
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        val selectedGames by userPreferences.selectedGamesFlow.collectAsState(initial = emptyList())
+
+        if (selectedGames.isNotEmpty()) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                selectedGames.forEach { game ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(width = 60.dp, height = 85.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(androidx.compose.ui.graphics.Color(0xFFE0E0E0)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val coverUrl = game.coverUrl("t_cover_small")
+                            if (coverUrl != null) {
+                                coil.compose.AsyncImage(
+                                    model = coverUrl,
+                                    contentDescription = game.name,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Text("\uD83C\uDFAE", style = MaterialTheme.typography.titleMedium)
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = game.name,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MediumText,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        IconButton(
+                            onClick = {
+                                soundManager.playDelete()
+                                coroutineScope.launch {
+                                    userPreferences.saveSelectedGames(
+                                        selectedGames.filter { it.id != game.id }
+                                    )
+                                }
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = "Remove",
+                                tint = MediumText,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+
+        if (selectedGames.size < 3) {
+            Button(
+                onClick = { soundManager.playNavigate(); onOpenGameSearch() },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = PocketPassGreen,
+                    contentColor = OffWhite
+                )
+            ) {
+                Text(
+                    if (selectedGames.isEmpty()) "Add Games" else "Add Another Game",
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 
@@ -767,7 +980,7 @@ private fun SettingsMiisHeader(miiCount: Int, maxMiis: Int) {
             text = "$miiCount / $maxMiis",
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold,
-            color = if (miiCount >= maxMiis) Color(0xFFE57373) else DarkText
+            color = if (miiCount >= maxMiis) ErrorText else DarkText
         )
     }
 }
@@ -830,7 +1043,7 @@ private fun SettingsMiiRow(
                         text = "Corrupted Data",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD32F2F)
+                        color = ErrorText
                     )
                     Text(
                         text = "Length: ${miiHex.length} chars",
@@ -849,7 +1062,7 @@ private fun SettingsMiiRow(
                             text = "Active",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = PocketPassGreen
+                            color = GreenText
                         )
                     }
                 } else {
@@ -871,7 +1084,7 @@ private fun SettingsMiiRow(
             Icon(
                 imageVector = Icons.Filled.Delete,
                 contentDescription = "Delete Mii",
-                tint = Color(0xFFE57373)
+                tint = ErrorText
             )
         }
     }
@@ -917,5 +1130,93 @@ private fun SettingsCreateMiiButton(
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth()
         )
+    }
+}
+
+@Composable
+private fun SettingsCreditsSection() {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(OffWhite)
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Credits",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = DarkText
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = "Mii Creator",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = DarkText
+        )
+        Text(
+            text = "The Mii editor used in this app was made by the following people:",
+            style = MaterialTheme.typography.bodySmall,
+            color = MediumText
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        CreditEntry("datkat21", "Creator and lead developer", imageRes = R.drawable.credit_datkat21)
+        CreditEntry("ariankordi", "Mii rendering API and contributions", imageRes = R.drawable.credit_ariankordi)
+        CreditEntry("Timiimiimii", "Contributions")
+    }
+}
+
+@Composable
+private fun CreditEntry(name: String, role: String, imageRes: Int? = null) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (imageRes != null) {
+            Image(
+                painter = painterResource(id = imageRes),
+                contentDescription = name,
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(32.dp)
+                    .clip(CircleShape)
+                    .background(PocketPassGreen),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = name.first().uppercase(),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = OffWhite
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = DarkText
+            )
+            Text(
+                text = role,
+                style = MaterialTheme.typography.bodySmall,
+                color = MediumText
+            )
+        }
     }
 }

@@ -108,32 +108,54 @@ class NavigationState {
     var showAppSettings by mutableStateOf(false)
     var showHistory by mutableStateOf(false)
     var showStatistics by mutableStateOf(false)
-    var showFavorites by mutableStateOf(false)
+    var showFriends by mutableStateOf(false)
     var showPlazaOverview by mutableStateOf(false)
     var showQrExchange by mutableStateOf(false)
+    var showGameSearch by mutableStateOf(false)
+    var showProfileSettings by mutableStateOf(false)
     var forceCreateNewMii by mutableStateOf(false)
+    var showActivities by mutableStateOf(false)
     var showGames by mutableStateOf(false)
     var showPuzzleSwap by mutableStateOf(false)
+    var showShop by mutableStateOf(false)
+    var showLeaderboard by mutableStateOf(false)
     var selectedPuzzlePanel by mutableStateOf<String?>(null)
+    var showAuth by mutableStateOf(false)
+    var showMessages by mutableStateOf(false)
+    var showChat by mutableStateOf(false)
+    var showNotifications by mutableStateOf(false)
+    var chatFriendId by mutableStateOf<String?>(null)
+    var chatFriendName by mutableStateOf<String?>(null)
+    var chatFriendAvatarHex by mutableStateOf<String?>(null)
+    var showEncounterHistory by mutableStateOf(false)
+    var showBingo by mutableStateOf(false)
+    var showMii3DTest by mutableStateOf(false)
+    var showSpotPassInbox by mutableStateOf(false)
 
-    enum class MainScreen { PLAZA, HISTORY, FAVORITES, STATISTICS, GAMES, SETTINGS }
+    /** Whether the user has completed or skipped the setup login prompt. */
+    var setupAuthDone by mutableStateOf(false)
+
+    enum class MainScreen { PLAZA, MESSAGES, FRIENDS, PLAZA_OVERVIEW, STATISTICS, ACTIVITIES, SETTINGS }
 
     private val mainScreenOrder = MainScreen.values().toList()
 
     fun currentMainScreen(): MainScreen {
         return when {
-            showHistory -> MainScreen.HISTORY
-            showFavorites -> MainScreen.FAVORITES
+            showMessages -> MainScreen.MESSAGES
+            showFriends -> MainScreen.FRIENDS
+            showPlazaOverview -> MainScreen.PLAZA_OVERVIEW
             showStatistics -> MainScreen.STATISTICS
-            showGames -> MainScreen.GAMES
+            showActivities -> MainScreen.ACTIVITIES
             showSettings -> MainScreen.SETTINGS
             else -> MainScreen.PLAZA
         }
     }
 
     fun isOnSubScreen(): Boolean {
-        return showAppSettings || showQrExchange || showPlazaOverview ||
-                forceCreateNewMii || showPuzzleSwap || selectedPuzzlePanel != null
+        return showAppSettings || showQrExchange || showGameSearch || showProfileSettings ||
+                forceCreateNewMii || showGames || showPuzzleSwap || selectedPuzzlePanel != null || showAuth ||
+                showChat || showNotifications || showEncounterHistory || showMii3DTest || showShop ||
+                showLeaderboard || showBingo || showSpotPassInbox
     }
 
     fun switchScreen(direction: Int) {
@@ -145,24 +167,41 @@ class NavigationState {
         navigateToMainScreen(mainScreenOrder[newIndex])
     }
 
-    private fun navigateToMainScreen(screen: MainScreen) {
+    fun navigateToMainScreen(screen: MainScreen) {
         showSettings = false
         showAppSettings = false
         showHistory = false
         showStatistics = false
-        showFavorites = false
+        showFriends = false
         showPlazaOverview = false
         showQrExchange = false
+        showGameSearch = false
+        showProfileSettings = false
+        showActivities = false
         showGames = false
         showPuzzleSwap = false
+        showShop = false
+        showLeaderboard = false
+        showBingo = false
         selectedPuzzlePanel = null
+        showAuth = false
+        showMessages = false
+        showChat = false
+        showNotifications = false
+        chatFriendId = null
+        chatFriendName = null
+        chatFriendAvatarHex = null
+        showEncounterHistory = false
+        showMii3DTest = false
+        showSpotPassInbox = false
 
         when (screen) {
             MainScreen.PLAZA -> { /* all cleared = plaza */ }
-            MainScreen.HISTORY -> showHistory = true
-            MainScreen.FAVORITES -> showFavorites = true
+            MainScreen.MESSAGES -> showMessages = true
+            MainScreen.FRIENDS -> showFriends = true
+            MainScreen.PLAZA_OVERVIEW -> showPlazaOverview = true
             MainScreen.STATISTICS -> showStatistics = true
-            MainScreen.GAMES -> showGames = true
+            MainScreen.ACTIVITIES -> showActivities = true
             MainScreen.SETTINGS -> showSettings = true
         }
     }
@@ -170,15 +209,28 @@ class NavigationState {
     fun handleBack(): Boolean {
         return when {
             selectedPuzzlePanel != null -> { selectedPuzzlePanel = null; true }
+            showBingo -> { showBingo = false; showGames = true; true }
+            showLeaderboard -> { showLeaderboard = false; showActivities = true; true }
+            showShop -> { showShop = false; showActivities = true; true }
             showPuzzleSwap -> { showPuzzleSwap = false; showGames = true; true }
+            showGames -> { showGames = false; showActivities = true; true }
+            showGameSearch -> { showGameSearch = false; showProfileSettings = true; true }
+            showProfileSettings -> { showProfileSettings = false; showSettings = true; true }
             showAppSettings -> { showAppSettings = false; showSettings = true; true }
             showQrExchange -> { showQrExchange = false; showSettings = true; true }
+            showAuth -> { showAuth = false; showSettings = true; true }
+            showChat -> { showChat = false; chatFriendId = null; chatFriendName = null; chatFriendAvatarHex = null; showMessages = true; true }
+            showSpotPassInbox -> { showSpotPassInbox = false; true }
+            showNotifications -> { showNotifications = false; true }
+            showEncounterHistory -> { showEncounterHistory = false; showFriends = true; true }
+            showMii3DTest -> { showMii3DTest = false; showAppSettings = true; true }
             showPlazaOverview -> { showPlazaOverview = false; true }
-            showGames -> { showGames = false; true }
+            showActivities -> { showActivities = false; true }
             showSettings -> { showSettings = false; true }
+            showMessages -> { showMessages = false; true }
             showHistory -> { showHistory = false; true }
             showStatistics -> { showStatistics = false; true }
-            showFavorites -> { showFavorites = false; true }
+            showFriends -> { showFriends = false; true }
             else -> false
         }
     }

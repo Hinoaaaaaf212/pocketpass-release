@@ -12,19 +12,6 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.pocketpass.app.MainActivity
-import com.google.android.gms.nearby.Nearby
-import com.google.android.gms.nearby.connection.AdvertisingOptions
-import com.google.android.gms.nearby.connection.ConnectionInfo
-import com.google.android.gms.nearby.connection.ConnectionLifecycleCallback
-import com.google.android.gms.nearby.connection.ConnectionResolution
-import com.google.android.gms.nearby.connection.ConnectionsClient
-import com.google.android.gms.nearby.connection.DiscoveredEndpointInfo
-import com.google.android.gms.nearby.connection.DiscoveryOptions
-import com.google.android.gms.nearby.connection.EndpointDiscoveryCallback
-import com.google.android.gms.nearby.connection.Payload
-import com.google.android.gms.nearby.connection.PayloadCallback
-import com.google.android.gms.nearby.connection.PayloadTransferUpdate
-import com.google.android.gms.nearby.connection.Strategy
 import com.google.gson.Gson
 import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.PocketPassDatabase
@@ -38,28 +25,48 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.launch
 import com.pocketpass.app.util.SoundManager
+import com.pocketpass.app.data.AuthRepository
+import com.pocketpass.app.data.SyncRepository
 import java.util.UUID
 import java.util.Collections
 
 import android.content.pm.ServiceInfo
 
-class ProximityService : Service() {
+class ProximityService : Service(), android.hardware.SensorEventListener {
 
-    private val STRATEGY = Strategy.P2P_CLUSTER
-    private val SERVICE_ID = "com.pocketpass.app.SERVICE_ID"
+    companion object {
+        /** Observable state of nearby discovered devices, for debug UI. */
+        data class NearbyDevice(
+            val endpointId: String,
+            val name: String,
+            val discoveredAt: Long = System.currentTimeMillis(),
+            val state: String = "discovered" // discovered, connecting, connected, exchanged
+        )
+
+        private val _nearbyDevices = kotlinx.coroutines.flow.MutableStateFlow<Map<String, NearbyDevice>>(emptyMap())
+        val nearbyDevices: kotlinx.coroutines.flow.StateFlow<Map<String, NearbyDevice>> = _nearbyDevices
+
+        private val _serviceStatus = kotlinx.coroutines.flow.MutableStateFlow("stopped")
+        val serviceStatus: kotlinx.coroutines.flow.StateFlow<String> = _serviceStatus
+    }
+
     private val TAG = "PocketPassProximity"
     private val FOREGROUND_CHANNEL_ID = "pocketpass_proximity_channel"
     private val ENCOUNTER_CHANNEL_ID = "pocketpass_encounter_channel"
     private var encounterNotificationId = 100
 
-    private lateinit var connectionsClient: ConnectionsClient
+    private var bleHandler: BleProximityHandler? = null
     private var soundManager: SoundManager? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val gson = Gson()
 
-    // Track endpoints we're currently connecting/connected to, to avoid duplicate requests
-    private val pendingEndpoints: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
-    private val connectedEndpoints: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
+    // Step counter for earning tokens
+    private var sensorManager: android.hardware.SensorManager? = null
+    private lateinit var userPrefs: UserPreferences
+    private lateinit var database: PocketPassDatabase
+
+    // Track endpoint names we've already exchanged with to avoid duplicates in one session
+    private val exchangedNames: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
 
     // Default user info if not completely set up yet
     private var myUserId: String = UUID.randomUUID().toString()
@@ -69,38 +76,34 @@ class ProximityService : Service() {
     private var myOrigin: String = ""
     private var myAge: String = ""
     private var myHobbies: String = ""
+    private var myGames: String = ""
+    private var myHat: String = ""
+    private var myCostume: String = ""
+    private var myIsMale: Boolean = true
 
     override fun onCreate() {
         super.onCreate()
-        connectionsClient = Nearby.getConnectionsClient(this)
         soundManager = SoundManager(applicationContext)
+        _serviceStatus.value = "starting"
         startForegroundService()
 
         serviceScope.launch {
-            val userPrefs = UserPreferences(applicationContext)
-            val hex = userPrefs.avatarHexFlow.firstOrNull()
-            if (hex != null) myAvatarHex = hex
+            loadUserProfile()
+            startBle()
+        }
 
-            val name = userPrefs.userNameFlow.firstOrNull()
-            if (!name.isNullOrBlank()) myUserName = name
+        // Init shared instances
+        userPrefs = UserPreferences(applicationContext)
+        database = PocketPassDatabase.getDatabase(applicationContext)
 
-            val age = userPrefs.userAgeFlow.firstOrNull()
-            if (age != null) myAge = age
-
-            val hobbies = userPrefs.userHobbiesFlow.firstOrNull()
-            if (hobbies != null) myHobbies = hobbies
-
-            val greeting = userPrefs.userGreetingFlow.firstOrNull()
-            if (!greeting.isNullOrBlank()) myGreeting = greeting
-
-            val origin = userPrefs.userOriginFlow.firstOrNull()
-            if (!origin.isNullOrBlank()) myOrigin = origin
-
-            Log.d(TAG, "User profile loaded: name=$myUserName, origin=$myOrigin, greeting=$myGreeting")
-
-            // Start Nearby Connections
-            startAdvertising()
-            startDiscovery()
+        // Register step counter sensor
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as? android.hardware.SensorManager
+        val stepSensor = sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_STEP_COUNTER)
+        if (stepSensor != null) {
+            sensorManager?.registerListener(this, stepSensor, android.hardware.SensorManager.SENSOR_DELAY_UI)
+            Log.d(TAG, "Step counter sensor registered")
+        } else {
+            Log.w(TAG, "Step counter sensor not available on this device")
         }
     }
 
@@ -147,225 +150,146 @@ class ProximityService : Service() {
         }
     }
 
-    private fun startAdvertising() {
+    private suspend fun loadUserProfile() {
         try {
-            val advertisingOptions = AdvertisingOptions.Builder().setStrategy(STRATEGY).build()
-            connectionsClient.startAdvertising(
-                myUserName, SERVICE_ID, connectionLifecycleCallback, advertisingOptions
-            ).addOnSuccessListener {
-                Log.d(TAG, "Advertising started successfully")
-            }.addOnFailureListener { e ->
-                Log.e(TAG, "Advertising failed: ${e.message}", e)
-                // Retry after a delay
-                serviceScope.launch {
-                    kotlinx.coroutines.delay(5000)
-                    Log.d(TAG, "Retrying advertising...")
-                    startAdvertising()
-                }
-            }
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Missing Bluetooth permissions to advertise", e)
-        } catch (e: Exception) {
-            Log.e(TAG, "Unknown error starting advertising", e)
-        }
-    }
+            val hex = userPrefs.avatarHexFlow.firstOrNull()
+            if (hex != null) myAvatarHex = hex
 
-    private fun startDiscovery() {
-        try {
-            val discoveryOptions = DiscoveryOptions.Builder().setStrategy(STRATEGY).build()
-            connectionsClient.startDiscovery(
-                SERVICE_ID, endpointDiscoveryCallback, discoveryOptions
-            ).addOnSuccessListener {
-                Log.d(TAG, "Discovery started successfully")
-            }.addOnFailureListener { e ->
-                Log.e(TAG, "Discovery failed: ${e.message}", e)
-                // Retry after a delay
-                serviceScope.launch {
-                    kotlinx.coroutines.delay(5000)
-                    Log.d(TAG, "Retrying discovery...")
-                    startDiscovery()
-                }
-            }
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Missing Bluetooth permissions to discover", e)
-        } catch (e: Exception) {
-            Log.e(TAG, "Unknown error starting discovery", e)
-        }
-    }
+            val name = userPrefs.userNameFlow.firstOrNull()
+            if (!name.isNullOrBlank()) myUserName = name
 
-    // Track endpoint names we've already exchanged with to avoid duplicates in one session
-    private val exchangedNames: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
+            val age = userPrefs.userAgeFlow.firstOrNull()
+            if (age != null) myAge = age
 
-    private val endpointDiscoveryCallback = object : EndpointDiscoveryCallback() {
-        override fun onEndpointFound(endpointId: String, info: DiscoveredEndpointInfo) {
-            Log.d(TAG, "Endpoint found: $endpointId (name: ${info.endpointName})")
+            val hobbies = userPrefs.userHobbiesFlow.firstOrNull()
+            if (hobbies != null) myHobbies = hobbies
 
-            // Skip if we're already connecting or connected to this endpoint
-            if (endpointId in pendingEndpoints || endpointId in connectedEndpoints) {
-                Log.d(TAG, "Already handling endpoint $endpointId, skipping")
-                return
+            val greeting = userPrefs.userGreetingFlow.firstOrNull()
+            if (!greeting.isNullOrBlank()) myGreeting = greeting
+
+            val origin = userPrefs.userOriginFlow.firstOrNull()
+            if (!origin.isNullOrBlank()) myOrigin = origin
+
+            val games = userPrefs.selectedGamesFlow.firstOrNull()
+            if (!games.isNullOrEmpty()) {
+                myGames = Gson().toJson(games)
             }
 
-            // Skip if we've already exchanged with this person in this session
-            if (info.endpointName in exchangedNames) {
-                Log.d(TAG, "Already exchanged with ${info.endpointName}, skipping")
-                return
+            val hat = userPrefs.selectedHatFlow.firstOrNull()
+            if (!hat.isNullOrBlank()) myHat = hat
+
+            val costume = userPrefs.selectedCostumeFlow.firstOrNull()
+            if (!costume.isNullOrBlank()) myCostume = costume
+
+            // Determine gender from avatar data for body model selection
+            if (myAvatarHex.isNotBlank()) {
+                myIsMale = com.pocketpass.app.rendering.MiiStudioDecoder.isMale(myAvatarHex)
             }
 
-            // Use a deterministic tie-breaker to avoid both sides requesting simultaneously.
-            // Only the device whose name is lexicographically smaller initiates the connection.
-            // The other device just waits for the incoming connection request.
-            val shouldInitiate = myUserName <= info.endpointName
-            if (!shouldInitiate) {
-                Log.d(TAG, "Waiting for ${info.endpointName} to initiate (tie-breaker)")
-                return
-            }
-
-            pendingEndpoints.add(endpointId)
-            Log.d(TAG, "Requesting connection to $endpointId (${info.endpointName})...")
-
+            // Use Supabase auth ID if logged in, so both devices share the same userId
             try {
-                connectionsClient.requestConnection(myUserName, endpointId, connectionLifecycleCallback)
-                    .addOnSuccessListener {
-                        Log.d(TAG, "Connection request sent to $endpointId")
-                    }.addOnFailureListener { e ->
-                        Log.e(TAG, "Failed to request connection to $endpointId: ${e.message}")
-                        pendingEndpoints.remove(endpointId)
-                        // Retry once after a short delay in case of race condition
-                        serviceScope.launch {
-                            kotlinx.coroutines.delay(2000)
-                            if (endpointId !in connectedEndpoints && info.endpointName !in exchangedNames) {
-                                Log.d(TAG, "Retrying connection to $endpointId...")
-                                pendingEndpoints.add(endpointId)
-                                try {
-                                    connectionsClient.requestConnection(myUserName, endpointId, connectionLifecycleCallback)
-                                        .addOnFailureListener { e2 ->
-                                            Log.e(TAG, "Retry also failed for $endpointId: ${e2.message}")
-                                            pendingEndpoints.remove(endpointId)
-                                        }
-                                } catch (_: Exception) {
-                                    pendingEndpoints.remove(endpointId)
-                                }
-                            }
-                        }
-                    }
-            } catch (e: Exception) {
-                Log.e(TAG, "Exception requesting connection to $endpointId", e)
-                pendingEndpoints.remove(endpointId)
-            }
+                val authId = AuthRepository().currentUserId
+                if (!authId.isNullOrBlank()) myUserId = authId
+            } catch (_: Exception) { }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load user profile, using defaults", e)
         }
 
-        override fun onEndpointLost(endpointId: String) {
-            Log.d(TAG, "Endpoint lost: $endpointId")
-            pendingEndpoints.remove(endpointId)
-        }
+        Log.d(TAG, "User profile loaded: name=$myUserName")
     }
 
-    private val connectionLifecycleCallback = object : ConnectionLifecycleCallback() {
-        override fun onConnectionInitiated(endpointId: String, connectionInfo: ConnectionInfo) {
-            Log.d(TAG, "Connection initiated with: $endpointId (${connectionInfo.endpointName}), accepting...")
-            pendingEndpoints.add(endpointId)
-            // Accept connection automatically on both sides
-            try {
-                connectionsClient.acceptConnection(endpointId, payloadCallback)
-                    .addOnSuccessListener {
-                        Log.d(TAG, "Accepted connection from $endpointId")
-                    }
-                    .addOnFailureListener { e ->
-                        Log.e(TAG, "Failed to accept connection from $endpointId: ${e.message}")
-                        pendingEndpoints.remove(endpointId)
-                    }
-            } catch (e: Exception) {
-                Log.e(TAG, "Exception accepting connection from $endpointId", e)
-                pendingEndpoints.remove(endpointId)
-            }
-        }
-
-        override fun onConnectionResult(endpointId: String, result: ConnectionResolution) {
-            pendingEndpoints.remove(endpointId)
-            if (result.status.isSuccess) {
-                Log.d(TAG, "Connected to $endpointId! Sending payload...")
-                connectedEndpoints.add(endpointId)
-                sendExchangePayload(endpointId)
-            } else {
-                Log.e(TAG, "Connection failed to $endpointId: status=${result.status.statusCode} (${result.status.statusMessage})")
-                connectedEndpoints.remove(endpointId)
-            }
-        }
-
-        override fun onDisconnected(endpointId: String) {
-            Log.d(TAG, "Disconnected from $endpointId")
-            connectedEndpoints.remove(endpointId)
-            pendingEndpoints.remove(endpointId)
-        }
-    }
-
-    private val payloadCallback = object : PayloadCallback() {
-        override fun onPayloadReceived(endpointId: String, payload: Payload) {
-            if (payload.type == Payload.Type.BYTES) {
-                val jsonStr = payload.asBytes()?.let { String(it) } ?: return
-                Log.d(TAG, "Payload received from $endpointId: $jsonStr")
-
-                try {
-                    val exchangePayload = gson.fromJson(jsonStr, ExchangePayload::class.java)
-                    if (exchangePayload.userName.isBlank()) {
-                        Log.e(TAG, "Received empty userName, ignoring")
-                        return
-                    }
-                    exchangedNames.add(exchangePayload.userName)
-                    saveEncounterToRoom(exchangePayload)
-
-                    // Disconnect after successful exchange
-                    connectionsClient.disconnectFromEndpoint(endpointId)
-                    connectedEndpoints.remove(endpointId)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to parse payload", e)
-                }
-            }
-        }
-
-        override fun onPayloadTransferUpdate(endpointId: String, update: PayloadTransferUpdate) {
-            // Track progress of larger payloads if needed
-        }
-    }
-
-    private fun sendExchangePayload(endpointId: String) {
-        val payloadData = ExchangePayload(
+    private fun buildExchangePayloadJson(): String {
+        return gson.toJson(ExchangePayload(
             userId = myUserId,
             userName = myUserName,
             avatarHex = myAvatarHex,
             greeting = myGreeting,
             origin = myOrigin,
             age = myAge,
-            hobbies = myHobbies
-        )
-        val jsonStr = gson.toJson(payloadData)
-        Log.d(TAG, "Sending payload to $endpointId: name=$myUserName")
-        val payload = Payload.fromBytes(jsonStr.toByteArray())
+            hobbies = myHobbies,
+            games = myGames,
+            hatId = myHat,
+            costumeId = myCostume,
+            isMale = myIsMale
+        ))
+    }
 
-        connectionsClient.sendPayload(endpointId, payload)
-            .addOnSuccessListener {
-                Log.d(TAG, "Payload sent successfully to $endpointId")
-            }
-            .addOnFailureListener { e ->
-                Log.e(TAG, "Failed to send payload to $endpointId: ${e.message}", e)
-            }
+    private fun startBle() {
+        Log.d(TAG, "Starting BLE proximity")
+
+        bleHandler = BleProximityHandler(
+            context = applicationContext,
+            onPayloadReceived = { jsonStr ->
+                serviceScope.launch {
+                    try {
+                        val payload = ExchangePayload.fromJsonSafe(jsonStr, gson)
+                        if (payload == null) {
+                            Log.w(TAG, "BLE: Invalid or oversized payload, ignoring")
+                            return@launch
+                        }
+
+                        // Skip same account
+                        if (payload.userId.isNotBlank() && payload.userId == myUserId) {
+                            Log.d(TAG, "BLE: Same account detected, ignoring")
+                            return@launch
+                        }
+
+                        // Skip if already exchanged this session
+                        if (payload.userName in exchangedNames) return@launch
+                        exchangedNames.add(payload.userName)
+
+                        saveEncounterToRoom(payload)
+                    } catch (e: Exception) {
+                        Log.e(TAG, "BLE: Failed to parse payload", e)
+                    }
+                }
+            },
+            onStatusChanged = { adv, scan ->
+                _serviceStatus.value = when {
+                    adv && scan -> "advertising + scanning"
+                    adv -> "advertising"
+                    scan -> "scanning"
+                    else -> "failed"
+                }
+            },
+            onDeviceFound = { address, state ->
+                _nearbyDevices.value = _nearbyDevices.value + (address to NearbyDevice(
+                    endpointId = address,
+                    name = address,
+                    state = state
+                ))
+            },
+            onError = { error ->
+                Log.e(TAG, "BLE error: $error")
+            },
+            getMyPayload = { buildExchangePayloadJson() }
+        )
+
+        bleHandler?.start()
     }
 
     private fun saveEncounterToRoom(payload: ExchangePayload) {
         serviceScope.launch {
-            val db = PocketPassDatabase.getDatabase(applicationContext)
+            val db = database
             val existing = db.encounterDao().getEncounterByUserName(payload.userName)
 
             if (existing != null) {
                 // Already encountered — update timestamp and bump meet count
-                db.encounterDao().updateEncounter(
-                    existing.copy(
-                        timestamp = System.currentTimeMillis(),
-                        meetCount = existing.meetCount + 1
-                    )
+                val updated = existing.copy(
+                    timestamp = System.currentTimeMillis(),
+                    meetCount = existing.meetCount + 1,
+                    needsSync = true,
+                    otherUserId = if (existing.otherUserId.isEmpty() && payload.userId.isNotBlank()) payload.userId else existing.otherUserId
                 )
+                db.encounterDao().updateEncounter(updated)
                 Log.d(TAG, "Encounter updated for returning user: ${payload.userName}")
+
+                // Push to cloud
+                try {
+                    if (AuthRepository().currentUserId != null) {
+                        SyncRepository(applicationContext).pushEncounter(updated)
+                    }
+                } catch (_: Exception) { }
             } else {
                 // Genuinely new encounter
                 val newEncounter = Encounter(
@@ -376,23 +300,45 @@ class ProximityService : Service() {
                     greeting = payload.greeting,
                     origin = payload.origin,
                     age = payload.age,
-                    hobbies = payload.hobbies
+                    hobbies = payload.hobbies,
+                    games = payload.games,
+                    needsSync = true,
+                    otherUserId = payload.userId,
+                    hatId = payload.hatId,
+                    costumeId = payload.costumeId,
+                    isMale = payload.isMale
                 )
                 db.encounterDao().insertEncounter(newEncounter)
                 Log.d(TAG, "New encounter saved for user: ${payload.userName}")
 
+                // Push to cloud
+                try {
+                    if (AuthRepository().currentUserId != null) {
+                        SyncRepository(applicationContext).pushEncounter(newEncounter)
+                    }
+                } catch (_: Exception) { }
+
                 soundManager?.playEncounter()
                 showEncounterNotification(payload.userName, payload.greeting)
+
+                // Flag for LED blink when user opens the device
+                userPrefs.incrementUnseenEncounters()
             }
 
-            // Grant play token and chance at puzzle piece
-            val prefs = UserPreferences(applicationContext)
-            prefs.addTokens(TokenSystem.TOKENS_PER_NEW_ENCOUNTER)
-            if (kotlin.random.Random.nextFloat() < TokenSystem.PUZZLE_PIECE_DROP_CHANCE) {
-                val progress = prefs.puzzleProgressFlow.first()
-                val uncollected = progress.allUncollectedPieces(PuzzlePanels.getAll())
+            // Grant play token and chance at puzzle piece (with active event effects)
+            val effects = try {
+                com.pocketpass.app.data.SpotPassRepository(applicationContext).getActiveEffects()
+            } catch (_: Exception) { emptyList() }
+            val tokenMultiplier = com.pocketpass.app.data.EventEffectManager.getTokenMultiplier(effects)
+            val dropChance = com.pocketpass.app.data.EventEffectManager.getPuzzleDropChance(effects)
+            userPrefs.addTokens(TokenSystem.TOKENS_PER_NEW_ENCOUNTER * tokenMultiplier)
+            if (kotlin.random.Random.nextFloat() < dropChance) {
+                val progress = userPrefs.puzzleProgressFlow.first()
+                val claimedSpotPass = try { database.spotPassDao().getClaimedPuzzlePanels() } catch (_: Exception) { emptyList() }
+                val allPanels = PuzzlePanels.getAllIncludingSpotPass(claimedSpotPass)
+                val uncollected = progress.allUncollectedPieces(allPanels)
                 if (uncollected.isNotEmpty()) {
-                    prefs.addPuzzlePiece(uncollected.random())
+                    userPrefs.addPuzzlePiece(uncollected.random())
                     Log.d(TAG, "Puzzle piece granted from encounter!")
                 }
             }
@@ -421,15 +367,61 @@ class ProximityService : Service() {
         manager.notify(encounterNotificationId++, notification)
     }
 
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        return START_STICKY
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        super.onTaskRemoved(rootIntent)
+        // Re-schedule the service so it restarts after the app is swiped from recents
+        val restartIntent = Intent(applicationContext, ProximityService::class.java)
+        val pendingIntent = PendingIntent.getService(
+            applicationContext, 1, restartIntent,
+            PendingIntent.FLAG_ONE_SHOT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val alarmManager = getSystemService(Context.ALARM_SERVICE) as android.app.AlarmManager
+        alarmManager.set(
+            android.app.AlarmManager.ELAPSED_REALTIME_WAKEUP,
+            android.os.SystemClock.elapsedRealtime() + 1000,
+            pendingIntent
+        )
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
+
+    // ── Step counter ──
+
+    override fun onSensorChanged(event: android.hardware.SensorEvent?) {
+        if (event?.sensor?.type == android.hardware.Sensor.TYPE_STEP_COUNTER) {
+            val totalSteps = event.values[0].toInt()
+            serviceScope.launch {
+                val effects = try {
+                    com.pocketpass.app.data.SpotPassRepository(applicationContext).getActiveEffects()
+                } catch (_: Exception) { emptyList() }
+                val walkCap = com.pocketpass.app.data.EventEffectManager.getWalkTokenCap(effects)
+                val tokenMult = com.pocketpass.app.data.EventEffectManager.getTokenMultiplier(effects)
+
+                val awarded = userPrefs.processSteps(totalSteps, maxStepTokensOverride = walkCap)
+                // Apply token multiplier as bonus on top of base award
+                if (awarded > 0 && tokenMult > 1) {
+                    userPrefs.addTokens(awarded * (tokenMult - 1))
+                }
+                if (awarded > 0) {
+                    Log.d(TAG, "Awarded $awarded token(s) x$tokenMult from walking (total steps: $totalSteps)")
+                }
+            }
+        }
+    }
+
+    override fun onAccuracyChanged(sensor: android.hardware.Sensor?, accuracy: Int) {}
 
     override fun onDestroy() {
         super.onDestroy()
-        connectionsClient.stopAdvertising()
-        connectionsClient.stopDiscovery()
-        connectionsClient.stopAllEndpoints()
-        pendingEndpoints.clear()
-        connectedEndpoints.clear()
+        sensorManager?.unregisterListener(this)
+        bleHandler?.stop()
+        bleHandler = null
         exchangedNames.clear()
+        _nearbyDevices.value = emptyMap()
+        _serviceStatus.value = "stopped"
     }
 }

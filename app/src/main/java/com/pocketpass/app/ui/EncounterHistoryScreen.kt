@@ -47,11 +47,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.PocketPassDatabase
+import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
+import com.pocketpass.app.ui.theme.LocalAppDimensions
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
+import com.pocketpass.app.ui.theme.ErrorText
+import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
-import com.pocketpass.app.ui.theme.SkyBlue
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
 import com.pocketpass.app.util.RegionFlags
@@ -69,13 +72,18 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
     val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
     val coroutineScope = rememberCoroutineScope()
 
+    val authRepo = remember { com.pocketpass.app.data.AuthRepository() }
+    val isLoggedIn by authRepo.isLoggedIn.collectAsState(initial = false)
+    val friendRepo = remember { com.pocketpass.app.data.FriendRepository() }
+    var selectedEncounter by remember { mutableStateOf<Encounter?>(null) }
+
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
         CheckeredBackground(
             modifier = Modifier.fillMaxSize(),
-            gradientColors = listOf(PocketPassGreen, SkyBlue)
+            gradientColors = BackgroundGradient
         )
 
         AnimatedVisibility(
@@ -153,11 +161,12 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
                         )
                     }
 
-                    items(encounters.sortedByDescending { it.timestamp }) { encounter ->
+                    items(encounters, key = { it.encounterId }) { encounter ->
                         EncounterHistoryCard(
                             encounter = encounter,
+                            onClick = { soundManager.playSelect(); selectedEncounter = encounter },
                             onDelete = {
-                                coroutineScope.launch {
+                                coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                     db.encounterDao().deleteEncounter(encounter)
                                 }
                             }
@@ -171,14 +180,34 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
             }
         }
         } // AnimatedVisibility
+
+        // Detail Dialog (for friend requests)
+        selectedEncounter?.let { encounter ->
+            FriendDetailDialog(
+                encounter = encounter,
+                isLoggedIn = isLoggedIn,
+                friendRepo = friendRepo,
+                onDismiss = { selectedEncounter = null },
+                onDelete = { encounterToDelete ->
+                    coroutineScope.launch {
+                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            db.encounterDao().deleteEncounter(encounterToDelete)
+                        }
+                    }
+                },
+                onFriendshipChanged = { }
+            )
+        }
     }
 }
 
 @Composable
-fun EncounterHistoryCard(encounter: Encounter, onDelete: () -> Unit) {
+fun EncounterHistoryCard(encounter: Encounter, onClick: () -> Unit = {}, onDelete: () -> Unit) {
     val soundManager = LocalSoundManager.current
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = OffWhite),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
@@ -193,7 +222,7 @@ fun EncounterHistoryCard(encounter: Encounter, onDelete: () -> Unit) {
             // Mii thumbnail
             Box(
                 modifier = Modifier
-                    .size(64.dp)
+                    .size(LocalAppDimensions.current.avatarSmall)
                     .clip(RoundedCornerShape(12.dp))
                     .background(
                         Brush.verticalGradient(
@@ -251,7 +280,7 @@ fun EncounterHistoryCard(encounter: Encounter, onDelete: () -> Unit) {
                         Text(
                             text = "Met ${encounter.meetCount} times",
                             style = MaterialTheme.typography.labelSmall,
-                            color = PocketPassGreen,
+                            color = GreenText,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -275,7 +304,7 @@ fun EncounterHistoryCard(encounter: Encounter, onDelete: () -> Unit) {
                 Icon(
                     imageVector = Icons.Filled.Delete,
                     contentDescription = "Delete Encounter",
-                    tint = androidx.compose.ui.graphics.Color(0xFFE57373)
+                    tint = ErrorText
                 )
             }
         }

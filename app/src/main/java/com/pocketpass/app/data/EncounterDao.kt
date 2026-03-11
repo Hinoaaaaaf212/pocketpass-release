@@ -27,4 +27,16 @@ interface EncounterDao {
 
     @Query("DELETE FROM encounters")
     suspend fun deleteAllEncounters()
+
+    @Query("SELECT * FROM encounters WHERE needsSync = 1")
+    suspend fun getUnsyncedEncounters(): List<Encounter>
+
+    @Query("UPDATE encounters SET needsSync = 0 WHERE encounterId = :id")
+    suspend fun markSynced(id: String)
+
+    @Query("SELECT * FROM encounters WHERE otherUserId = :userId LIMIT 1")
+    suspend fun getEncounterByOtherUserId(userId: String): Encounter?
+
+    @Query("SELECT * FROM encounters WHERE otherUserId IN (:userIds)")
+    suspend fun getEncountersByOtherUserIds(userIds: List<String>): List<Encounter>
 }

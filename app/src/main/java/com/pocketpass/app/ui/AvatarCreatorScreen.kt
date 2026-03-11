@@ -1,6 +1,7 @@
 package com.pocketpass.app.ui
 
 import android.annotation.SuppressLint
+import android.media.MediaPlayer
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -32,6 +33,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -48,6 +50,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.webkit.WebViewAssetLoader
+import com.pocketpass.app.data.SyncRepository
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.util.LocalSoundManager
 import kotlinx.coroutines.launch
@@ -73,13 +76,47 @@ fun AvatarCreatorScreen(
         val hexData = miiHexData
         if (hexData != null && hexData.isNotBlank()) {
             userPreferences.saveAvatarHex(hexData)
+            // Sync profile to Supabase so friends see the updated Mii
+            try { SyncRepository(context).syncProfile() } catch (_: Exception) { }
             isSaving = false
             miiHexData = null // clear it
+            // Destroy WebView before navigating to prevent crashes
+            // on devices like Ayn Thor where WebGL cleanup can fail
+            try {
+                webViewRef?.stopLoading()
+                webViewRef?.destroy()
+                webViewRef = null
+            } catch (_: Exception) { }
             onAvatarSaved()
         } else if (hexData != null && hexData.isBlank()) {
             // If somehow we got blank data, reset saving state
             isSaving = false
             miiHexData = null
+        }
+    }
+
+    // Clean up WebView when leaving this screen
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                webViewRef?.stopLoading()
+                webViewRef?.destroy()
+                webViewRef = null
+            } catch (_: Exception) { }
+        }
+    }
+
+    // Mii Maker background music
+    val musicVolume by userPreferences.musicVolumeFlow.collectAsState(initial = 0.3f)
+    DisposableEffect(Unit) {
+        val mp = MediaPlayer.create(context, com.pocketpass.app.R.raw.mii_maker_theme)?.apply {
+            isLooping = true
+            setVolume(musicVolume, musicVolume)
+            if (musicVolume > 0f) start()
+        }
+        onDispose {
+            mp?.stop()
+            mp?.release()
         }
     }
 
@@ -119,11 +156,12 @@ fun AvatarCreatorScreen(
             Button(
                 onClick = {
                     if (isSaving) return@Button
+                    val webView = webViewRef ?: return@Button
                     soundManager.playSuccess()
                     isSaving = true
 
                     // Extract the Mii data with validation
-                    webViewRef?.evaluateJavascript(
+                    try { webView.evaluateJavascript(
                         """
                         (function() {
                             try {
@@ -175,6 +213,10 @@ fun AvatarCreatorScreen(
                             isSaving = false
                         }
                     }
+                    } catch (e: Exception) {
+                        android.util.Log.e("AvatarCreator", "evaluateJavascript crashed: ${e.message}", e)
+                        isSaving = false
+                    }
                 },
                 shape = RoundedCornerShape(24.dp),
                 colors = ButtonDefaults.buttonColors(
@@ -193,6 +235,13 @@ fun AvatarCreatorScreen(
             // WebView with editor
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
+                onRelease = { webView ->
+                    // Explicitly clean up WebView when AndroidView is released
+                    try {
+                        webView.stopLoading()
+                        webView.destroy()
+                    } catch (_: Exception) { }
+                },
                 factory = { ctx ->
                     WebView(ctx).apply {
                         webViewRef = this
@@ -203,17 +252,12 @@ fun AvatarCreatorScreen(
                         settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
-                            allowFileAccess = true
+                            allowFileAccess = false
                             allowContentAccess = true
-                            // CRITICAL FOR WEBGL: Allow the web app to load local json/glb files from itself
-                            @Suppress("DEPRECATION")
-                            allowFileAccessFromFileURLs = true
-                            @Suppress("DEPRECATION")
-                            allowUniversalAccessFromFileURLs = true
-                            mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+                            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
 
                             // Enable WebGL and 3D rendering
-                            javaScriptCanOpenWindowsAutomatically = true
+                            javaScriptCanOpenWindowsAutomatically = false
                             mediaPlaybackRequiresUserGesture = false
                             databaseEnabled = true
 
@@ -224,6 +268,10 @@ fun AvatarCreatorScreen(
 
                             // Force desktop mode (user agent only - no viewport scaling)
                             userAgentString = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
+                            // Viewport scaling for proper layout on all screen sizes
+                            useWideViewPort = true
+                            loadWithOverviewMode = true
 
                             // Enable hardware acceleration for better WebGL performance
                             @Suppress("DEPRECATION")
@@ -285,8 +333,18 @@ fun AvatarCreatorScreen(
                                 view?.evaluateJavascript(
                                     """
                                     (function() {
+                                        // Ensure viewport meta tag exists for proper scaling
+                                        var viewport = document.querySelector('meta[name="viewport"]');
+                                        if (!viewport) {
+                                            viewport = document.createElement('meta');
+                                            viewport.name = 'viewport';
+                                            document.head.appendChild(viewport);
+                                        }
+                                        viewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+
+                                        // Minimal CSS: only hide our save button and credits
                                         var style = document.createElement('style');
-                                        style.textContent = '.tab-save { display: none !important; } .library-sidebar .sidebar-credits { display: none !important; } .ui-base { display: flex !important; flex-direction: row !important; height: 100vh !important; } .ui-base > .tab-content { flex: 1 !important; overflow: auto !important; } .ui-base > .tab-list { flex-shrink: 0 !important; }';
+                                        style.textContent = '.tab-save { display: none !important; } .library-sidebar .sidebar-credits { display: none !important; }';
                                         document.head.appendChild(style);
 
                                         function hideButtons() {
@@ -346,19 +404,18 @@ class PocketPassBridge(private val onHexReceived: (String) -> Unit) {
         android.util.Log.d("PocketPassBridge", "║       MII DATA RECEIVED FROM JS        ║")
         android.util.Log.d("PocketPassBridge", "╚════════════════════════════════════════╝")
         android.util.Log.d("PocketPassBridge", "Length: ${hexData.length} chars")
-        android.util.Log.d("PocketPassBridge", "Expected: 128 chars for base64, 192 for hex")
         android.util.Log.d("PocketPassBridge", "Format: ${if (hexData.length == 128) "BASE64" else if (hexData.length == 192) "HEX" else "UNKNOWN/CORRUPT"}")
-        android.util.Log.d("PocketPassBridge", "First 60 chars: ${hexData.take(60)}")
-        android.util.Log.d("PocketPassBridge", "Last 20 chars: ${hexData.takeLast(20)}")
-        android.util.Log.d("PocketPassBridge", "FULL DATA: $hexData")
-        android.util.Log.d("PocketPassBridge", "═══════════════════════════════════════")
 
         if (hexData.length < 50) {
-            android.util.Log.e("PocketPassBridge", "❌ DATA TOO SHORT! This will be corrupted!")
+            android.util.Log.e("PocketPassBridge", "DATA TOO SHORT! This will be corrupted!")
         } else {
-            android.util.Log.d("PocketPassBridge", "✅ Data length looks good, saving...")
+            android.util.Log.d("PocketPassBridge", "Data length looks good, saving...")
         }
 
-        onHexReceived(hexData)
+        try {
+            onHexReceived(hexData)
+        } catch (e: Exception) {
+            android.util.Log.e("PocketPassBridge", "Error in onHexReceived: ${e.message}", e)
+        }
     }
 }
