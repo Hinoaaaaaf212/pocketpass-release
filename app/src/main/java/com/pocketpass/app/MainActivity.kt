@@ -528,7 +528,7 @@ class MainActivity : ComponentActivity() {
                                                         onBack = { nav.showQrExchange = false; nav.showSettings = true }
                                                     )
                                                 }
-                                                nav.showMii3DTest -> {
+                                                nav.showMii3DTest && BuildConfig.DEBUG -> {
                                                     Mii3DTestScreen(
                                                         onBack = { nav.showMii3DTest = false; nav.showAppSettings = true },
                                                         avatarHex = avatarHex,
@@ -539,10 +539,10 @@ class MainActivity : ComponentActivity() {
                                                 nav.showAppSettings -> {
                                                     AppSettingsScreen(
                                                         onBack = { nav.showAppSettings = false; nav.showSettings = true },
-                                                        onOpenMii3DTest = {
+                                                        onOpenMii3DTest = if (BuildConfig.DEBUG) { {
                                                             nav.showAppSettings = false
                                                             nav.showMii3DTest = true
-                                                        }
+                                                        } } else { {} }
                                                     )
                                                 }
                                                 nav.showSettings -> {

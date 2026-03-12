@@ -1,5 +1,6 @@
 package com.pocketpass.app.ui
 
+import com.pocketpass.app.BuildConfig
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -523,8 +524,8 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                     }
                 }
 
-                // 3D Mii Rendering Toggle
-                run {
+                // 3D Mii Rendering Toggle (debug only)
+                if (BuildConfig.DEBUG) run {
                     val enable3d by userPreferences.enable3dMiisFlow.collectAsState(initial = true)
 
                     Box(
@@ -571,8 +572,8 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                     }
                 }
 
-                // 3D Mii Test (Developer)
-                Box(
+                // 3D Mii Test (debug only)
+                if (BuildConfig.DEBUG) Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(16.dp))
