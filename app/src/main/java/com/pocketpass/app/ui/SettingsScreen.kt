@@ -35,8 +35,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import com.pocketpass.app.ui.theme.AeroButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -88,7 +87,6 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     onBack: () -> Unit,
     onCreateNewMii: () -> Unit,
-    onOpenQrExchange: () -> Unit = {},
     onOpenAppSettings: () -> Unit = {},
     onOpenProfileSettings: () -> Unit = {},
     onOpenAuth: () -> Unit = {}
@@ -236,7 +234,6 @@ fun SettingsScreen(
                     item {
                         SettingsProfileCard(
                             userName = userName,
-                            onOpenQrExchange = onOpenQrExchange,
                             onOpenAppSettings = onOpenAppSettings,
                             onOpenProfileSettings = onOpenProfileSettings,
                             onOpenAuth = onOpenAuth,
@@ -254,7 +251,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                     }
 
-                    items(savedMiis) { miiHex ->
+                    items(savedMiis, key = { it }) { miiHex ->
                         SettingsMiiRow(
                             miiHex = miiHex,
                             isActive = miiHex == activeMiiHex,
@@ -289,7 +286,6 @@ fun SettingsScreen(
 @Composable
 private fun SettingsProfileCard(
     userName: String?,
-    onOpenQrExchange: () -> Unit,
     onOpenAppSettings: () -> Unit,
     onOpenProfileSettings: () -> Unit = {},
     onOpenAuth: () -> Unit = {},
@@ -392,83 +388,36 @@ private fun SettingsProfileCard(
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Button(
+                AeroButton(
                     onClick = {
                         soundManager.playTap()
                         showSignOutConfirm = true
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFC62828),
-                        contentColor = OffWhite
-                    )
+                    containerColor = Color(0xFFC62828),
+                    contentColor = OffWhite
                 ) {
                     Text("Sign Out", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                 }
-            } else {
-                Button(
-                    onClick = { soundManager.playNavigate(); onOpenAuth() },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = PocketPassGreen,
-                        contentColor = Color.White
-                    )
-                ) {
-                    Text("Sign In to Sync", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Button(
-                onClick = {
-                    if (isLoggedIn) {
-                        soundManager.playNavigate(); onOpenQrExchange()
-                    } else {
-                        soundManager.playError()
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                enabled = isLoggedIn,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PocketPassGreen,
-                    contentColor = Color.White
-                )
-            ) {
-                Text(
-                    text = if (isLoggedIn) "Share QR Code" else "Sign in to Share QR Code",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Button(
+            AeroButton(
                 onClick = { soundManager.playNavigate(); onOpenProfileSettings() },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PocketPassGreen,
-                    contentColor = OffWhite
-                )
+                contentColor = OffWhite
             ) {
                 Text("Profile Settings", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Button(
+            AeroButton(
                 onClick = { soundManager.playNavigate(); onOpenAppSettings() },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = DarkText.copy(alpha = 0.7f),
-                    contentColor = OffWhite
-                )
+                containerColor = if (com.pocketpass.app.ui.theme.LocalDarkMode.current) Color(0xFF4A4A4A) else Color(0xFF6B6B6B),
+                contentColor = OffWhite
             ) {
                 Text("App Settings", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
             }
@@ -481,7 +430,7 @@ private fun SettingsProfileCard(
             title = { Text("Sign Out", fontWeight = FontWeight.Bold) },
             text = { Text("Are you sure you want to sign out? All local data (profile, encounters, messages, tokens, and settings) will be removed from this device.") },
             confirmButton = {
-                Button(
+                AeroButton(
                     onClick = {
                         showSignOutConfirm = false
                         coroutineScope.launch {
@@ -490,17 +439,14 @@ private fun SettingsProfileCard(
                             val userPreferences = UserPreferences(context)
                             userPreferences.clearAll()
                             val db = PocketPassDatabase.getDatabase(context)
-                            db.encounterDao().deleteAllEncounters()
-                            db.messageDao().deleteAll()
+                            db.clearAllTables()
                             // Restart activity to reset all in-memory navigation state
                             val activity = context as? android.app.Activity
                             activity?.recreate()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFFC62828),
-                        contentColor = OffWhite
-                    )
+                    containerColor = Color(0xFFC62828),
+                    contentColor = OffWhite
                 ) {
                     Text("Sign Out", fontWeight = FontWeight.Bold)
                 }
@@ -580,7 +526,7 @@ private fun SettingsCustomizationContent(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         rowGreetings.forEach { greeting ->
-                            Button(
+                            AeroButton(
                                 onClick = {
                                     soundManager.playTap()
                                     onCustomGreetingChange(greeting)
@@ -591,10 +537,7 @@ private fun SettingsCustomizationContent(
                                 modifier = Modifier
                                     .weight(1f)
                                     .height(48.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (userGreeting == greeting) PocketPassGreen else DarkText.copy(alpha = 0.7f)
-                                ),
-                                shape = RoundedCornerShape(12.dp)
+                                containerColor = if (userGreeting == greeting) PocketPassGreen else if (com.pocketpass.app.ui.theme.LocalDarkMode.current) Color(0xFF4A4A4A) else Color(0xFF6B6B6B)
                             ) {
                                 Text(
                                     text = greeting.take(15) + if (greeting.length > 15) "..." else "",
@@ -615,7 +558,7 @@ private fun SettingsCustomizationContent(
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Button(
+                AeroButton(
                     onClick = {
                         soundManager.playSuccess()
                         coroutineScope.launch {
@@ -623,8 +566,7 @@ private fun SettingsCustomizationContent(
                         }
                         greetingSaved = true
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (greetingSaved) "Saved!" else "Save Custom Greeting")
                 }
@@ -751,14 +693,20 @@ private fun SettingsCustomizationContent(
 
                 OutlinedTextField(
                     value = hobbiesText,
-                    onValueChange = { hobbiesText = it },
-                    label = { Text("Hobby (e.g. Gaming, Drawing)") },
+                    onValueChange = { hobbiesText = com.pocketpass.app.ui.theme.formatHobbiesInput(it) },
+                    label = { Text("Hobbies (separate with spaces)") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
+
+                if (hobbiesText.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    com.pocketpass.app.ui.theme.HobbyChips(hobbiesText)
+                }
+
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Button(
+                AeroButton(
                     onClick = {
                         soundManager.playSuccess()
                         coroutineScope.launch {
@@ -767,8 +715,7 @@ private fun SettingsCustomizationContent(
                         }
                         showSaved = true
                     },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(if (showSaved) "Saved!" else "Save")
                 }
@@ -906,14 +853,10 @@ private fun SettingsCustomizationContent(
         }
 
         if (selectedGames.size < 3) {
-            Button(
+            AeroButton(
                 onClick = { soundManager.playNavigate(); onOpenGameSearch() },
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PocketPassGreen,
-                    contentColor = OffWhite
-                )
+                contentColor = OffWhite
             ) {
                 Text(
                     if (selectedGames.isEmpty()) "Add Games" else "Add Another Game",
@@ -1096,18 +1039,18 @@ private fun SettingsCreateMiiButton(
     onCreateNewMii: () -> Unit,
     soundManager: com.pocketpass.app.util.SoundManager
 ) {
-    Button(
+    AeroButton(
         onClick = { if (canCreateNewMii) { soundManager.playNavigate(); onCreateNewMii() } },
         modifier = Modifier
             .fillMaxWidth()
             .height(56.dp),
         enabled = canCreateNewMii,
-        colors = ButtonDefaults.buttonColors(
-            containerColor = if (canCreateNewMii) DarkText.copy(alpha = 0.7f) else DarkText.copy(alpha = 0.3f),
-            contentColor = OffWhite,
-            disabledContainerColor = DarkText.copy(alpha = 0.3f),
-            disabledContentColor = OffWhite.copy(alpha = 0.5f)
-        )
+        containerColor = if (canCreateNewMii) {
+            if (com.pocketpass.app.ui.theme.LocalDarkMode.current) Color(0xFF4A4A4A) else Color(0xFF6B6B6B)
+        } else {
+            if (com.pocketpass.app.ui.theme.LocalDarkMode.current) Color(0xFF3A3A3A) else Color(0xFFAAAAAA)
+        },
+        contentColor = OffWhite
     ) {
         Icon(
             imageVector = Icons.Filled.Add,

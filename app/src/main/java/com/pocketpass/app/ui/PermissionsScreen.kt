@@ -14,9 +14,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,7 +21,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -32,10 +28,11 @@ import androidx.compose.ui.unit.dp
 import com.google.accompanist.permissions.ExperimentalPermissionsApi
 import com.google.accompanist.permissions.MultiplePermissionsState
 import com.google.accompanist.permissions.rememberMultiplePermissionsState
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
-import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.util.LocalSoundManager
 
 @OptIn(ExperimentalPermissionsApi::class)
@@ -60,9 +57,6 @@ fun PermissionsScreen(
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         permissionsToRequest.add(android.Manifest.permission.POST_NOTIFICATIONS)
     }
-
-    // Camera for QR code scanning
-    permissionsToRequest.add(android.Manifest.permission.CAMERA)
 
     // Step counter for earning tokens by walking (Android 10+)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -105,65 +99,63 @@ private fun PermissionsRequestUI(permissionsState: MultiplePermissionsState) {
             .background(backgroundBrush),
         contentAlignment = Alignment.Center
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth(0.85f)
-                .clip(RoundedCornerShape(32.dp))
-                .background(OffWhite)
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        AeroCard(
+            modifier = Modifier.fillMaxWidth(0.85f),
+            cornerRadius = 32.dp,
+            containerColor = OffWhite
         ) {
-            Text(
-                text = "Welcome to PocketPass!",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Text(
-                text = "We need a few permissions to get started:",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                PermissionExplanation("Bluetooth", "Find and connect with people nearby")
-                PermissionExplanation("Location", "Discover friends in your area")
-                PermissionExplanation("Camera", "Scan QR codes to add friends")
-                PermissionExplanation("Notifications", "Know when someone is nearby")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    PermissionExplanation("Activity", "Count your steps to earn tokens")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = { soundManager.playSuccess(); permissionsState.launchMultiplePermissionRequest() },
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PocketPassGreen,
-                    contentColor = OffWhite
-                ),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(56.dp)
+                modifier = Modifier.padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "Let's Go!",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    text = "Welcome to PocketPass!",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center
                 )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "We need a few permissions to get started:",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    PermissionExplanation("Bluetooth", "Find and connect with people nearby")
+                    PermissionExplanation("Location", "Discover friends in your area")
+                    PermissionExplanation("Notifications", "Know when someone is nearby")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                        PermissionExplanation("Activity", "Count your steps to earn tokens")
+                    }
+                    PermissionExplanation("Battery", "Keep scanning in the background")
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                AeroButton(
+                    onClick = { soundManager.playSuccess(); permissionsState.launchMultiplePermissionRequest() },
+                    cornerRadius = 24.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                ) {
+                    Text(
+                        text = "Let's Go!",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
         }
     }

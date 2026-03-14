@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,10 +32,6 @@ import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -75,9 +70,10 @@ import com.pocketpass.app.data.SpotPassRepository
 import com.pocketpass.app.data.TokenSystem
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.ui.CheckeredBackground
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
-import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
@@ -262,13 +258,12 @@ fun MiiBingoScreen(onBack: () -> Unit) {
                     val total = card.cells.size
                     val linesCompleted = card.completedLines.size
 
-                    Card(
+                    AeroCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = OffWhite),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        cornerRadius = 16.dp,
+                        elevation = 4.dp
                     ) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(
@@ -387,7 +382,7 @@ fun MiiBingoScreen(onBack: () -> Unit) {
 
                     // New Card button when fully complete
                     if (card.isFullyComplete() && card.fullCardClaimed) {
-                        Button(
+                        AeroButton(
                             onClick = {
                                 coroutineScope.launch {
                                     val newCard = BingoChallenges.generateCard()
@@ -405,12 +400,6 @@ fun MiiBingoScreen(onBack: () -> Unit) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp)
-                                .height(52.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = PocketPassGreen,
-                                contentColor = Color.White
-                            )
                         ) {
                             Icon(
                                 Icons.Filled.Refresh,
@@ -520,11 +509,10 @@ private fun EmptyBingoPrompt(onGenerate: () -> Unit) {
         Spacer(modifier = Modifier.height(12.dp))
 
         // Reward hints
-        Card(
+        AeroCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(containerColor = OffWhite),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            cornerRadius = 12.dp,
+            elevation = 2.dp
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
@@ -537,16 +525,9 @@ private fun EmptyBingoPrompt(onGenerate: () -> Unit) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Button(
+        AeroButton(
             onClick = onGenerate,
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = PocketPassGreen,
-                contentColor = Color.White
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp)
+            modifier = Modifier.fillMaxWidth()
         ) {
             Text(
                 text = "Generate Bingo Card",
@@ -587,13 +568,13 @@ private fun RewardHintRow(label: String, reward: String) {
 
 @Composable
 private fun RewardsInfoCard(tokenMultiplier: Int) {
-    Card(
+    AeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = OffWhite.copy(alpha = 0.9f)),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        cornerRadius = 12.dp,
+        elevation = 2.dp,
+        containerColor = OffWhite.copy(alpha = 0.9f)
     ) {
         Row(
             modifier = Modifier
@@ -747,15 +728,14 @@ private fun BingoCellView(
         else -> Color(0xFFE8E8E8)
     }
 
-    Card(
+    AeroCard(
         modifier = modifier
             .aspectRatio(1f)
-            .clip(RoundedCornerShape(6.dp))
-            .border(1.5.dp, borderColor, RoundedCornerShape(6.dp))
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(6.dp),
-        colors = CardDefaults.cardColors(containerColor = bgColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+            .border(1.5.dp, borderColor, RoundedCornerShape(6.dp)),
+        cornerRadius = 6.dp,
+        elevation = 1.dp,
+        containerColor = bgColor,
+        onClick = onClick
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -867,11 +847,11 @@ private fun CellDetailDialog(
     val typeIcon = challengeTypeIcon(cell.challenge.type)
 
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        Card(
+        AeroCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            cornerRadius = 24.dp,
+            elevation = 8.dp,
+            containerColor = Color.White
         ) {
             Column(
                 modifier = Modifier
@@ -969,17 +949,13 @@ private fun CellDetailDialog(
                     }
 
                     if (!isFree && !cell.completed) {
-                        Button(
+                        AeroButton(
                             onClick = { onReroll() },
                             modifier = Modifier.weight(1f),
                             enabled = canReroll,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFFC107),
-                                contentColor = DarkText,
-                                disabledContainerColor = Color(0xFFE0E0E0),
-                                disabledContentColor = MediumText
-                            )
+                            containerColor = Color(0xFFFFC107),
+                            contentColor = DarkText,
+                            cornerRadius = 12.dp
                         ) {
                             Icon(
                                 Icons.Filled.Refresh,

@@ -20,8 +20,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,6 +44,7 @@ import kotlinx.coroutines.withContext
 import com.pocketpass.app.rendering.MiiModelCache
 import com.pocketpass.app.rendering.MiiSceneAssembler
 import com.pocketpass.app.rendering.MiiStudioDecoder
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.OffWhite
@@ -141,7 +140,7 @@ fun Mii3DTestScreen(
                 currentBodyNode = it
                 if (it.animationCount > 0) it.playAnimation(0, loop = true)
                 // Apply head textures to the merged model
-                MiiSceneAssembler.applyHeadTextures(engine, it, mergedResult?.headTextureDir)
+                MiiSceneAssembler.applyHeadTextures(engine, it, mergedResult?.headTextureDir, mergedResult?.headFileBase)
                 // Boost head size post-load (avoids bounding-box issues with scaleToUnits)
                 MiiSceneAssembler.boostMergedHeadSize(it)
             }
@@ -449,13 +448,11 @@ fun Mii3DTestScreen(
 
 @Composable
 private fun ModelChip(name: String, selected: Boolean, onClick: () -> Unit) {
-    Card(
+    AeroCard(
         modifier = Modifier
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) PocketPassGreen else OffWhite
-        )
+        cornerRadius = 20.dp,
+        containerColor = if (selected) PocketPassGreen else OffWhite
     ) {
         Text(
             text = name,

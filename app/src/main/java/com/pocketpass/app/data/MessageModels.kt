@@ -1,6 +1,7 @@
 package com.pocketpass.app.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -39,7 +40,14 @@ data class BroadcastMessagePayload(
 
 // ── Local Room entity for offline cache ──
 
-@Entity(tableName = "cached_messages")
+@Entity(
+    tableName = "cached_messages",
+    indices = [
+        Index("senderId"),
+        Index("receiverId"),
+        Index(value = ["receiverId", "readAt"])
+    ]
+)
 data class CachedMessage(
     @PrimaryKey
     val id: String,

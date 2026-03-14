@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,10 +31,6 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -67,6 +62,8 @@ import com.pocketpass.app.data.ShopItems
 import com.pocketpass.app.data.SpotPassRepository
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.ui.CheckeredBackground
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.ErrorText
@@ -216,7 +213,7 @@ fun ShopScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            items(ShopItems.cardThemes) { item ->
+                            items(ShopItems.cardThemes, key = { it.id }) { item ->
                                 val isOwned = item.id in ownedItems
                                 val isEquipped = currentCardStyle == item.id
                                 ShopItemCard(
@@ -357,17 +354,17 @@ private fun ShopCategoryCard(
     comingSoon: Boolean = false,
     onClick: () -> Unit
 ) {
-    Card(
+    AeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .gamepadFocusable(
                 shape = RoundedCornerShape(16.dp),
                 onSelect = onClick
-            )
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = if (comingSoon) OffWhite.copy(alpha = 0.7f) else OffWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ),
+        cornerRadius = 16.dp,
+        elevation = 4.dp,
+        containerColor = if (comingSoon) OffWhite.copy(alpha = 0.7f) else OffWhite,
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier
@@ -436,14 +433,13 @@ private fun ShopItemCard(
 ) {
     val discountedPrice = (item.price * priceMultiplier).toInt().coerceAtLeast(1)
     val hasDiscount = priceMultiplier < 1f
-    Card(
+    AeroCard(
         modifier = Modifier
             .fillMaxWidth()
-            .aspectRatio(0.9f)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = OffWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            .aspectRatio(0.9f),
+        cornerRadius = 16.dp,
+        elevation = 4.dp,
+        onClick = onClick
     ) {
         Column(
             modifier = Modifier
@@ -618,10 +614,9 @@ private fun ShopItemDialog(
             }
         },
         confirmButton = {
-            Button(
+            AeroButton(
                 onClick = onBuy,
-                enabled = canAfford,
-                colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
+                enabled = canAfford
             ) {
                 Text("Buy for \uD83E\uDE99 $discountedPrice")
             }

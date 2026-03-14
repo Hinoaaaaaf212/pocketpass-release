@@ -21,13 +21,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,11 +52,11 @@ import com.pocketpass.app.data.PuzzlePanels
 import com.pocketpass.app.data.PuzzleProgress
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.ui.CheckeredBackground
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.ErrorText
 import com.pocketpass.app.ui.theme.MediumText
-import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.util.LocalSoundManager
@@ -158,13 +154,10 @@ fun PuzzleBoardScreen(
                 }
 
                 // Puzzle Grid
-                Card(
+                AeroCard(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = OffWhite),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        .padding(horizontal = 16.dp)
                 ) {
                     Box(
                         modifier = Modifier
@@ -221,13 +214,10 @@ fun PuzzleBoardScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Piece Legend
-                Card(
+                AeroCard(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = OffWhite),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        .padding(horizontal = 16.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
@@ -296,12 +286,11 @@ fun PuzzleBoardScreen(
                 // Completion message
                 if (isComplete) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    Card(
+                    AeroCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = PocketPassGreen.copy(alpha = 0.15f))
+                        containerColor = PocketPassGreen.copy(alpha = 0.15f)
                     ) {
                         Column(
                             modifier = Modifier

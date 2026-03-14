@@ -3,8 +3,12 @@ package com.pocketpass.app.data
 import android.content.Context
 import android.util.Log
 import com.google.gson.Gson
+import com.pocketpass.app.data.crypto.CryptoManager
+import com.pocketpass.app.data.crypto.decryptFields
+import com.pocketpass.app.data.crypto.encryptFields
 import com.pocketpass.app.rendering.MiiStudioDecoder
 import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.firstOrNull
@@ -24,7 +28,14 @@ class SyncRepository(private val context: Context) {
         val prefs = UserPreferences(context)
 
         try {
-            val profile = buildProfileFromLocal(userId, prefs)
+            val profile = buildProfileFromLocal(userId, prefs).let {
+                // Include crypto public key if initialized
+                if (CryptoManager.isInitialized) {
+                    it.copy(
+                        publicKey = CryptoManager.getPublicKeyBase64()
+                    )
+                } else it
+            }
             client.postgrest["profiles"].update(profile) {
                 filter { eq("id", userId) }
             }
@@ -58,7 +69,7 @@ class SyncRepository(private val context: Context) {
             // 3. Push local encounters not in remote
             val toUpload = localEncounters.filter { it.encounterId !in remoteMap }
             for (encounter in toUpload) {
-                val supabaseEncounter = encounter.toSupabase(userId)
+                val supabaseEncounter = encounter.toSupabase(userId).encryptFields()
                 client.postgrest["encounters"].upsert(supabaseEncounter)
                 dao.markSynced(encounter.encounterId)
             }
@@ -68,7 +79,7 @@ class SyncRepository(private val context: Context) {
                 it.encounterId !in localMap && it.deletedAt == null
             }
             for (remote in toDownload) {
-                dao.insertEncounter(remote.toLocal())
+                dao.insertEncounter(remote.decryptFields().toLocal())
             }
 
             // 5. Merge conflicts (same encounterId exists both places)
@@ -79,23 +90,30 @@ class SyncRepository(private val context: Context) {
                     dao.deleteEncounter(local)
                     continue
                 }
+                // Decrypt remote for comparison
+                val decryptedRemote = remote.decryptFields()
                 // Take the higher meet_count and latest timestamp
-                val mergedMeetCount = maxOf(local.meetCount, remote.meetCount)
-                val mergedTimestamp = maxOf(local.timestamp, remote.timestamp)
-                if (mergedMeetCount != local.meetCount || mergedTimestamp != local.timestamp) {
+                val mergedMeetCount = maxOf(local.meetCount, decryptedRemote.meetCount)
+                val mergedTimestamp = maxOf(local.timestamp, decryptedRemote.timestamp)
+                // Decode correct gender from avatar hex
+                val mergedIsMale = if (local.otherUserAvatarHex.isNotBlank())
+                    MiiStudioDecoder.isMale(local.otherUserAvatarHex) else local.isMale
+                if (mergedMeetCount != local.meetCount || mergedTimestamp != local.timestamp || mergedIsMale != local.isMale) {
                     dao.updateEncounter(
                         local.copy(
                             meetCount = mergedMeetCount,
                             timestamp = mergedTimestamp,
+                            isMale = mergedIsMale,
                             needsSync = false
                         )
                     )
                 }
-                // Push merged version back to remote
+                // Push merged version back to remote (encrypted)
                 val merged = local.copy(
                     meetCount = mergedMeetCount,
-                    timestamp = mergedTimestamp
-                ).toSupabase(userId)
+                    timestamp = mergedTimestamp,
+                    isMale = mergedIsMale
+                ).toSupabase(userId).encryptFields()
                 client.postgrest["encounters"].upsert(merged)
                 dao.markSynced(local.encounterId)
             }
@@ -111,7 +129,7 @@ class SyncRepository(private val context: Context) {
     suspend fun pushEncounter(encounter: Encounter) = withContext(Dispatchers.IO) {
         val userId = authRepo.currentUserId ?: return@withContext
         try {
-            client.postgrest["encounters"].upsert(encounter.toSupabase(userId))
+            client.postgrest["encounters"].upsert(encounter.toSupabase(userId).encryptFields())
             val db = PocketPassDatabase.getDatabase(context)
             db.encounterDao().markSynced(encounter.encounterId)
         } catch (e: Exception) {
@@ -147,16 +165,21 @@ class SyncRepository(private val context: Context) {
 
         try {
             val encounters = db.encounterDao().getAllEncountersFlow().first()
-            val puzzleProgress = prefs.puzzleProgressFlow.firstOrNull() ?: PuzzleProgress()
+            val snap = prefs.snapshot()
+            val puzzleProgressJson = snap[UserPreferences.PUZZLE_PROGRESS]
+            val puzzleProgress = if (puzzleProgressJson != null) {
+                try { gson.fromJson(puzzleProgressJson, PuzzleProgress::class.java) ?: PuzzleProgress() }
+                catch (_: Exception) { PuzzleProgress() }
+            } else PuzzleProgress()
             val claimedSpotPass = try { SpotPassRepository(context).getClaimedPuzzlePanels() } catch (_: Exception) { emptyList() }
             val panels = PuzzlePanels.getAllIncludingSpotPass(claimedSpotPass)
 
-            val avatarHex = prefs.avatarHexFlow.firstOrNull() ?: ""
+            val avatarHex = snap[UserPreferences.AVATAR_HEX] ?: ""
             val entry = SupabaseLeaderboardEntry(
                 userId = userId,
-                userName = prefs.userNameFlow.firstOrNull() ?: "",
+                userName = snap[UserPreferences.USER_NAME] ?: "",
                 avatarHex = avatarHex,
-                origin = prefs.userOriginFlow.firstOrNull() ?: "",
+                origin = snap[UserPreferences.USER_ORIGIN] ?: "",
                 totalEncounters = encounters.sumOf { it.meetCount },
                 uniqueEncounters = encounters.size,
                 uniqueRegions = encounters.map { it.origin }.distinct().size,
@@ -179,19 +202,12 @@ class SyncRepository(private val context: Context) {
     ): List<SupabaseLeaderboardEntry> = withContext(Dispatchers.IO) {
         try {
             client.postgrest["leaderboards"]
-                .select()
-                .decodeList<SupabaseLeaderboardEntry>()
-                .filter { it.userName.isNotBlank() }
-                .sortedByDescending { entry ->
-                    when (sortBy) {
-                        "puzzles_completed" -> entry.puzzlesCompleted
-                        "unique_encounters" -> entry.uniqueEncounters
-                        "total_encounters" -> entry.totalEncounters
-                        "achievements_unlocked" -> entry.achievementsUnlocked
-                        else -> entry.totalEncounters
-                    }
+                .select {
+                    filter { neq("user_name", "") }
+                    order(sortBy, Order.DESCENDING)
+                    limit(limit.toLong())
                 }
-                .take(limit)
+                .decodeList<SupabaseLeaderboardEntry>()
         } catch (e: Exception) {
             Log.e(TAG, "Fetch leaderboard failed: ${e.message}", e)
             emptyList()
@@ -270,9 +286,10 @@ class SyncRepository(private val context: Context) {
             var restored = 0
             for (remote in remoteEncounters) {
                 if (remote.deletedAt != null) continue
-                val existing = dao.getEncounterByUserName(remote.otherUserName)
+                val decrypted = remote.decryptFields()
+                val existing = dao.getEncounterByUserName(decrypted.otherUserName)
                 if (existing == null) {
-                    dao.insertEncounter(remote.toLocal())
+                    dao.insertEncounter(decrypted.toLocal())
                     restored++
                 }
             }
@@ -322,9 +339,12 @@ class SyncRepository(private val context: Context) {
             val encountersByUserId = dao.getEncountersByOtherUserIds(friendIds.toList())
                 .associateBy { it.otherUserId }
 
+            // Batch-fetch all friend profiles in one network call
+            val profilesById = friendRepo.getProfilesByIds(friendIds.toList())
+
             for (friendId in friendIds) {
                 val encounter = encountersByUserId[friendId] ?: continue
-                val profile = friendRepo.getRequesterProfile(friendId) ?: continue
+                val profile = profilesById[friendId] ?: continue
 
                 // Determine isMale from their profile
                 val friendIsMale = profile.isMale
@@ -393,32 +413,51 @@ class SyncRepository(private val context: Context) {
         userId: String,
         prefs: UserPreferences
     ): SupabaseProfile {
-        val savedMiis = prefs.savedMiisFlow.firstOrNull() ?: emptyList()
-        val selectedGames = prefs.selectedGamesFlow.firstOrNull() ?: emptyList()
-        val puzzleProgress = prefs.puzzleProgressFlow.firstOrNull() ?: PuzzleProgress()
-
+        val snap = prefs.snapshot()
         val json = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
-        val avatarHex = prefs.avatarHexFlow.firstOrNull() ?: ""
+        val savedMiisJson = snap[UserPreferences.SAVED_MIIS_LIST]
+        val savedMiis: List<String> = if (savedMiisJson != null) {
+            try {
+                val type = object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
+                gson.fromJson(savedMiisJson, type) ?: emptyList()
+            } catch (_: Exception) { emptyList() }
+        } else emptyList()
+
+        val selectedGamesJson = snap[UserPreferences.SELECTED_GAMES]
+        val selectedGames: List<IgdbGame> = if (selectedGamesJson != null) {
+            try {
+                val type = object : com.google.gson.reflect.TypeToken<List<IgdbGame>>() {}.type
+                gson.fromJson(selectedGamesJson, type) ?: emptyList()
+            } catch (_: Exception) { emptyList() }
+        } else emptyList()
+
+        val puzzleProgressJson = snap[UserPreferences.PUZZLE_PROGRESS]
+        val puzzleProgress = if (puzzleProgressJson != null) {
+            try { gson.fromJson(puzzleProgressJson, PuzzleProgress::class.java) ?: PuzzleProgress() }
+            catch (_: Exception) { PuzzleProgress() }
+        } else PuzzleProgress()
+
+        val avatarHex = snap[UserPreferences.AVATAR_HEX] ?: ""
 
         return SupabaseProfile(
             id = userId,
-            userName = prefs.userNameFlow.firstOrNull() ?: "",
+            userName = snap[UserPreferences.USER_NAME] ?: "",
             avatarHex = avatarHex,
             savedMiisList = json.parseToJsonElement(gson.toJson(savedMiis)),
-            greeting = prefs.userGreetingFlow.firstOrNull() ?: "Hello! Nice to meet you!",
-            mood = prefs.userMoodFlow.firstOrNull() ?: "HAPPY",
-            cardStyle = prefs.cardStyleFlow.firstOrNull() ?: "classic",
-            origin = prefs.userOriginFlow.firstOrNull() ?: "",
-            age = prefs.userAgeFlow.firstOrNull() ?: "",
-            hobbies = prefs.userHobbiesFlow.firstOrNull() ?: "",
+            greeting = snap[UserPreferences.USER_GREETING] ?: "Hello! Nice to meet you!",
+            mood = snap[UserPreferences.USER_MOOD] ?: "HAPPY",
+            cardStyle = snap[UserPreferences.CARD_STYLE] ?: "classic",
+            origin = snap[UserPreferences.USER_ORIGIN] ?: "",
+            age = snap[UserPreferences.USER_AGE] ?: "",
+            hobbies = snap[UserPreferences.USER_HOBBIES] ?: "",
             selectedGames = json.parseToJsonElement(gson.toJson(selectedGames)),
-            tokenBalance = prefs.tokenBalanceFlow.firstOrNull() ?: 0,
+            tokenBalance = snap[UserPreferences.TOKEN_BALANCE]?.toIntOrNull() ?: 0,
             puzzleProgress = json.parseToJsonElement(gson.toJson(puzzleProgress)),
-            musicVolume = prefs.musicVolumeFlow.firstOrNull() ?: 0.3f,
-            proximityEnabled = prefs.proximityEnabledFlow.firstOrNull() ?: true,
-            sfxEnabled = prefs.sfxEnabledFlow.firstOrNull() ?: true,
-            sfxVolume = prefs.sfxVolumeFlow.firstOrNull() ?: 0.5f,
+            musicVolume = snap[UserPreferences.MUSIC_VOLUME]?.toFloatOrNull() ?: 0.3f,
+            proximityEnabled = (snap[UserPreferences.PROXIMITY_ENABLED] ?: "true") == "true",
+            sfxEnabled = (snap[UserPreferences.SFX_ENABLED] ?: "true") == "true",
+            sfxVolume = snap[UserPreferences.SFX_VOLUME]?.toFloatOrNull() ?: 0.5f,
             isMale = if (avatarHex.isNotBlank()) MiiStudioDecoder.isMale(avatarHex) else true
         )
     }

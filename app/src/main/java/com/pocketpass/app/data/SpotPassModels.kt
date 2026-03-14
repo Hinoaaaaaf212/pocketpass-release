@@ -1,6 +1,7 @@
 package com.pocketpass.app.data
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -28,7 +29,14 @@ data class SupabaseSpotPassItem(
 )
 
 /** Room entity with extra local-only fields. */
-@Entity(tableName = "spotpass_items")
+@Entity(
+    tableName = "spotpass_items",
+    indices = [
+        Index("isRead"),
+        Index("publishedAt"),
+        Index(value = ["type", "isClaimed"])
+    ]
+)
 data class SpotPassItemEntity(
     @PrimaryKey val id: String,
     val type: String,

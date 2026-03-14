@@ -61,23 +61,23 @@ class PlazaEnvironmentLoader(
             1.3f, 1.2f, 1.1f, 0.55f)
     )
 
-    // Building positions spread along the path, behind Miis
+    // Building positions pushed back behind the Mii grid (grid occupies Z -3 to +1)
     private val buildingPlacements = listOf(
-        Triple(-3.5f, 0f, -3.0f),
-        Triple(-1.5f, 0f, -3.5f),
-        Triple(0.5f, 0f, -2.5f),
-        Triple(2.5f, 0f, -3.0f),
-        Triple(4.0f, 0f, -3.5f)
+        Triple(-3.5f, 0f, -5.5f),
+        Triple(-1.5f, 0f, -6.0f),
+        Triple(0.5f, 0f, -5.5f),
+        Triple(2.5f, 0f, -6.0f),
+        Triple(4.0f, 0f, -5.5f)
     )
 
-    // Tree positions scattered around
+    // Tree positions pushed to sides and back
     private val treePlacements = listOf(
-        Triple(-5.0f, 0f, -2.0f),
-        Triple(-2.5f, 0f, -4.5f),
-        Triple(1.5f, 0f, -4.5f),
-        Triple(4.5f, 0f, -2.0f),
-        Triple(-4.0f, 0f, -1.0f),
-        Triple(5.0f, 0f, -3.5f)
+        Triple(-6.0f, 0f, -5.0f),
+        Triple(-2.5f, 0f, -7.0f),
+        Triple(1.5f, 0f, -7.0f),
+        Triple(6.0f, 0f, -5.0f),
+        Triple(-6.0f, 0f, -3.0f),
+        Triple(6.0f, 0f, -6.0f)
     )
 
     /**
@@ -100,10 +100,10 @@ class PlazaEnvironmentLoader(
             isShadowReceiver = true
         )
 
-        // Gate (Crimson Arch from asset)
+        // Gate (Crimson Arch from asset) — behind the Mii grid
         loadFromAsset(
             assetPath = "models/plaza_gate.glb",
-            position = Position(0f, 1.26f, -1.0f),
+            position = Position(0f, 1.26f, -4.5f),
             scale = Scale(1.4f, 1.4f, 1.4f),
             label = "gate",
             isShadowCaster = true

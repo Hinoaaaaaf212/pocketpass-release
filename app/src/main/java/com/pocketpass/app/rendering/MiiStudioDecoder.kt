@@ -157,23 +157,30 @@ object MiiStudioDecoder {
 
     /**
      * Extract the gender from base64-encoded Studio Mii data.
-     * Gender is at decoded index 1: 0 = male, 1 = female.
+     * Studio field order (0-indexed from encoded[1]):
+     *   field 0 = facialHairColor, ... field 21 = favoriteColor, field 22 = gender
+     * In the decoded array (where decoded[0] = header byte):
+     *   gender is at decoded[23].
      *
-     * @return true if male, false if female, null if data can't be decoded
+     * @return true if male, false if female
      */
     fun isMale(avatarBase64: String?): Boolean {
         if (avatarBase64.isNullOrBlank()) return true // default to male
         return try {
             val encoded = Base64.decode(avatarBase64, Base64.DEFAULT)
-            if (encoded.size < 2) return true
+            if (encoded.size < 24) return true
 
-            val decoded = IntArray(2)
+            // Decode XOR scrambling up to index 23
+            val decoded = IntArray(24)
             decoded[0] = encoded[0].toInt() and 0xFF
-            val enc1 = encoded[1].toInt() and 0xFF
-            val prev1 = encoded[0].toInt() and 0xFF
-            decoded[1] = ((enc1 - 7 + 256) % 256) xor prev1
+            for (i in 1..23) {
+                val enc = encoded[i].toInt() and 0xFF
+                val prev = encoded[i - 1].toInt() and 0xFF
+                decoded[i] = ((enc - 7 + 256) % 256) xor prev
+            }
 
-            val gender = decoded[1] // 0 = male, 1 = female
+            val gender = decoded[23] // 0 = male, 1 = female
+            Log.d(TAG, "Extracted gender: $gender (${if (gender == 0) "male" else "female"})")
             gender == 0
         } catch (e: Exception) {
             Log.e(TAG, "Failed to extract gender from Mii data", e)

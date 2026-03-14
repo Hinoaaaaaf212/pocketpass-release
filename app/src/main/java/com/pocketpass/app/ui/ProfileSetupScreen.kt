@@ -1,7 +1,6 @@
 package com.pocketpass.app.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -10,15 +9,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -32,13 +32,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.UserPreferences
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.OffWhite
@@ -57,7 +59,6 @@ fun ProfileSetupScreen(
     val coroutineScope = rememberCoroutineScope()
     val userPreferences = remember { UserPreferences(context) }
 
-    var name by remember { mutableStateOf("") }
     var age by remember { mutableStateOf("") }
     var hobbies by remember { mutableStateOf("") }
     var region by remember { mutableStateOf("") }
@@ -73,25 +74,28 @@ fun ProfileSetupScreen(
             .background(backgroundBrush),
         contentAlignment = Alignment.Center
     ) {
-        Column(
+        AeroCard(
             modifier = Modifier
-                .fillMaxWidth(0.9f)
-                .clip(RoundedCornerShape(32.dp))
-                .background(OffWhite)
+                .fillMaxWidth(0.9f),
+            cornerRadius = 32.dp,
+            containerColor = OffWhite
+        ) {
+          Column(
+            modifier = Modifier
                 .padding(24.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+          ) {
             Text(
-                text = "Who are you?",
+                text = "About You",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 color = DarkText,
                 textAlign = TextAlign.Center
             )
-            
+
             Spacer(modifier = Modifier.height(8.dp))
-            
+
             Text(
                 text = "Tell others a little about yourself!",
                 style = MaterialTheme.typography.bodyMedium,
@@ -108,46 +112,41 @@ fun ProfileSetupScreen(
             )
 
             OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Name / Nickname (Required)") },
-                singleLine = true,
-                shape = RoundedCornerShape(16.dp),
-                modifier = Modifier.fillMaxWidth(),
-                colors = textFieldColors
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
                 value = age,
-                onValueChange = { age = it },
+                onValueChange = { newVal ->
+                    val digits = newVal.filter { it.isDigit() }.take(2)
+                    age = if (digits.isNotEmpty() && digits.toInt() > 99) "99" else digits
+                },
                 label = { Text("Age (Optional)") },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth(),
-                colors = textFieldColors
+                colors = textFieldColors,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
                 value = hobbies,
-                onValueChange = { hobbies = it },
+                onValueChange = { hobbies = com.pocketpass.app.ui.theme.formatHobbiesInput(it) },
                 label = { Text("Hobbies (Optional)") },
+                supportingText = { Text("Separate hobbies with spaces") },
                 shape = RoundedCornerShape(16.dp),
                 modifier = Modifier.fillMaxWidth(),
-                maxLines = 3,
+                singleLine = true,
                 colors = textFieldColors
             )
+
+            if (hobbies.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                com.pocketpass.app.ui.theme.HobbyChips(hobbies)
+            }
 
             Spacer(modifier = Modifier.height(16.dp))
 
             // Region Dropdown
-            ExposedDropdownMenuBox(
-                expanded = regionExpanded,
-                onExpandedChange = { regionExpanded = !regionExpanded }
-            ) {
+            Box {
                 OutlinedTextField(
                     value = if (region.isNotBlank()) "${RegionFlags.getFlagForRegion(region)} $region" else "",
                     onValueChange = {},
@@ -159,48 +158,50 @@ fun ProfileSetupScreen(
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .menuAnchor(),
-                    colors = textFieldColors
+                        .clickable { regionExpanded = !regionExpanded },
+                    colors = textFieldColors,
+                    enabled = false
                 )
-                ExposedDropdownMenu(
+                androidx.compose.material3.DropdownMenu(
                     expanded = regionExpanded,
-                    onDismissRequest = { regionExpanded = false }
+                    onDismissRequest = { regionExpanded = false },
+                    modifier = Modifier.height(250.dp)
                 ) {
-                    RegionFlags.supportedRegions.forEach { regionOption ->
-                        DropdownMenuItem(
-                            text = {
-                                Text("${RegionFlags.getFlagForRegion(regionOption)} $regionOption")
-                            },
-                            onClick = {
-                                soundManager.playSelect()
-                                region = regionOption
-                                regionExpanded = false
-                            }
-                        )
+                    LazyColumn {
+                        items(RegionFlags.supportedRegions, key = { it }) { regionOption ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text("${RegionFlags.getFlagForRegion(regionOption)} $regionOption")
+                                },
+                                onClick = {
+                                    soundManager.playSelect()
+                                    region = regionOption
+                                    regionExpanded = false
+                                }
+                            )
+                        }
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(20.dp))
 
-            Button(
+            AeroButton(
                 onClick = {
                     soundManager.playSuccess()
                     coroutineScope.launch {
-                        val finalName = if (name.isNotBlank()) name else "Stranger"
-                        userPreferences.saveUserProfile(finalName, age, hobbies, region)
+                        // Username already set from signup — only save the remaining fields
+                        userPreferences.saveProfileDetails(age, hobbies, region)
                         onProfileSaved()
                     }
                 },
-                shape = RoundedCornerShape(24.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = PocketPassGreen,
-                    contentColor = OffWhite
-                ),
+                containerColor = PocketPassGreen,
+                contentColor = OffWhite,
+                cornerRadius = 24.dp,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
-                enabled = name.isNotBlank() && region.isNotBlank() // Require name and region
+                enabled = region.isNotBlank()
             ) {
                 Text(
                     text = "Finish",
@@ -208,6 +209,7 @@ fun ProfileSetupScreen(
                     fontWeight = FontWeight.Bold
                 )
             }
+          }
         }
     }
 }

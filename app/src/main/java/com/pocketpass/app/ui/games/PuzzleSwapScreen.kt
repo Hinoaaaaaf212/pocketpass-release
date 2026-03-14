@@ -26,11 +26,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -60,6 +55,8 @@ import com.pocketpass.app.data.SyncRepository
 import com.pocketpass.app.data.TokenSystem
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.ui.CheckeredBackground
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
@@ -163,11 +160,9 @@ fun PuzzleSwapScreen(
                         val totalCollected = panels.sumOf { progress.collectedCount(it.id) }
                         val completedPanels = panels.count { progress.isPanelComplete(it) }
 
-                        Card(
+                        AeroCard(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = OffWhite),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            containerColor = OffWhite
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Row(
@@ -208,11 +203,11 @@ fun PuzzleSwapScreen(
                     }
 
                     // Panel cards
-                    items(panels) { panel ->
+                    items(panels, key = { it.id }) { panel ->
                         val collected = progress.collectedCount(panel.id)
                         val isComplete = progress.isPanelComplete(panel)
 
-                        Card(
+                        AeroCard(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .gamepadFocusable(
@@ -220,11 +215,7 @@ fun PuzzleSwapScreen(
                                     onSelect = { soundManager.playNavigate(); onOpenPuzzleBoard(panel.id) }
                                 )
                                 .clickable { soundManager.playNavigate(); onOpenPuzzleBoard(panel.id) },
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isComplete) PocketPassGreen.copy(alpha = 0.15f) else OffWhite
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            containerColor = if (isComplete) PocketPassGreen.copy(alpha = 0.15f) else OffWhite
                         ) {
                             Row(
                                 modifier = Modifier
@@ -317,7 +308,7 @@ fun PuzzleSwapScreen(
                     // Token shop button
                     item {
                         Spacer(modifier = Modifier.height(4.dp))
-                        Button(
+                        AeroButton(
                             onClick = { soundManager.playSelect(); showTokenShop = true },
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -326,11 +317,9 @@ fun PuzzleSwapScreen(
                                     shape = RoundedCornerShape(12.dp),
                                     onSelect = { soundManager.playSelect(); showTokenShop = true }
                                 ),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFFC107),
-                                contentColor = DarkText
-                            )
+                            containerColor = Color(0xFFFFC107),
+                            contentColor = DarkText,
+                            cornerRadius = 12.dp
                         ) {
                             Text(
                                 text = "\uD83E\uDE99 Spend Tokens for Pieces",
@@ -382,11 +371,11 @@ private fun TokenShopDialog(
     val soundManager = LocalSoundManager.current
 
     androidx.compose.ui.window.Dialog(onDismissRequest = onDismiss) {
-        Card(
+        AeroCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = OffWhite),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            cornerRadius = 24.dp,
+            elevation = 8.dp,
+            containerColor = OffWhite
         ) {
             Column(
                 modifier = Modifier
@@ -469,16 +458,12 @@ private fun TokenShopDialog(
                         Text("Close")
                     }
 
-                    Button(
+                    AeroButton(
                         onClick = { onPurchase() },
                         modifier = Modifier.weight(1f),
                         enabled = canPurchase,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFFFFC107),
-                            contentColor = DarkText,
-                            disabledContainerColor = Color(0xFFE0E0E0),
-                            disabledContentColor = MediumText
-                        )
+                        containerColor = Color(0xFFFFC107),
+                        contentColor = DarkText
                     ) {
                         Text(
                             text = "\uD83E\uDE99 ${TokenSystem.PUZZLE_SWAP_COMMON_PIECE_COST} Buy",

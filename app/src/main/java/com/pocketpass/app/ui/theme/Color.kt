@@ -32,8 +32,26 @@ private val LightDarkText = Color(0xFF2C2C2C)
 private val LightMediumText = Color(0xFF595959)
 private val LightText_ = Color(0xFF6B6B6B)
 private val LightSkyBlue = Color(0xFFC8E9FF)
-private val LightCheckerLight = Color(0xFFFFFFFF).copy(alpha = 0.15f)
-private val LightCheckerDark = Color(0xFF000000).copy(alpha = 0.05f)
+private val LightCheckerLight = Color(0xFFFFFFFF).copy(alpha = 0.10f)
+private val LightCheckerDark = Color(0xFF000000).copy(alpha = 0.03f)
+
+// Aero glass highlight gradients
+private val LightGlassHighlight = Color.White.copy(alpha = 0.45f)
+private val LightGlassHighlightMid = Color.White.copy(alpha = 0.12f)
+private val DarkGlassHighlight = Color.White.copy(alpha = 0.12f)
+private val DarkGlassHighlightMid = Color.White.copy(alpha = 0.04f)
+
+// Aero card border - thin luminous edge
+private val LightCardBorder = Color.White.copy(alpha = 0.65f)
+private val DarkCardBorder = Color.White.copy(alpha = 0.10f)
+
+// Aero nav bar glass
+private val LightNavGlass = Color.White.copy(alpha = 0.75f)
+private val DarkNavGlass = Color(0xFF1A1A1A).copy(alpha = 0.85f)
+
+// Aero radial glow
+private val LightRadialGlow = Color.White.copy(alpha = 0.15f)
+private val DarkRadialGlow = Color.White.copy(alpha = 0.06f)
 
 // Dark mode values
 private val DarkOffWhite = Color(0xFF2A2A2A)       // Dark card background
@@ -88,6 +106,28 @@ val CheckerLight: Color
 val CheckerDark: Color
     @Composable @ReadOnlyComposable
     get() = if (LocalDarkMode.current) DarkCheckerDark else LightCheckerDark
+
+// ── Aero glass theme-aware accessors ──
+
+val GlassHighlight: Color
+    @Composable @ReadOnlyComposable
+    get() = if (LocalDarkMode.current) DarkGlassHighlight else LightGlassHighlight
+
+val GlassHighlightMid: Color
+    @Composable @ReadOnlyComposable
+    get() = if (LocalDarkMode.current) DarkGlassHighlightMid else LightGlassHighlightMid
+
+val CardBorder: Color
+    @Composable @ReadOnlyComposable
+    get() = if (LocalDarkMode.current) DarkCardBorder else LightCardBorder
+
+val NavGlass: Color
+    @Composable @ReadOnlyComposable
+    get() = if (LocalDarkMode.current) DarkNavGlass else LightNavGlass
+
+val RadialGlow: Color
+    @Composable @ReadOnlyComposable
+    get() = if (LocalDarkMode.current) DarkRadialGlow else LightRadialGlow
 
 /** Default background gradient colors, dark-mode aware. */
 val BackgroundGradient: List<Color>

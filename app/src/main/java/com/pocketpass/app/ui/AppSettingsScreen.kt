@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -60,6 +58,8 @@ import com.pocketpass.app.data.DownloadProgress
 import com.pocketpass.app.data.SyncRepository
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.service.ProximityService
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.ErrorText
@@ -79,7 +79,7 @@ import com.pocketpass.app.util.AynThorDevice
 import kotlinx.coroutines.launch
 
 @Composable
-fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
+fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, autoStartUpdate: AppVersion? = null) {
     val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -134,11 +134,20 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                 )
             }
 
+            val scrollState = rememberScrollState()
+
+            // Auto-scroll to bottom when auto-starting update
+            LaunchedEffect(autoStartUpdate) {
+                if (autoStartUpdate != null) {
+                    scrollState.animateScrollTo(scrollState.maxValue)
+                }
+            }
+
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -146,14 +155,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                 run {
                     val serviceStatus by ProximityService.serviceStatus.collectAsState()
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(OffWhite)
-                            .padding(16.dp)
+                    AeroCard(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column {
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -214,14 +219,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                 if (AynThorDevice.isAynThor()) {
                     val dualScreenEnabled by userPreferences.dualScreenModeFlow.collectAsState(initial = true)
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(OffWhite)
-                            .padding(16.dp)
+                    AeroCard(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column {
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -264,14 +265,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                 run {
                     val darkModeEnabled by userPreferences.darkModeFlow.collectAsState(initial = false)
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(OffWhite)
-                            .padding(16.dp)
+                    AeroCard(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column {
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -309,14 +306,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                 }
 
                 // Sound Effects
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(OffWhite)
-                        .padding(16.dp)
+                AeroCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -381,14 +374,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                 }
 
                 // Plaza Music
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(OffWhite)
-                        .padding(16.dp)
+                AeroCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
@@ -461,14 +450,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                         var isSyncing by remember { mutableStateOf(false) }
                         var syncResult by remember { mutableStateOf<String?>(null) }
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(OffWhite)
-                                .padding(16.dp)
+                        AeroCard(
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
                                     text = "Cloud Sync",
                                     style = MaterialTheme.typography.bodyLarge,
@@ -483,7 +468,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                                     color = if (syncResult != null) GreenText else MediumText
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
-                                Button(
+                                AeroButton(
                                     onClick = {
                                         isSyncing = true
                                         syncResult = null
@@ -501,10 +486,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     enabled = !isSyncing,
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = SkyBlue
-                                    )
+                                    containerColor = SkyBlue
                                 ) {
                                     if (isSyncing) {
                                         CircularProgressIndicator(
@@ -524,63 +506,11 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                     }
                 }
 
-                // 3D Mii Rendering Toggle (debug only)
-                if (BuildConfig.DEBUG) run {
-                    val enable3d by userPreferences.enable3dMiisFlow.collectAsState(initial = true)
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(OffWhite)
-                            .padding(16.dp)
-                    ) {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "3D Mii Rendering",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = DarkText
-                                )
-                                Switch(
-                                    checked = enable3d,
-                                    onCheckedChange = { enabled ->
-                                        if (enabled) soundManager.playToggleOn() else soundManager.playToggleOff()
-                                        coroutineScope.launch {
-                                            userPreferences.saveEnable3dMiis(enabled)
-                                        }
-                                    },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = Color.White,
-                                        checkedTrackColor = PocketPassGreen
-                                    )
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = if (enable3d) "Miis are rendered as 3D models in the plaza."
-                                else "Miis are rendered as 2D images. Use this on low-end devices.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MediumText
-                            )
-                        }
-                    }
-                }
-
                 // 3D Mii Test (debug only)
-                if (BuildConfig.DEBUG) Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(OffWhite)
-                        .padding(16.dp)
+                if (BuildConfig.DEBUG) AeroCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Text(
                             text = "3D Mii Viewer",
                             style = MaterialTheme.typography.bodyLarge,
@@ -594,16 +524,12 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                             color = MediumText
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        Button(
+                        AeroButton(
                             onClick = {
                                 soundManager.playSelect()
                                 onOpenMii3DTest()
                             },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = PocketPassGreen
-                            )
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             Text(
                                 "Open 3D Viewer",
@@ -621,11 +547,17 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                     var showPermissionDialog by remember { mutableStateOf(false) }
 
                     LaunchedEffect(Unit) {
-                        val update = updateRepo.checkForUpdate()
-                        updateState = if (update != null) {
-                            UpdateCardState.Available(update)
+                        if (autoStartUpdate != null) {
+                            // Auto-start download from update popup
+                            downloadId = updateRepo.downloadApk(autoStartUpdate)
+                            updateState = UpdateCardState.Downloading(0f)
                         } else {
-                            UpdateCardState.UpToDate
+                            val update = updateRepo.checkForUpdate()
+                            updateState = if (update != null) {
+                                UpdateCardState.Available(update)
+                            } else {
+                                UpdateCardState.UpToDate
+                            }
                         }
                     }
 
@@ -671,14 +603,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                         )
                     }
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(OffWhite)
-                            .padding(16.dp)
+                    AeroCard(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column {
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Text(
                                 text = "App Updates",
                                 style = MaterialTheme.typography.bodyLarge,
@@ -726,17 +654,13 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    Button(
+                                    AeroButton(
                                         onClick = {
                                             soundManager.playSelect()
                                             downloadId = updateRepo.downloadApk(state.version)
                                             updateState = UpdateCardState.Downloading(0f)
                                         },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = PocketPassGreen
-                                        )
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text("Download Update", fontWeight = FontWeight.Bold)
                                     }
@@ -765,7 +689,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                                         color = GreenText
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    Button(
+                                    AeroButton(
                                         onClick = {
                                             soundManager.playSelect()
                                             if (updateRepo.canInstallPackages()) {
@@ -774,11 +698,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                                                 showPermissionDialog = true
                                             }
                                         },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = PocketPassGreen
-                                        )
+                                        modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text("Install Update", fontWeight = FontWeight.Bold)
                                     }
@@ -790,7 +710,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                                         color = ErrorText
                                     )
                                     Spacer(modifier = Modifier.height(12.dp))
-                                    Button(
+                                    AeroButton(
                                         onClick = {
                                             soundManager.playSelect()
                                             updateState = UpdateCardState.Checking
@@ -804,10 +724,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                                             }
                                         },
                                         modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = SkyBlue
-                                        )
+                                        containerColor = SkyBlue
                                     ) {
                                         Text("Retry", fontWeight = FontWeight.Bold)
                                     }
@@ -818,14 +735,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                 }
 
                 // Clear All Miis
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(OffWhite)
-                        .padding(16.dp)
+                AeroCard(
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Text(
                             text = "Clear All Miis",
                             style = MaterialTheme.typography.bodyLarge,
@@ -839,7 +752,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                             color = MediumText
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        Button(
+                        AeroButton(
                             onClick = {
                                 soundManager.playDelete()
                                 coroutineScope.launch {
@@ -847,10 +760,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFF9800)
-                            )
+                            containerColor = Color(0xFFFF9800)
                         ) {
                             Text(
                                 "Clear All Miis",
@@ -860,51 +770,49 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                     }
                 }
 
-                // Delete Account
+                // Delete Account / Delete Data
                 run {
                 val deleteAuthRepo = remember { AuthRepository() }
                 val isLoggedInForDelete by deleteAuthRepo.isLoggedIn.collectAsState(initial = false)
-                if (isLoggedInForDelete) {
                     var showDeleteConfirm by remember { mutableStateOf(false) }
                     var isDeleting by remember { mutableStateOf(false) }
                     var deleteError by remember { mutableStateOf<String?>(null) }
 
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(OffWhite)
-                            .padding(16.dp)
+                    val deleteTitle = if (isLoggedInForDelete) "Delete Account" else "Delete Data"
+                    val deleteDescription = if (isLoggedInForDelete)
+                        "Permanently deletes your account, profile, friends, messages, encounters, and all associated data. This cannot be undone."
+                    else
+                        "Deletes all local data including encounters, messages, settings, and cached content. This cannot be undone."
+
+                    AeroCard(
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column {
+                        Column(modifier = Modifier.padding(16.dp)) {
                             Text(
-                                text = "Delete Account",
+                                text = deleteTitle,
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color(0xFFC62828)
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "Permanently deletes your account, profile, friends, messages, encounters, and all associated data. This cannot be undone.",
+                                text = deleteDescription,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MediumText
                             )
                             Spacer(modifier = Modifier.height(12.dp))
 
                             if (!showDeleteConfirm) {
-                                Button(
+                                AeroButton(
                                     onClick = {
                                         soundManager.playDelete()
                                         showDeleteConfirm = true
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color(0xFFC62828)
-                                    )
+                                    containerColor = Color(0xFFC62828)
                                 ) {
                                     Text(
-                                        "Delete Account",
+                                        deleteTitle,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
@@ -927,35 +835,37 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                                     ) {
                                         Text("Cancel", color = DarkText)
                                     }
-                                    Button(
+                                    AeroButton(
                                         onClick = {
                                             isDeleting = true
                                             deleteError = null
                                             coroutineScope.launch {
-                                                val authRepo = AuthRepository()
-                                                val result = authRepo.deleteAccount()
-                                                result.fold(
-                                                    onSuccess = {
+                                                try {
+                                                    if (isLoggedInForDelete) {
+                                                        val authRepo = AuthRepository()
+                                                        val result = authRepo.deleteAccount()
+                                                        result.onFailure { e ->
+                                                            deleteError = e.message ?: "Failed to delete account"
+                                                        }
+                                                    }
+                                                    if (deleteError == null) {
                                                         // Wipe all local data
                                                         userPreferences.clearAll()
                                                         val db = com.pocketpass.app.data.PocketPassDatabase.getDatabase(context)
-                                                        db.encounterDao().deleteAllEncounters()
-                                                        db.messageDao().deleteAll()
-                                                        showDeleteConfirm = false
-                                                    },
-                                                    onFailure = { e ->
-                                                        deleteError = e.message ?: "Failed to delete account"
+                                                        db.clearAllTables()
+                                                        // Restart activity to reset all in-memory state
+                                                        val activity = context as? android.app.Activity
+                                                        activity?.recreate()
                                                     }
-                                                )
+                                                } catch (e: Exception) {
+                                                    deleteError = e.message ?: "Failed to delete data"
+                                                }
                                                 isDeleting = false
                                             }
                                         },
                                         enabled = !isDeleting,
                                         modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = Color(0xFFC62828)
-                                        )
+                                        containerColor = Color(0xFFC62828)
                                     ) {
                                         if (isDeleting) {
                                             CircularProgressIndicator(
@@ -979,7 +889,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}) {
                             }
                         }
                     }
-                }
                 }
             }
         }

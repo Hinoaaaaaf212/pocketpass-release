@@ -25,3 +25,14 @@ local.properties
 # Keystore files
 *.jks
 *.keystore
+
+# Native build cache
+app/.cxx/
+
+# Release signing output
+app/release/
+
+# Temp files
+*.bin
+nul
+*.bak

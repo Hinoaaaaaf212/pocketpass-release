@@ -1,6 +1,7 @@
 package com.pocketpass.app.data
 
 import android.util.Log
+import com.pocketpass.app.data.crypto.encryptFields
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -79,17 +80,19 @@ class FriendRepository {
             try {
                 val myProfile = getRequesterProfile(myId)
                 val senderName = myProfile?.userName ?: "Someone"
-                client.postgrest["notifications"].insert(
-                    SupabaseNotification(
-                        userId = toUserId,
-                        type = "friend_request",
-                        title = "$senderName sent you a friend request!",
-                        body = "Tap to view your pending requests.",
-                        relatedUserId = myId,
-                        relatedUserName = senderName,
-                        relatedUserAvatarHex = myProfile?.avatarHex ?: ""
-                    )
-                )
+                // Get recipient's public key for sealed-box encryption
+                val recipientProfile = getRequesterProfile(toUserId)
+                val recipientPubKey = recipientProfile?.publicKey ?: ""
+                val notification = SupabaseNotification(
+                    userId = toUserId,
+                    type = "friend_request",
+                    title = "$senderName sent you a friend request!",
+                    body = "Tap to view your pending requests.",
+                    relatedUserId = myId,
+                    relatedUserName = senderName,
+                    relatedUserAvatarHex = myProfile?.avatarHex ?: ""
+                ).encryptFields(recipientPubKey)
+                client.postgrest["notifications"].insert(notification)
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to create notification (request still sent): ${e.message}")
             }
@@ -128,17 +131,19 @@ class FriendRepository {
                     val myId = authRepo.currentUserId
                     val myProfile = if (myId != null) getRequesterProfile(myId) else null
                     val myName = myProfile?.userName ?: "Someone"
-                    client.postgrest["notifications"].insert(
-                        SupabaseNotification(
-                            userId = friendship.requesterId,
-                            type = "friend_accepted",
-                            title = "$myName accepted your friend request!",
-                            body = "You are now friends.",
-                            relatedUserId = myId,
-                            relatedUserName = myName,
-                            relatedUserAvatarHex = myProfile?.avatarHex ?: ""
-                        )
-                    )
+                    // Get requester's public key for sealed-box encryption
+                    val requesterProfile = getRequesterProfile(friendship.requesterId)
+                    val requesterPubKey = requesterProfile?.publicKey ?: ""
+                    val notification = SupabaseNotification(
+                        userId = friendship.requesterId,
+                        type = "friend_accepted",
+                        title = "$myName accepted your friend request!",
+                        body = "You are now friends.",
+                        relatedUserId = myId,
+                        relatedUserName = myName,
+                        relatedUserAvatarHex = myProfile?.avatarHex ?: ""
+                    ).encryptFields(requesterPubKey)
+                    client.postgrest["notifications"].insert(notification)
                 } catch (e: Exception) {
                     Log.w(TAG, "Failed to create acceptance notification: ${e.message}")
                 }
@@ -251,6 +256,20 @@ class FriendRepository {
         } catch (e: Exception) {
             Log.e(TAG, "Failed to get profile: ${e.message}", e)
             null
+        }
+    }
+
+    /** Batch-fetch profiles by IDs in a single PostgREST call. */
+    suspend fun getProfilesByIds(ids: List<String>): Map<String, SupabaseProfile> = withContext(Dispatchers.IO) {
+        if (ids.isEmpty()) return@withContext emptyMap()
+        try {
+            client.postgrest["profiles"].select {
+                filter { isIn("id", ids) }
+            }.decodeList<SupabaseProfile>().associateBy { it.id }
+        } catch (e: CancellationException) { throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to batch-fetch profiles: ${e.message}", e)
+            emptyMap()
         }
     }
 }

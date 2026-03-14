@@ -2,6 +2,9 @@ package com.pocketpass.app.data
 
 import android.content.Context
 import android.util.Log
+import com.pocketpass.app.data.crypto.CryptoManager
+import com.pocketpass.app.data.crypto.decryptContent
+import com.pocketpass.app.data.crypto.encryptContent
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.realtime.broadcast
 import io.github.jan.supabase.realtime.broadcastFlow
@@ -43,30 +46,33 @@ class MessageRepository(private val context: Context) {
     suspend fun sendMessage(receiverId: String, content: String): Result<CachedMessage> = withContext(Dispatchers.IO) {
         val myId = authRepo.currentUserId ?: return@withContext Result.failure(Exception("Not logged in"))
         try {
+            // Get friend's public key for encryption
+            val friendPubKey = getFriendPublicKey(receiverId)
+
+            // Encrypt content for the friendship key
+            val payload = SendMessagePayload(
+                senderId = myId,
+                receiverId = receiverId,
+                content = content
+            ).encryptContent(friendPubKey, myId, receiverId)
+
             // Insert into Supabase
-            val result = client.postgrest["messages"].insert(
-                SendMessagePayload(
-                    senderId = myId,
-                    receiverId = receiverId,
-                    content = content
-                )
-            ) {
+            val result = client.postgrest["messages"].insert(payload) {
                 select()
             }.decodeSingle<SupabaseMessage>()
 
-            val cached = result.toLocal()
-
-            // Cache locally
+            // Store locally with plaintext (local DB is already device-encrypted)
+            val cached = result.toLocal().copy(content = content)
             messageDao.insertMessage(cached)
 
-            // Broadcast to receiver for instant delivery (fire-and-forget)
+            // Broadcast to receiver (encrypted content)
             CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
                 try {
                     val channel = client.channel("chat_$receiverId")
                     channel.subscribe(blockUntilSubscribed = true)
                     channel.broadcast(
                         event = "new_message",
-                        message = cached.toBroadcast()
+                        message = result.toLocal().toBroadcast()
                     )
                 } catch (e: Exception) {
                     Log.w(TAG, "Broadcast failed (non-critical): ${e.message}")
@@ -85,6 +91,8 @@ class MessageRepository(private val context: Context) {
     suspend fun loadConversation(friendId: String): List<CachedMessage> = withContext(Dispatchers.IO) {
         val myId = authRepo.currentUserId ?: return@withContext emptyList()
         try {
+            val friendPubKey = getFriendPublicKey(friendId)
+
             val messages = client.postgrest["messages"].select {
                 filter {
                     or {
@@ -101,7 +109,9 @@ class MessageRepository(private val context: Context) {
                 order("created_at", io.github.jan.supabase.postgrest.query.Order.ASCENDING)
             }.decodeList<SupabaseMessage>()
 
-            val cached = messages.map { it.toLocal() }
+            val cached = messages.map {
+                it.decryptContent(friendPubKey, myId, friendId).toLocal()
+            }
             messageDao.insertMessages(cached)
             cached
         } catch (e: Exception) {
@@ -147,21 +157,27 @@ class MessageRepository(private val context: Context) {
                 val unread = messages.count { it.receiverId == myId && it.readAt == null }
                 val profile = friendRepo.getRequesterProfile(friendId)
 
+                // Decrypt the latest message content for display
+                val friendPubKey = profile?.publicKey ?: ""
+                val decryptedLatest = latest.decryptContent(friendPubKey, myId, friendId)
+
                 // Calculate streak from cached local messages
-                val cachedMessages = messages.map { it.toLocal() }
+                val cachedMessages = messages.map {
+                    it.decryptContent(friendPubKey, myId, friendId).toLocal()
+                }
                 val streakDays = calculateStreak(cachedMessages, myId, friendId)
 
                 ConversationSummary(
                     friendId = friendId,
                     friendName = profile?.userName ?: "Unknown",
                     friendAvatarHex = profile?.avatarHex ?: "",
-                    lastMessageContent = latest.content,
+                    lastMessageContent = decryptedLatest.content,
                     lastMessageTimestamp = try {
-                        java.time.Instant.parse(latest.createdAt).toEpochMilli()
+                        java.time.Instant.parse(decryptedLatest.createdAt).toEpochMilli()
                     } catch (_: Exception) {
                         System.currentTimeMillis()
                     },
-                    lastMessageIsFromMe = latest.senderId == myId,
+                    lastMessageIsFromMe = decryptedLatest.senderId == myId,
                     unreadCount = unread,
                     streakDays = streakDays
                 )
@@ -235,7 +251,10 @@ class MessageRepository(private val context: Context) {
             broadcastChannel!!
                 .broadcastFlow<BroadcastMessagePayload>("new_message")
                 .onEach { payload ->
-                    val local = payload.toLocal()
+                    val friendId = payload.senderId
+                    val friendPubKey = getFriendPublicKey(friendId)
+                    val decrypted = payload.decryptContent(friendPubKey, myId, friendId)
+                    val local = decrypted.toLocal()
                     messageDao.insertMessage(local)
                     _incomingMessages.emit(local)
                 }
@@ -274,8 +293,12 @@ class MessageRepository(private val context: Context) {
 
         if (recent.isEmpty()) return
 
-        // Batch: collect all local message IDs we already have to avoid N+1 queries
-        val localMessages = recent.map { it.toLocal() }
+        // Decrypt and convert
+        val localMessages = recent.map { msg ->
+            val friendId = msg.senderId
+            val friendPubKey = getFriendPublicKey(friendId)
+            msg.decryptContent(friendPubKey, myId, friendId).toLocal()
+        }
         val senderIds = localMessages.map { it.senderId }.distinct()
         val existingIds = mutableSetOf<String>()
         for (senderId in senderIds) {
@@ -301,5 +324,30 @@ class MessageRepository(private val context: Context) {
             it.launch { }.cancel()
         }
         pollingScope = null
+    }
+
+    /**
+     * Get a friend's public key for message encryption/decryption.
+     * Uses CryptoManager's LRU cache to avoid repeated network calls.
+     */
+    private suspend fun getFriendPublicKey(friendId: String): String {
+        // Check cache first
+        CryptoManager.getCachedFriendPublicKey(friendId)?.let { return it }
+
+        // Fetch from Supabase
+        return try {
+            val profile = client.postgrest["profiles"].select {
+                filter { eq("id", friendId) }
+            }.decodeList<SupabaseProfile>().firstOrNull()
+
+            val pubKey = profile?.publicKey ?: ""
+            if (pubKey.isNotBlank()) {
+                CryptoManager.cacheFriendPublicKey(friendId, pubKey)
+            }
+            pubKey
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to fetch friend public key: ${e.message}")
+            ""
+        }
     }
 }

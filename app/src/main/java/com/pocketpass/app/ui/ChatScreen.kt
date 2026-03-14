@@ -29,8 +29,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Send
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -64,6 +62,8 @@ import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.data.calculateStreak
 import com.pocketpass.app.data.getCurrentTier
 import com.pocketpass.app.data.hasSentMessageToday
+import com.pocketpass.app.ui.theme.AeroCard
+import com.pocketpass.app.ui.theme.aeroGloss
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.LightText
@@ -266,14 +266,12 @@ fun ChatScreen(
 
                 // Streak celebration banner
                 if (showStreakCelebration && celebrationTier != null) {
-                    Card(
+                    AeroCard(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 12.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(celebrationTier!!.color.toInt()).copy(alpha = 0.15f)
-                        )
+                        cornerRadius = 12.dp,
+                        containerColor = Color(celebrationTier!!.color.toInt()).copy(alpha = 0.15f)
                     ) {
                         Row(
                             modifier = Modifier
@@ -468,19 +466,20 @@ private fun MessageBubble(
         Column(
             horizontalAlignment = if (isFromMe) Alignment.End else Alignment.Start
         ) {
-            // Speech bubble
-            Card(
-                shape = if (isFromMe) {
-                    RoundedCornerShape(16.dp, 16.dp, 4.dp, 16.dp)
-                } else {
-                    RoundedCornerShape(16.dp, 16.dp, 16.dp, 4.dp)
-                },
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isFromMe) PocketPassGreen
-                    else if (isDark) Color(0xFF3A3A3A) else OffWhite
-                ),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
-                modifier = Modifier.widthIn(max = LocalAppDimensions.current.chatBubbleMaxWidth)
+            // Speech bubble with chat-style corners
+            val bubbleShape = if (isFromMe)
+                RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 16.dp, bottomEnd = 4.dp)
+            else
+                RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = 4.dp, bottomEnd = 16.dp)
+
+            AeroCard(
+                cornerRadius = 16.dp,
+                shape = bubbleShape,
+                containerColor = if (isFromMe) PocketPassGreen
+                    else if (isDark) Color(0xFF3A3A3A) else OffWhite,
+                modifier = Modifier
+                    .widthIn(max = LocalAppDimensions.current.chatBubbleMaxWidth)
+                    .then(if (isFromMe) Modifier.aeroGloss(isDark) else Modifier)
             ) {
                 Text(
                     text = message.content,

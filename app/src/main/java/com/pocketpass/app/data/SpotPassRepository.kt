@@ -25,6 +25,10 @@ class SpotPassRepository(context: Context) {
      */
     suspend fun syncFromServer(): Int = withContext(Dispatchers.IO) {
         try {
+            // Clean up expired events before syncing
+            val deleted = dao.deleteExpiredEvents(System.currentTimeMillis())
+            if (deleted > 0) Log.d(TAG, "SpotPass cleanup: removed $deleted expired events")
+
             val remoteItems = client.postgrest["spotpass_items"]
                 .select()
                 .decodeList<SupabaseSpotPassItem>()

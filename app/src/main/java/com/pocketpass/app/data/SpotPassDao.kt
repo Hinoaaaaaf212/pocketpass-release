@@ -53,4 +53,14 @@ interface SpotPassDao {
 
     @Query("SELECT * FROM spotpass_items WHERE type = 'event' AND eventEffect IS NOT NULL AND publishedAt <= :nowMs AND (expiresAt IS NULL OR expiresAt > :nowMs)")
     suspend fun getActiveEventEffects(nowMs: Long): List<SpotPassItemEntity>
+
+    /** Delete expired events: regular announcements (no effect) immediately,
+     *  event announcements (with effect) 1 day after expiration. */
+    @Query("""
+        DELETE FROM spotpass_items WHERE type = 'event' AND expiresAt IS NOT NULL AND (
+            (eventEffect IS NULL AND expiresAt < :nowMs) OR
+            (eventEffect IS NOT NULL AND expiresAt < :nowMs - 86400000)
+        )
+    """)
+    suspend fun deleteExpiredEvents(nowMs: Long): Int
 }

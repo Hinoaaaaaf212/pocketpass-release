@@ -60,8 +60,10 @@ class ProximityService : Service(), android.hardware.SensorEventListener {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val gson = Gson()
 
-    // Step counter for earning tokens
+    // Step counter for earning tokens (batched: only process every STEP_BATCH_SIZE steps)
     private var sensorManager: android.hardware.SensorManager? = null
+    private var lastProcessedSteps: Int = -1
+    private val STEP_BATCH_SIZE = 10
     private lateinit var userPrefs: UserPreferences
     private lateinit var database: PocketPassDatabase
 
@@ -92,6 +94,19 @@ class ProximityService : Service(), android.hardware.SensorEventListener {
             startBle()
         }
 
+        // Periodically clean up stale "connecting" entries from the debug device list
+        serviceScope.launch {
+            while (true) {
+                kotlinx.coroutines.delay(30_000)
+                val now = System.currentTimeMillis()
+                val staleThreshold = 60_000L // 60 seconds
+                _nearbyDevices.value = _nearbyDevices.value.filterValues { device ->
+                    // Keep "exchanged" entries and recent entries
+                    device.state == "exchanged" || (now - device.discoveredAt) < staleThreshold
+                }
+            }
+        }
+
         // Init shared instances
         userPrefs = UserPreferences(applicationContext)
         database = PocketPassDatabase.getDatabase(applicationContext)
@@ -100,7 +115,7 @@ class ProximityService : Service(), android.hardware.SensorEventListener {
         sensorManager = getSystemService(Context.SENSOR_SERVICE) as? android.hardware.SensorManager
         val stepSensor = sensorManager?.getDefaultSensor(android.hardware.Sensor.TYPE_STEP_COUNTER)
         if (stepSensor != null) {
-            sensorManager?.registerListener(this, stepSensor, android.hardware.SensorManager.SENSOR_DELAY_UI)
+            sensorManager?.registerListener(this, stepSensor, android.hardware.SensorManager.SENSOR_DELAY_NORMAL)
             Log.d(TAG, "Step counter sensor registered")
         } else {
             Log.w(TAG, "Step counter sensor not available on this device")
@@ -253,11 +268,16 @@ class ProximityService : Service(), android.hardware.SensorEventListener {
                 }
             },
             onDeviceFound = { address, state ->
-                _nearbyDevices.value = _nearbyDevices.value + (address to NearbyDevice(
-                    endpointId = address,
-                    name = address,
-                    state = state
-                ))
+                if (state == "timeout") {
+                    // Remove timed-out devices instead of keeping stale entries
+                    _nearbyDevices.value = _nearbyDevices.value - address
+                } else {
+                    _nearbyDevices.value = _nearbyDevices.value + (address to NearbyDevice(
+                        endpointId = address,
+                        name = address,
+                        state = state
+                    ))
+                }
             },
             onError = { error ->
                 Log.e(TAG, "BLE error: $error")
@@ -394,6 +414,12 @@ class ProximityService : Service(), android.hardware.SensorEventListener {
     override fun onSensorChanged(event: android.hardware.SensorEvent?) {
         if (event?.sensor?.type == android.hardware.Sensor.TYPE_STEP_COUNTER) {
             val totalSteps = event.values[0].toInt()
+
+            // Batch: skip DataStore writes until STEP_BATCH_SIZE steps accumulate
+            if (lastProcessedSteps < 0) lastProcessedSteps = totalSteps
+            if (totalSteps - lastProcessedSteps < STEP_BATCH_SIZE) return
+
+            lastProcessedSteps = totalSteps
             serviceScope.launch {
                 val effects = try {
                     com.pocketpass.app.data.SpotPassRepository(applicationContext).getActiveEffects()

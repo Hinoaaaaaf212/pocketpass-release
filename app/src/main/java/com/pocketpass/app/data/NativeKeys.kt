@@ -7,4 +7,5 @@ object NativeKeys {
 
     external fun getSupabaseUrl(): String
     external fun getSupabaseAnonKey(): String
+    external fun getSignupSecret(): String
 }

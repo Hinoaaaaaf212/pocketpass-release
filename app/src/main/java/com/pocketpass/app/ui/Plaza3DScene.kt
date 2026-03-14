@@ -34,49 +34,74 @@ import io.github.sceneview.rememberView
 private const val TAG = "Plaza3DScene"
 
 // Camera constants — must match the cameraNode setup below
-const val PLAZA_CAM_Y = 1.5f
-const val PLAZA_CAM_Z = 14f
-const val PLAZA_CAM_FOV_DEG = 28f // Filament default vertical FOV
+const val PLAZA_CAM_Y = 5.5f
+const val PLAZA_CAM_Z = 8.0f
+const val PLAZA_CAM_LOOK_Y = 0.5f
+const val PLAZA_CAM_FOV_DEG = 38f // wider to capture grid
 
 /**
- * Project a 3D world position to normalized screen Y (0 = top, 1 = bottom)
- * using the known plaza camera parameters.
+ * Project a 3D world position to normalized screen coordinates using a proper
+ * lookAt view transform matching the Filament camera.
+ *
+ * Returns (screenX, screenY) where 0,0 = top-left and 1,1 = bottom-right.
  */
-fun projectWorldToScreenY(worldY: Float, worldZ: Float): Float {
-    // View-space Y: camera looks along -Z, Y is up
-    val viewY = worldY - PLAZA_CAM_Y
-    val viewZ = PLAZA_CAM_Z - worldZ // distance in front of camera
+fun projectWorldToScreen(worldX: Float, worldY: Float, worldZ: Float, aspectRatio: Float): Pair<Float, Float> {
+    // Forward direction (camera → target), normalized
+    val fwdY = PLAZA_CAM_LOOK_Y - PLAZA_CAM_Y  // negative (looking down)
+    val fwdZ = -PLAZA_CAM_Z                      // negative (looking into scene)
+    val fwdLen = kotlin.math.sqrt(fwdY * fwdY + fwdZ * fwdZ)
+    val fY = fwdY / fwdLen
+    val fZ = fwdZ / fwdLen
+    // fX = 0 since camera and lookAt share X=0
 
-    // Perspective projection: tan(fov/2) maps to edge of screen
+    // Right = normalize(forward × worldUp), worldUp = (0,1,0)
+    // cross(f, up) = (fY*0 - fZ*1, fZ*0 - 0*0, 0*1 - fY*0) = (-fZ, 0, 0)
+    // Since fZ is negative, -fZ is positive → right points in +X. Correct.
+    val rX = -fZ / kotlin.math.abs(fZ)  // = 1.0 (normalized, since it's the only component)
+
+    // Up = normalize(right × forward)
+    // cross(r, f) where r=(rX,0,0), f=(0,fY,fZ)
+    // = (0*fZ - 0*fY, 0*0 - rX*fZ, rX*fY - 0*0) = (0, -rX*fZ, rX*fY)
+    val uY = -rX * fZ
+    val uZ = rX * fY
+    val uLen = kotlin.math.sqrt(uY * uY + uZ * uZ)
+    val upY = uY / uLen
+    val upZ = uZ / uLen
+
+    // Vector from camera to world point
+    val dx = worldX       // camX = 0
+    val dy = worldY - PLAZA_CAM_Y
+    val dz = worldZ - PLAZA_CAM_Z
+
+    // View-space coordinates (dot with basis vectors)
+    val viewX = rX * dx                     // right is purely X
+    val viewY = upY * dy + upZ * dz         // up is in Y-Z plane
+    val viewDepth = fY * dy + fZ * dz       // positive when point is in front of camera
+
+    if (viewDepth <= 0.001f) return Pair(0.5f, 0.5f)
+
+    // Perspective divide
     val halfFovRad = Math.toRadians(PLAZA_CAM_FOV_DEG / 2.0).toFloat()
     val tanHalfFov = kotlin.math.tan(halfFovRad)
 
-    // NDC Y: +1 = top, -1 = bottom
-    val ndcY = (viewY / viewZ) / tanHalfFov
+    val ndcY = (viewY / viewDepth) / tanHalfFov
+    val ndcX = (viewX / viewDepth) / (tanHalfFov * aspectRatio)
 
-    // Screen Y: 0 = top, 1 = bottom (invert NDC)
-    return 0.5f - ndcY * 0.5f
+    return Pair(
+        0.5f + ndcX * 0.5f,   // screen X: 0=left, 1=right
+        0.5f - ndcY * 0.5f    // screen Y: 0=top, 1=bottom
+    )
 }
 
-/**
- * Project a 3D world X position to normalized screen X (0 = left, 1 = right)
- * using perspective projection matching the Filament camera.
- *
- * @param aspectRatio width/height of the scene view
- */
+/** Convenience: project Y only (passes worldX=0). */
+fun projectWorldToScreenY(worldY: Float, worldZ: Float): Float {
+    // Use a default aspect ratio — Y projection doesn't depend on it
+    return projectWorldToScreen(0f, worldY, worldZ, 1f).second
+}
+
+/** Convenience: project X for a ground-level point. */
 fun projectWorldToScreenX(worldX: Float, worldZ: Float, aspectRatio: Float): Float {
-    val viewZ = PLAZA_CAM_Z - worldZ // distance in front of camera
-
-    // Vertical half-FOV → horizontal half-FOV via aspect ratio
-    val halfFovRad = Math.toRadians(PLAZA_CAM_FOV_DEG / 2.0).toFloat()
-    val tanHalfFovV = kotlin.math.tan(halfFovRad)
-    val tanHalfFovH = tanHalfFovV * aspectRatio
-
-    // NDC X: -1 = left, +1 = right
-    val ndcX = (worldX / viewZ) / tanHalfFovH
-
-    // Screen X: 0 = left, 1 = right
-    return 0.5f + ndcX * 0.5f
+    return projectWorldToScreen(worldX, 0f, worldZ, aspectRatio).first
 }
 
 /**
@@ -112,10 +137,10 @@ fun Plaza3DScene(
     val environmentLoader = rememberEnvironmentLoader(engine)
     val view = rememberView(engine)
 
-    // Camera: flat eye-level view looking at the walking path
+    // Camera: tilted down to show grass, sky only above the plaza
     val cameraNode = rememberCameraNode(engine) {
-        position = Position(0f, 1.5f, 14f)
-        lookAt(Position(0f, 1.5f, 0f))
+        position = Position(0f, PLAZA_CAM_Y, PLAZA_CAM_Z)
+        lookAt(Position(0f, PLAZA_CAM_LOOK_Y, 0f))
     }
 
     val mainLightNode = rememberMainLightNode(engine) {

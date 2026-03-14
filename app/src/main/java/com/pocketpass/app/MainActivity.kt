@@ -40,6 +40,7 @@ import com.pocketpass.app.util.GamepadState
 import com.pocketpass.app.util.JoystickToDpad
 import com.pocketpass.app.util.LocalGamepadState
 import com.pocketpass.app.util.NavigationState
+import com.pocketpass.app.util.Screen
 import com.pocketpass.app.ui.AppSettingsScreen
 import com.pocketpass.app.ui.AvatarCreatorScreen
 import com.pocketpass.app.ui.EncounterHistoryScreen
@@ -56,31 +57,56 @@ import com.pocketpass.app.ui.games.MiiBingoScreen
 import com.pocketpass.app.ui.games.ShopScreen
 import com.pocketpass.app.ui.games.PuzzleSwapScreen
 import com.pocketpass.app.ui.games.PuzzleBoardScreen
-import com.pocketpass.app.ui.QrExchangeScreen
 import com.pocketpass.app.ui.ActivitiesScreen
+import com.pocketpass.app.ui.AnimatedPlazaCompanionScreen
 import com.pocketpass.app.ui.AnimatedPlazaScreen
 import com.pocketpass.app.ui.SpotPassInboxScreen
 import com.pocketpass.app.service.SpotPassSyncWorker
 import com.pocketpass.app.ui.Mii3DTestScreen
 import com.pocketpass.app.ui.SettingsScreen
 import com.pocketpass.app.ui.StatisticsScreen
+import com.pocketpass.app.ui.WorldTourMapScreen
+import com.pocketpass.app.ui.WorldTourSecondaryScreen
 import com.pocketpass.app.ui.GameSearchScreen
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.ui.theme.PocketPassGreenDark
 import com.pocketpass.app.ui.theme.PocketPassTheme
 import com.pocketpass.app.ui.AuthScreen
 import com.pocketpass.app.ui.ChatScreen
@@ -90,7 +116,6 @@ import com.pocketpass.app.ui.DualScreenPresentation
 import com.pocketpass.app.ui.PlazaSecondaryScreen
 import com.pocketpass.app.ui.HistorySecondaryScreen
 import com.pocketpass.app.ui.FriendsSecondaryScreen
-import com.pocketpass.app.ui.AnimatedPlazaSecondaryScreen
 import com.pocketpass.app.ui.StatisticsSecondaryScreen
 import com.pocketpass.app.ui.GamesHubSecondaryScreen
 import com.pocketpass.app.ui.MessagesSecondaryScreen
@@ -117,6 +142,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Set crypto storage path early so keys can be loaded lazily
+        com.pocketpass.app.data.crypto.CryptoManager.setNoBackupDir(noBackupFilesDir.absolutePath)
 
         val userPreferences = UserPreferences(this)
 
@@ -151,6 +179,7 @@ class MainActivity : ComponentActivity() {
                     var dataStoreReady by remember { mutableStateOf(false) }
                     val avatarHex by userPreferences.avatarHexFlow.collectAsState(initial = null)
                     val userName by userPreferences.userNameFlow.collectAsState(initial = null)
+                    val userRegion by userPreferences.userOriginFlow.collectAsState(initial = null)
                     LaunchedEffect(Unit) {
                         // Wait for a single emission from DataStore to confirm it's loaded
                         userPreferences.avatarHexFlow.firstOrNull()
@@ -158,12 +187,14 @@ class MainActivity : ComponentActivity() {
                     }
 
                     val nav = navigationState
+                    val mainAuthRepo = remember { AuthRepository() }
+                    val isAuthenticated = mainAuthRepo.currentUserId != null
 
                     // ── Plaza music (persists across Plaza, Settings, Roaming Plaza) ──
                     val musicVolume by userPreferences.musicVolumeFlow.collectAsState(initial = 0.3f)
                     val isOnMainScreens = permissionsGranted && dataStoreReady &&
                         avatarHex != null && !nav.forceCreateNewMii &&
-                        userName != null
+                        !userRegion.isNullOrBlank()
 
                     val mediaPlayerRef = remember { mutableStateOf<MediaPlayer?>(null) }
                     // Create MediaPlayer once; pause/resume based on screen state
@@ -180,21 +211,13 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    LaunchedEffect(isOnMainScreens) {
+                    // Single effect handles both screen changes and volume changes
+                    LaunchedEffect(isOnMainScreens, musicVolume) {
                         val mp = mediaPlayerRef.value ?: return@LaunchedEffect
-                        if (isOnMainScreens && musicVolume > 0f) {
-                            mp.start()
-                        } else {
-                            if (mp.isPlaying) mp.pause()
-                        }
-                    }
-
-                    LaunchedEffect(musicVolume) {
-                        val mp = mediaPlayerRef.value ?: return@LaunchedEffect
-                        if (musicVolume <= 0f) {
+                        mp.setVolume(musicVolume, musicVolume)
+                        if (!isOnMainScreens || musicVolume <= 0f) {
                             if (mp.isPlaying) mp.pause()
                         } else {
-                            mp.setVolume(musicVolume, musicVolume)
                             if (!mp.isPlaying) mp.start()
                         }
                     }
@@ -212,7 +235,7 @@ class MainActivity : ComponentActivity() {
                                 }
                                 Lifecycle.Event.ON_START -> {
                                     val mp = mediaPlayerRef.value
-                                    if (mp != null && musicVolume > 0f) mp.start()
+                                    if (mp != null && isOnMainScreens && musicVolume > 0f) mp.start()
 
                                     // Blink LEDs green if there are unseen encounters
                                     if (ledController.isAvailable) {
@@ -246,21 +269,12 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    Box(modifier = Modifier.fillMaxSize()) {
-                        // Show background gradient while DataStore loads
-                        if (!dataStoreReady) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(
-                                        Brush.verticalGradient(
-                                            colors = BackgroundGradient
-                                        )
-                                    )
-                            )
-                        }
+                    Box(modifier = Modifier
+                        .fillMaxSize()
+                        .background(Brush.verticalGradient(colors = BackgroundGradient))
+                    ) {
                         // ── Screen content ──
-                        else {
+                        if (dataStoreReady) {
                             when {
                                 !permissionsGranted -> {
                                     PermissionsScreen(
@@ -269,36 +283,46 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                 }
-                                // First launch: ask if user has an existing account
-                                !nav.setupAuthDone && avatarHex == null && !nav.forceCreateNewMii -> {
+                                // First launch: require account creation or sign-in
+                                // Skip if already authenticated (e.g. after process restart)
+                                !nav.setupAuthDone && !isAuthenticated -> {
                                     AuthScreen(
                                         setupMode = true,
                                         onBack = {
-                                            // "Skip" — proceed to Mii Creator without login
-                                            nav.setupAuthDone = true
+                                            // No-op: account is required (Skip removed)
                                         },
                                         onAuthSuccess = {
-                                            // Login + restore succeeded — skip setup if data was restored
                                             nav.setupAuthDone = true
                                         }
                                     )
                                 }
-                                avatarHex == null || nav.forceCreateNewMii -> {
+                                avatarHex == null && !nav.forceCreateNewMii -> {
                                     AvatarCreatorScreen(
                                         onAvatarSaved = {
                                             nav.forceCreateNewMii = false
                                         }
                                     )
                                 }
-                                userName == null -> {
+                                userRegion.isNullOrBlank() && !nav.forceCreateNewMii -> {
                                     ProfileSetupScreen(
                                         onProfileSaved = { }
                                     )
                                 }
                                 else -> {
-                                    // Shared Filament engine — created once, persists across tab switches
+                                    // Shared Filament engine — hoisted above forceCreateNewMii
+                                    // so it survives round-trips to the avatar creator.
+                                    // Destroying + recreating the engine caused SIGSEGV in
+                                    // libgltfio-jni.so due to disposal ordering races.
                                     val engine = io.github.sceneview.rememberEngine()
                                     val modelLoader = io.github.sceneview.rememberModelLoader(engine)
+
+                                    if (nav.forceCreateNewMii) {
+                                        AvatarCreatorScreen(
+                                            onAvatarSaved = {
+                                                nav.forceCreateNewMii = false
+                                            }
+                                        )
+                                    } else {
 
                                     val proximityEnabled by userPreferences.proximityEnabledFlow.collectAsState(initial = true)
 
@@ -320,7 +344,7 @@ class MainActivity : ComponentActivity() {
                                         SpotPassSyncWorker.enqueue(this@MainActivity)
                                         // Handle open_spotpass intent from notification
                                         if (intent?.getBooleanExtra("open_spotpass", false) == true) {
-                                            nav.showSpotPassInbox = true
+                                            nav.screen = Screen.SpotPassInbox
                                             intent.removeExtra("open_spotpass")
                                         }
                                     }
@@ -342,62 +366,136 @@ class MainActivity : ComponentActivity() {
                                         val update = availableUpdate!!
                                         val isForced = update.minVersionCode > updateRepo.getCurrentVersionCode()
 
-                                        AlertDialog(
+                                        Dialog(
                                             onDismissRequest = {
                                                 if (!isForced) showUpdateDialog = false
                                             },
-                                            title = {
-                                                Text(
-                                                    "Update Available",
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                            },
-                                            text = {
-                                                Column {
-                                                    Text("v${update.versionName} is available.")
-                                                    if (update.changelog.isNotBlank()) {
-                                                        Spacer(modifier = Modifier.height(8.dp))
-                                                        Text(
-                                                            update.changelog,
-                                                            color = DarkText.copy(alpha = 0.7f)
-                                                        )
+                                            properties = DialogProperties(
+                                                dismissOnBackPress = !isForced,
+                                                dismissOnClickOutside = !isForced
+                                            )
+                                        ) {
+                                            Card(
+                                                shape = RoundedCornerShape(16.dp),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = OffWhite
+                                                ),
+                                                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    // Green header bar
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .background(
+                                                                Brush.horizontalGradient(
+                                                                    listOf(PocketPassGreen, PocketPassGreenDark)
+                                                                ),
+                                                                shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+                                                            )
+                                                            .padding(horizontal = 20.dp, vertical = 16.dp)
+                                                    ) {
+                                                        Column {
+                                                            Text(
+                                                                text = if (isForced) "Required Update" else "New Update Available!",
+                                                                color = Color.White,
+                                                                fontWeight = FontWeight.Bold,
+                                                                fontSize = 18.sp
+                                                            )
+                                                            Spacer(modifier = Modifier.height(4.dp))
+                                                            Text(
+                                                                text = "PocketPass v${update.versionName}",
+                                                                color = Color.White.copy(alpha = 0.9f),
+                                                                fontSize = 14.sp
+                                                            )
+                                                        }
                                                     }
-                                                    if (isForced) {
-                                                        Spacer(modifier = Modifier.height(8.dp))
-                                                        Text(
-                                                            "This update is required to continue using PocketPass.",
-                                                            fontWeight = FontWeight.SemiBold,
-                                                            color = DarkText
-                                                        )
+
+                                                    // Content
+                                                    Column(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(20.dp)
+                                                    ) {
+                                                        if (update.changelog.isNotBlank()) {
+                                                            Text(
+                                                                text = "What's new:",
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                color = DarkText,
+                                                                fontSize = 14.sp
+                                                            )
+                                                            Spacer(modifier = Modifier.height(6.dp))
+                                                            Text(
+                                                                text = update.changelog,
+                                                                color = DarkText.copy(alpha = 0.7f),
+                                                                fontSize = 13.sp,
+                                                                lineHeight = 18.sp
+                                                            )
+                                                            Spacer(modifier = Modifier.height(16.dp))
+                                                        }
+
+                                                        if (isForced) {
+                                                            Text(
+                                                                text = "This update is required to continue using PocketPass.",
+                                                                fontWeight = FontWeight.SemiBold,
+                                                                color = DarkText,
+                                                                fontSize = 13.sp
+                                                            )
+                                                            Spacer(modifier = Modifier.height(16.dp))
+                                                        }
+
+                                                        // Buttons
+                                                        Row(
+                                                            modifier = Modifier.fillMaxWidth(),
+                                                            horizontalArrangement = Arrangement.End
+                                                        ) {
+                                                            if (!isForced) {
+                                                                OutlinedButton(
+                                                                    onClick = { showUpdateDialog = false },
+                                                                    shape = RoundedCornerShape(8.dp)
+                                                                ) {
+                                                                    Text(
+                                                                        "Later",
+                                                                        color = DarkText.copy(alpha = 0.6f)
+                                                                    )
+                                                                }
+                                                                Spacer(modifier = Modifier.width(12.dp))
+                                                            }
+                                                            Button(
+                                                                onClick = {
+                                                                    nav.pendingUpdate = update
+                                                                    nav.screen = Screen.AppSettings
+                                                                    showUpdateDialog = false
+                                                                },
+                                                                shape = RoundedCornerShape(8.dp),
+                                                                colors = ButtonDefaults.buttonColors(
+                                                                    containerColor = PocketPassGreen
+                                                                )
+                                                            ) {
+                                                                Text(
+                                                                    "Update Now",
+                                                                    fontWeight = FontWeight.Bold,
+                                                                    color = Color.White
+                                                                )
+                                                            }
+                                                        }
                                                     }
                                                 }
-                                            },
-                                            confirmButton = {
-                                                TextButton(onClick = {
-                                                    updateRepo.downloadApk(update)
-                                                    if (!isForced) showUpdateDialog = false
-                                                }) {
-                                                    Text(
-                                                        "Update Now",
-                                                        color = PocketPassGreen,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-                                            },
-                                            dismissButton = if (!isForced) {
-                                                {
-                                                    TextButton(onClick = { showUpdateDialog = false }) {
-                                                        Text("Later", color = DarkText.copy(alpha = 0.6f))
-                                                    }
-                                                }
-                                            } else null
-                                        )
+                                            }
+                                        }
                                     }
 
                                     // Dual screen support (Ayn Thor bottom screen)
                                     val secondaryDisplay = rememberSecondaryDisplay()
                                     val dualScreenEnabled by userPreferences.dualScreenModeFlow.collectAsState(initial = true)
                                     val isDualScreen = secondaryDisplay != null && dualScreenEnabled
+
+
+                                    // Shared state for dual-screen plaza: selected Mii flows from bottom (3D) to top (companion)
+                                    var plazaSelectedEncounter by remember { mutableStateOf<com.pocketpass.app.data.Encounter?>(null) }
 
                                     // Unread counts for nav bar badges
                                     var unreadNotifCount by remember { mutableStateOf(0) }
@@ -443,41 +541,43 @@ class MainActivity : ComponentActivity() {
                                                         },
                                                         unreadMessageCount = unreadMsgCount,
                                                         unreadNotificationCount = unreadNotifCount,
-                                                        onOpenNotifications = { nav.showNotifications = true }
+                                                        onOpenNotifications = { nav.screen = Screen.Notifications }
                                                     )
                                                 }
 
                                                 // Tab-specific secondary content
                                                 Box(modifier = Modifier.weight(1f)) {
-                                                    when {
-                                                        nav.showSettings -> SettingsSecondaryScreenContent(
+                                                    when (nav.screen) {
+                                                        Screen.Settings -> SettingsSecondaryScreenContent(
                                                             onCreateNewMii = {
                                                                 nav.forceCreateNewMii = true
-                                                                nav.showSettings = false
+                                                                nav.screen = Screen.Plaza
                                                             },
                                                             onOpenProfileSettings = {
-                                                                nav.showSettings = false
-                                                                nav.showProfileSettings = true
+                                                                nav.screen = Screen.ProfileSettings
                                                             },
                                                             onOpenAppSettings = {
-                                                                nav.showSettings = false
-                                                                nav.showAppSettings = true
-                                                            },
-                                                            onOpenQrExchange = {
-                                                                nav.showSettings = false
-                                                                nav.showQrExchange = true
+                                                                nav.screen = Screen.AppSettings
                                                             },
                                                             onOpenAuth = {
-                                                                nav.showSettings = false
-                                                                nav.showAuth = true
+                                                                nav.screen = Screen.Auth
                                                             }
                                                         )
-                                                        nav.showHistory -> HistorySecondaryScreen()
-                                                        nav.showMessages -> MessagesSecondaryScreen()
-                                                        nav.showFriends -> FriendsSecondaryScreen()
-                                                        nav.showPlazaOverview -> AnimatedPlazaSecondaryScreen()
-                                                        nav.showStatistics -> StatisticsSecondaryScreen()
-                                                        nav.showActivities || nav.showGames || nav.showPuzzleSwap || nav.showShop || nav.showLeaderboard || nav.showBingo -> GamesHubSecondaryScreen()
+                                                        Screen.History -> HistorySecondaryScreen()
+                                                        Screen.Messages, is Screen.Chat -> MessagesSecondaryScreen()
+                                                        Screen.Friends, Screen.EncounterHistory -> FriendsSecondaryScreen()
+                                                        Screen.PlazaOverview -> AnimatedPlazaScreen(
+                                                            onBack = { nav.screen = Screen.Plaza },
+                                                            sharedEngine = engine,
+                                                            sharedModelLoader = modelLoader,
+                                                            isDualScreen = true,
+                                                            onMiiSelected = { plazaSelectedEncounter = it }
+                                                        )
+                                                        Screen.Statistics -> StatisticsSecondaryScreen()
+                                                        Screen.WorldTourMap -> WorldTourSecondaryScreen()
+                                                        Screen.Activities, Screen.Games, Screen.PuzzleSwap,
+                                                        is Screen.PuzzleBoard, Screen.Shop, Screen.Leaderboard,
+                                                        Screen.Bingo, Screen.SpotPassInbox -> GamesHubSecondaryScreen()
                                                         else -> PlazaSecondaryScreen()
                                                     }
                                                 }
@@ -487,250 +587,238 @@ class MainActivity : ComponentActivity() {
 
                                     // All navigation screens with persistent nav bar
                                     val isCompactScreen = appDimensions.isCompact
-                                    Column(modifier = Modifier.fillMaxSize()) {
-                                        // Persistent nav bar - top on tablets, bottom on phones
-                                        if (!nav.isOnSubScreen() && !isDualScreen && !isCompactScreen) {
-                                            PlazaNavBar(
-                                                currentScreen = nav.currentMainScreen(),
-                                                onNavigate = { screen ->
-                                                    nav.navigateToMainScreen(screen)
-                                                },
-                                                unreadMessageCount = unreadMsgCount,
-                                                unreadNotificationCount = unreadNotifCount,
-                                                onOpenNotifications = { nav.showNotifications = true }
-                                            )
+                                    val showTopNav = !nav.isOnSubScreen() && !isDualScreen && !isCompactScreen
+                                    val showBottomNav = !nav.isOnSubScreen() && !isDualScreen && isCompactScreen
+                                    // Measure nav bar height so content can pad below it
+                                    var topNavHeightDp by remember { mutableStateOf(0.dp) }
+                                    val density = androidx.compose.ui.platform.LocalDensity.current
+
+                                    Box(modifier = Modifier.fillMaxSize()) {
+                                        // Top nav bar overlays content so rounded corners show through
+                                        if (showTopNav) {
+                                            Box(modifier = Modifier
+                                                .zIndex(1f)
+                                                .align(Alignment.TopCenter)
+                                                .onSizeChanged { size ->
+                                                    topNavHeightDp = with(density) { size.height.toDp() }
+                                                }
+                                            ) {
+                                                PlazaNavBar(
+                                                    currentScreen = nav.currentMainScreen(),
+                                                    onNavigate = { screen ->
+                                                        nav.navigateToMainScreen(screen)
+                                                    },
+                                                    unreadMessageCount = unreadMsgCount,
+                                                    unreadNotificationCount = unreadNotifCount,
+                                                    onOpenNotifications = { nav.screen = Screen.Notifications }
+                                                )
+                                            }
                                         }
 
-                                        Box(modifier = Modifier.weight(1f)) {
-                                            when {
-                                                nav.showAuth -> {
+                                        Box(modifier = Modifier
+                                            .fillMaxSize()
+                                            .then(if (showTopNav) Modifier.padding(top = topNavHeightDp) else Modifier)
+                                        ) {
+                                            when (nav.screen) {
+                                                Screen.Auth -> {
                                                     AuthScreen(
-                                                        onBack = { nav.showAuth = false; nav.showSettings = true },
-                                                        onAuthSuccess = { nav.showAuth = false; nav.showSettings = true }
+                                                        onBack = { nav.screen = Screen.Settings },
+                                                        onAuthSuccess = { nav.screen = Screen.Settings }
                                                     )
                                                 }
-                                                nav.showGameSearch -> {
+                                                Screen.GameSearch -> {
                                                     GameSearchScreen(
-                                                        onBack = { nav.showGameSearch = false; nav.showProfileSettings = true }
+                                                        onBack = { nav.screen = Screen.ProfileSettings }
                                                     )
                                                 }
-                                                nav.showProfileSettings -> {
+                                                Screen.ProfileSettings -> {
                                                     ProfileSettingsScreen(
-                                                        onBack = { nav.showProfileSettings = false; nav.showSettings = true },
-                                                        onOpenGameSearch = {
-                                                            nav.showProfileSettings = false
-                                                            nav.showGameSearch = true
-                                                        }
+                                                        onBack = { nav.screen = Screen.Settings },
+                                                        onOpenGameSearch = { nav.screen = Screen.GameSearch }
                                                     )
                                                 }
-                                                nav.showQrExchange -> {
-                                                    QrExchangeScreen(
-                                                        onBack = { nav.showQrExchange = false; nav.showSettings = true }
-                                                    )
+                                                Screen.Mii3DTest -> {
+                                                    if (BuildConfig.DEBUG) {
+                                                        Mii3DTestScreen(
+                                                            onBack = { nav.screen = Screen.AppSettings },
+                                                            avatarHex = avatarHex,
+                                                            sharedEngine = engine,
+                                                            sharedModelLoader = modelLoader
+                                                        )
+                                                    }
                                                 }
-                                                nav.showMii3DTest && BuildConfig.DEBUG -> {
-                                                    Mii3DTestScreen(
-                                                        onBack = { nav.showMii3DTest = false; nav.showAppSettings = true },
-                                                        avatarHex = avatarHex,
-                                                        sharedEngine = engine,
-                                                        sharedModelLoader = modelLoader
-                                                    )
-                                                }
-                                                nav.showAppSettings -> {
+                                                Screen.AppSettings -> {
+                                                    val pending = nav.pendingUpdate
+                                                    nav.pendingUpdate = null
                                                     AppSettingsScreen(
-                                                        onBack = { nav.showAppSettings = false; nav.showSettings = true },
+                                                        onBack = { nav.screen = Screen.Settings },
                                                         onOpenMii3DTest = if (BuildConfig.DEBUG) { {
-                                                            nav.showAppSettings = false
-                                                            nav.showMii3DTest = true
-                                                        } } else { {} }
+                                                            nav.screen = Screen.Mii3DTest
+                                                        } } else { {} },
+                                                        autoStartUpdate = pending
                                                     )
                                                 }
-                                                nav.showSettings -> {
+                                                Screen.Settings -> {
                                                     SettingsScreen(
-                                                        onBack = { nav.showSettings = false },
+                                                        onBack = { nav.screen = Screen.Plaza },
                                                         onCreateNewMii = {
                                                             nav.forceCreateNewMii = true
-                                                            nav.showSettings = false
+                                                            nav.screen = Screen.Plaza
                                                         },
-                                                        onOpenQrExchange = {
-                                                            nav.showSettings = false
-                                                            nav.showQrExchange = true
-                                                        },
-                                                        onOpenAppSettings = {
-                                                            nav.showSettings = false
-                                                            nav.showAppSettings = true
-                                                        },
-                                                        onOpenProfileSettings = {
-                                                            nav.showSettings = false
-                                                            nav.showProfileSettings = true
-                                                        },
-                                                        onOpenAuth = {
-                                                            nav.showSettings = false
-                                                            nav.showAuth = true
-                                                        }
+                                                        onOpenAppSettings = { nav.screen = Screen.AppSettings },
+                                                        onOpenProfileSettings = { nav.screen = Screen.ProfileSettings },
+                                                        onOpenAuth = { nav.screen = Screen.Auth }
                                                     )
                                                 }
-                                                nav.showChat && nav.chatFriendId != null -> {
+                                                is Screen.Chat -> {
+                                                    val chat = nav.screen as Screen.Chat
                                                     ChatScreen(
-                                                        friendId = nav.chatFriendId!!,
-                                                        friendName = nav.chatFriendName ?: "Friend",
-                                                        friendAvatarHex = nav.chatFriendAvatarHex ?: "",
-                                                        onBack = {
-                                                            nav.showChat = false
-                                                            nav.chatFriendId = null
-                                                            nav.chatFriendName = null
-                                                            nav.chatFriendAvatarHex = null
-                                                            nav.showMessages = true
-                                                        }
+                                                        friendId = chat.friendId,
+                                                        friendName = chat.friendName,
+                                                        friendAvatarHex = chat.avatarHex,
+                                                        onBack = { nav.screen = Screen.Messages }
                                                     )
                                                 }
-                                                nav.showNotifications -> {
+                                                Screen.Notifications -> {
                                                     NotificationsScreen(
-                                                        onBack = { nav.showNotifications = false },
+                                                        onBack = { nav.screen = Screen.Plaza },
                                                         onNavigateToChat = { friendId, friendName, friendAvatarHex ->
-                                                            nav.showNotifications = false
-                                                            nav.showChat = true
-                                                            nav.chatFriendId = friendId
-                                                            nav.chatFriendName = friendName
-                                                            nav.chatFriendAvatarHex = friendAvatarHex
+                                                            nav.screen = Screen.Chat(friendId, friendName, friendAvatarHex)
                                                         },
                                                         onNavigateToFriends = {
-                                                            nav.showNotifications = false
                                                             nav.navigateToMainScreen(NavigationState.MainScreen.FRIENDS)
                                                         }
                                                     )
                                                 }
-                                                nav.showEncounterHistory -> {
+                                                Screen.EncounterHistory -> {
                                                     EncounterHistoryScreen(
-                                                        onBack = { nav.showEncounterHistory = false; nav.showFriends = true }
+                                                        onBack = { nav.screen = Screen.Friends }
                                                     )
                                                 }
-                                                nav.showMessages -> {
+                                                Screen.Messages -> {
                                                     ConversationsScreen(
-                                                        onBack = { nav.showMessages = false },
+                                                        onBack = { nav.screen = Screen.Plaza },
                                                         onOpenChat = { friendId, friendName, friendAvatarHex ->
-                                                            nav.showMessages = false
-                                                            nav.showChat = true
-                                                            nav.chatFriendId = friendId
-                                                            nav.chatFriendName = friendName
-                                                            nav.chatFriendAvatarHex = friendAvatarHex
+                                                            nav.screen = Screen.Chat(friendId, friendName, friendAvatarHex)
                                                         }
                                                     )
                                                 }
-                                                nav.showHistory -> {
+                                                Screen.History -> {
                                                     EncounterHistoryScreen(
-                                                        onBack = { nav.showHistory = false }
+                                                        onBack = { nav.screen = Screen.Plaza }
                                                     )
                                                 }
-                                                nav.showStatistics -> {
+                                                Screen.Statistics -> {
                                                     StatisticsScreen(
-                                                        onBack = { nav.showStatistics = false }
+                                                        onBack = { nav.screen = Screen.Plaza },
+                                                        onOpenWorldTourMap = { nav.screen = Screen.WorldTourMap }
                                                     )
                                                 }
-                                                nav.showFriends -> {
+                                                Screen.WorldTourMap -> {
+                                                    WorldTourMapScreen(
+                                                        onBack = { nav.screen = Screen.Statistics },
+                                                        isDualScreen = isDualScreen
+                                                    )
+                                                }
+                                                Screen.Friends -> {
                                                     FriendsScreen(
-                                                        onBack = { nav.showFriends = false },
+                                                        onBack = { nav.screen = Screen.Plaza },
                                                         onOpenChat = { friendId, friendName, friendAvatarHex ->
-                                                            nav.showFriends = false
-                                                            nav.showChat = true
-                                                            nav.chatFriendId = friendId
-                                                            nav.chatFriendName = friendName
-                                                            nav.chatFriendAvatarHex = friendAvatarHex
+                                                            nav.screen = Screen.Chat(friendId, friendName, friendAvatarHex)
                                                         },
-                                                        onOpenHistory = {
-                                                            nav.showFriends = false
-                                                            nav.showEncounterHistory = true
-                                                        }
+                                                        onOpenHistory = { nav.screen = Screen.EncounterHistory }
                                                     )
                                                 }
-                                                nav.selectedPuzzlePanel != null -> {
+                                                is Screen.PuzzleBoard -> {
+                                                    val board = nav.screen as Screen.PuzzleBoard
                                                     PuzzleBoardScreen(
-                                                        panelId = nav.selectedPuzzlePanel!!,
-                                                        onBack = { nav.selectedPuzzlePanel = null }
+                                                        panelId = board.panelId,
+                                                        onBack = { nav.screen = Screen.PuzzleSwap }
                                                     )
                                                 }
-                                                nav.showBingo -> {
+                                                Screen.Bingo -> {
                                                     MiiBingoScreen(
-                                                        onBack = { nav.showBingo = false; nav.showGames = true }
+                                                        onBack = { nav.screen = Screen.Games }
                                                     )
                                                 }
-                                                nav.showLeaderboard -> {
+                                                Screen.Leaderboard -> {
                                                     LeaderboardScreen(
-                                                        onBack = { nav.showLeaderboard = false; nav.showActivities = true }
+                                                        onBack = { nav.screen = Screen.Activities }
                                                     )
                                                 }
-                                                nav.showShop -> {
+                                                Screen.Shop -> {
                                                     ShopScreen(
-                                                        onBack = { nav.showShop = false; nav.showActivities = true }
+                                                        onBack = { nav.screen = Screen.Activities }
                                                     )
                                                 }
-                                                nav.showPuzzleSwap -> {
+                                                Screen.PuzzleSwap -> {
                                                     PuzzleSwapScreen(
-                                                        onBack = { nav.showPuzzleSwap = false; nav.showGames = true },
-                                                        onOpenPuzzleBoard = { panelId -> nav.selectedPuzzlePanel = panelId }
+                                                        onBack = { nav.screen = Screen.Games },
+                                                        onOpenPuzzleBoard = { panelId -> nav.screen = Screen.PuzzleBoard(panelId) }
                                                     )
                                                 }
-                                                nav.showGames -> {
+                                                Screen.Games -> {
                                                     GamesHubScreen(
-                                                        onBack = { nav.showGames = false; nav.showActivities = true },
-                                                        onOpenPuzzleSwap = { nav.showGames = false; nav.showPuzzleSwap = true },
-                                                        onOpenBingo = { nav.showGames = false; nav.showBingo = true }
+                                                        onBack = { nav.screen = Screen.Activities },
+                                                        onOpenPuzzleSwap = { nav.screen = Screen.PuzzleSwap },
+                                                        onOpenBingo = { nav.screen = Screen.Bingo }
                                                     )
                                                 }
-                                                nav.showSpotPassInbox -> {
+                                                Screen.SpotPassInbox -> {
                                                     SpotPassInboxScreen(
-                                                        onBack = { nav.showSpotPassInbox = false }
+                                                        onBack = { nav.screen = Screen.Plaza }
                                                     )
                                                 }
-                                                nav.showActivities -> {
+                                                Screen.Activities -> {
                                                     ActivitiesScreen(
-                                                        onBack = { nav.showActivities = false },
-                                                        onOpenGames = {
-                                                            nav.showActivities = false
-                                                            nav.showGames = true
-                                                        },
-                                                        onOpenShop = {
-                                                            nav.showActivities = false
-                                                            nav.showShop = true
-                                                        },
-                                                        onOpenLeaderboard = {
-                                                            nav.showActivities = false
-                                                            nav.showLeaderboard = true
-                                                        },
-                                                        onOpenSpotPass = {
-                                                            nav.showActivities = false
-                                                            nav.showSpotPassInbox = true
-                                                        }
+                                                        onBack = { nav.screen = Screen.Plaza },
+                                                        onOpenGames = { nav.screen = Screen.Games },
+                                                        onOpenShop = { nav.screen = Screen.Shop },
+                                                        onOpenLeaderboard = { nav.screen = Screen.Leaderboard },
+                                                        onOpenSpotPass = { nav.screen = Screen.SpotPassInbox }
                                                     )
                                                 }
-                                                nav.showPlazaOverview -> {
-                                                    AnimatedPlazaScreen(
-                                                        onBack = { nav.showPlazaOverview = false },
-                                                        sharedEngine = engine,
-                                                        sharedModelLoader = modelLoader
-                                                    )
+                                                Screen.PlazaOverview -> {
+                                                    if (isDualScreen) {
+                                                        AnimatedPlazaCompanionScreen(
+                                                            selectedEncounter = plazaSelectedEncounter,
+                                                            onBack = { nav.screen = Screen.Plaza }
+                                                        )
+                                                    } else {
+                                                        AnimatedPlazaScreen(
+                                                            onBack = { nav.screen = Screen.Plaza },
+                                                            sharedEngine = engine,
+                                                            sharedModelLoader = modelLoader
+                                                        )
+                                                    }
                                                 }
-                                                else -> {
+                                                Screen.Plaza -> {
                                                     PlazaScreen(
-                                                        onOpenSpotPass = { nav.showSpotPassInbox = true }
+                                                        onOpenSpotPass = { nav.screen = Screen.SpotPassInbox }
                                                     )
                                                 }
                                             }
                                         }
 
                                         // Bottom nav bar for compact/phone screens
-                                        if (!nav.isOnSubScreen() && !isDualScreen && isCompactScreen) {
-                                            PlazaNavBar(
-                                                currentScreen = nav.currentMainScreen(),
-                                                onNavigate = { screen ->
-                                                    nav.navigateToMainScreen(screen)
-                                                },
-                                                unreadMessageCount = unreadMsgCount,
-                                                unreadNotificationCount = unreadNotifCount,
-                                                onOpenNotifications = { nav.showNotifications = true }
-                                            )
+                                        if (showBottomNav) {
+                                            Box(modifier = Modifier
+                                                .align(Alignment.BottomCenter)
+                                                .zIndex(1f)
+                                            ) {
+                                                PlazaNavBar(
+                                                    currentScreen = nav.currentMainScreen(),
+                                                    onNavigate = { screen ->
+                                                        nav.navigateToMainScreen(screen)
+                                                    },
+                                                    unreadMessageCount = unreadMsgCount,
+                                                    unreadNotificationCount = unreadNotifCount,
+                                                    onOpenNotifications = { nav.screen = Screen.Notifications }
+                                                )
+                                            }
                                         }
                                     }
+                                    } // end if/else forceCreateNewMii
                                 }
                             }
                         }

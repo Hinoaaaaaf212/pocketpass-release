@@ -1,6 +1,7 @@
 package com.pocketpass.app.data
 
 import android.util.Log
+import com.pocketpass.app.data.crypto.decryptFields
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.realtime.broadcastFlow
 import io.github.jan.supabase.realtime.channel
@@ -49,6 +50,7 @@ class NotificationRepository {
                 order("created_at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
                 limit(50)
             }.decodeList<SupabaseNotification>()
+                .map { it.decryptFields() }
 
             _unreadCount.value = notifications.count { !it.read }
             notifications

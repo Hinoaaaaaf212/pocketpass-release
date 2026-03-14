@@ -41,8 +41,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,6 +55,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -83,9 +83,13 @@ import com.pocketpass.app.ui.theme.LocalAppDimensions
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.MoodIcon
 import com.pocketpass.app.ui.theme.MoodType
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
+import com.pocketpass.app.ui.theme.NavGlass
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.ui.theme.RadialGlow
 import com.pocketpass.app.util.RegionFlags
 import java.text.DateFormat
 import java.text.SimpleDateFormat
@@ -106,8 +110,6 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -143,6 +145,8 @@ fun CheckeredBackground(
     val checkerLightColor = CheckerLight
     val checkerDarkColor = CheckerDark
 
+    val radialGlowColor = RadialGlow
+
     Box(modifier = modifier) {
         // Base gradient
         Box(
@@ -150,6 +154,19 @@ fun CheckeredBackground(
                 .fillMaxSize()
                 .background(Brush.verticalGradient(colors = gradientColors))
         )
+
+        // Aero radial glow — luminous sun-lit quality
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(radialGlowColor, androidx.compose.ui.graphics.Color.Transparent),
+                    center = Offset(size.width * 0.5f, size.height * 0.3f),
+                    radius = size.width * 0.7f
+                ),
+                radius = size.width * 0.7f,
+                center = Offset(size.width * 0.5f, size.height * 0.3f)
+            )
+        }
 
         // Tiled diamond checker overlay — single draw call
         Box(
@@ -223,27 +240,32 @@ fun MiiverseNavButton(
     val hPad = if (isCompact) 6.dp else 12.dp
     val vPad = if (isCompact) 6.dp else 8.dp
 
+    val selectionShape = RoundedCornerShape(8.dp)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
+            .padding(horizontal = 2.dp, vertical = 2.dp)
             .then(
-                if (isSelected) Modifier.background(
-                    Brush.verticalGradient(
-                        colors = if (com.pocketpass.app.ui.theme.LocalDarkMode.current)
-                            listOf(
-                                androidx.compose.ui.graphics.Color(0xFF3A3A3A),
-                                androidx.compose.ui.graphics.Color(0xFF444444)
-                            )
-                        else
-                            listOf(
-                                androidx.compose.ui.graphics.Color(0xFFC8C8C8),
-                                androidx.compose.ui.graphics.Color(0xFFD8D8D8)
-                            )
+                if (isSelected) Modifier
+                    .background(
+                        Brush.verticalGradient(
+                            colors = if (com.pocketpass.app.ui.theme.LocalDarkMode.current)
+                                listOf(
+                                    androidx.compose.ui.graphics.Color(0xFF3A3A3A),
+                                    androidx.compose.ui.graphics.Color(0xFF444444)
+                                )
+                            else
+                                listOf(
+                                    androidx.compose.ui.graphics.Color(0xFFC8C8C8),
+                                    androidx.compose.ui.graphics.Color(0xFFD8D8D8)
+                                )
+                        ),
+                        selectionShape
                     )
-                ) else Modifier
+                else Modifier
             )
             .gamepadFocusable(
-                shape = RoundedCornerShape(8.dp),
+                shape = selectionShape,
                 onSelect = onClick
             )
             .clickable(onClick = onClick)
@@ -302,6 +324,7 @@ fun PlazaNavBar(
     val soundManager = LocalSoundManager.current
 
     val isDark = com.pocketpass.app.ui.theme.LocalDarkMode.current
+    val navGlassColor = NavGlass
     val screenWidth = LocalConfiguration.current.screenWidthDp
     val isCompactNav = screenWidth < 600
     // Bottom nav on phones uses top rounding, top nav on tablets uses bottom rounding
@@ -312,27 +335,22 @@ fun PlazaNavBar(
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .shadow(8.dp, navShape)
             .clip(navShape)
-            .background(if (isDark) androidx.compose.ui.graphics.Color(0xFF222222) else androidx.compose.ui.graphics.Color(0xFFE8E8E8))
+            .background(navGlassColor)
+            .drawBehind {
+                // Thin luminous top border
+                drawRect(
+                    color = if (isDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f)
+                    else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.80f),
+                    size = Size(size.width, 1.dp.toPx())
+                )
+            }
     ) {
         // Base bar background
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colors = if (isDark)
-                            listOf(
-                                androidx.compose.ui.graphics.Color(0xFF2A2A2A),
-                                androidx.compose.ui.graphics.Color(0xFF222222)
-                            )
-                        else
-                            listOf(
-                                androidx.compose.ui.graphics.Color(0xFFF8F8F8),
-                                androidx.compose.ui.graphics.Color(0xFFE8E8E8)
-                            )
-                    )
-                ),
+                .fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -388,19 +406,21 @@ fun PlazaNavBar(
                 modifier = Modifier.weight(1f)
             )
         }
-        // Glossy highlight overlay (top half shine)
+        // Glossy highlight overlay (4-stop Aero glass shine)
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .background(
                     Brush.verticalGradient(
-                        colors = listOf(
-                            androidx.compose.ui.graphics.Color.White.copy(alpha = 0.55f),
-                            androidx.compose.ui.graphics.Color.White.copy(alpha = 0.12f),
-                            androidx.compose.ui.graphics.Color.Transparent
-                        ),
-                        startY = 0f,
-                        endY = Float.POSITIVE_INFINITY
+                        colorStops = arrayOf(
+                            0.0f to if (isDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.15f)
+                                    else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.60f),
+                            0.35f to if (isDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.05f)
+                                     else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.18f),
+                            0.50f to androidx.compose.ui.graphics.Color.Transparent,
+                            1.0f to if (isDark) androidx.compose.ui.graphics.Color.Transparent
+                                    else androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.03f)
+                        )
                     )
                 )
         )
@@ -432,6 +452,7 @@ private fun parseHexColor(hex: String?, fallbackArgb: Long): androidx.compose.ui
 // Persists across navigation so we don't false-trigger on re-entering the screen
 private var lastKnownEncounterIds: Set<String> = emptySet()
 private var encounterTrackerInitialized: Boolean = false
+private var encounterTrackerInitStarted: Boolean = false
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -471,7 +492,18 @@ fun PlazaScreen(
     var showNewEncounterAnimation by remember { mutableStateOf(false) }
     var newEncounter by remember { mutableStateOf<Encounter?>(null) }
 
-    // Detect new encounters - skip the first load (which includes sync) to avoid false popups
+    // Detect new encounters - skip initial loads (including sync) to avoid false popups
+    // Init delay runs in a separate LaunchedEffect(Unit) so it isn't cancelled by emissions
+    LaunchedEffect(Unit) {
+        if (!encounterTrackerInitStarted) {
+            encounterTrackerInitStarted = true
+            // Wait for sync to settle before arming the tracker
+            kotlinx.coroutines.delay(5000)
+            // Snapshot whatever is in the DB right now as "known"
+            lastKnownEncounterIds = (encountersLoaded ?: emptyList()).map { it.encounterId }.toSet()
+            encounterTrackerInitialized = true
+        }
+    }
     LaunchedEffect(encountersLoaded) {
         val loaded = encountersLoaded ?: return@LaunchedEffect // Still loading
         val currentIds = loaded.map { it.encounterId }.toSet()
@@ -489,14 +521,8 @@ fun PlazaScreen(
             }
         }
 
+        // Always keep the known set up to date (even during init window)
         lastKnownEncounterIds = currentIds
-        if (!encounterTrackerInitialized) {
-            // Wait briefly for sync to finish before arming the tracker
-            kotlinx.coroutines.delay(5000)
-            // Re-read the latest set after sync had time to complete
-            lastKnownEncounterIds = (encountersLoaded ?: emptyList()).map { it.encounterId }.toSet()
-            encounterTrackerInitialized = true
-        }
     }
 
     // Active event effects for plaza banner
@@ -1024,13 +1050,12 @@ fun NewEncounterAnimation(
             )
 
             // Simplified encounter card for better performance
-            Card(
+            AeroCard(
                 modifier = Modifier
                     .padding(24.dp)
                     .fillMaxWidth(0.85f),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(containerColor = OffWhite),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                containerColor = OffWhite,
+                elevation = 8.dp
             ) {
                 Row(
                     modifier = Modifier
@@ -1369,16 +1394,12 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
 
                             // Hobbies
                             if (encounter.hobbies.isNotBlank()) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(verticalAlignment = Alignment.Top) {
                                     com.pocketpass.app.ui.theme.HobbiesIcon(
                                         modifier = Modifier.size(20.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text(
-                                        text = encounter.hobbies,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MediumText
-                                    )
+                                    com.pocketpass.app.ui.theme.HobbyChips(encounter.hobbies)
                                 }
                             }
 
@@ -1570,16 +1591,13 @@ fun DebugAddEncounterDialog(
                     )
                 }
                 item {
-                    Button(
+                    AeroButton(
                         onClick = {
                             soundManager.playNavigate()
                             onOpenNearbyScanner()
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = androidx.compose.ui.graphics.Color(0xFF2196F3)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
+                        containerColor = androidx.compose.ui.graphics.Color(0xFF2196F3)
                     ) {
                         Icon(
                             imageVector = Icons.Filled.Person,
@@ -1602,7 +1620,7 @@ fun DebugAddEncounterDialog(
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Button(
+                        AeroButton(
                             onClick = {
                                 soundManager.playTap()
                                 name = "Link"
@@ -1616,7 +1634,7 @@ fun DebugAddEncounterDialog(
                         ) {
                             Text("Link", style = MaterialTheme.typography.bodySmall)
                         }
-                        Button(
+                        AeroButton(
                             onClick = {
                                 soundManager.playTap()
                                 name = "Mario"
@@ -1636,7 +1654,7 @@ fun DebugAddEncounterDialog(
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Button(
+                        AeroButton(
                             onClick = {
                                 soundManager.playTap()
                                 name = "Samus"
@@ -1650,7 +1668,7 @@ fun DebugAddEncounterDialog(
                         ) {
                             Text("Samus", style = MaterialTheme.typography.bodySmall)
                         }
-                        Button(
+                        AeroButton(
                             onClick = {
                                 soundManager.playTap()
                                 name = "Kirby"
@@ -1669,7 +1687,7 @@ fun DebugAddEncounterDialog(
             }
         },
         confirmButton = {
-            Button(
+            AeroButton(
                 onClick = {
                     if (name.isNotBlank() && greeting.isNotBlank() && !isLoading) {
                         soundManager.playSuccess()
@@ -1945,7 +1963,7 @@ fun NearbyDebugDialog(onDismiss: () -> Unit) {
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.height(scanDims.dialogListHeight)
                     ) {
-                        items(devices.values.toList().sortedByDescending { it.discoveredAt }) { device ->
+                        items(devices.values.toList().sortedByDescending { it.discoveredAt }, key = { it.endpointId }) { device ->
                             val stateColor = when (device.state) {
                                 "discovered" -> androidx.compose.ui.graphics.Color(0xFF2196F3)
                                 "connecting" -> androidx.compose.ui.graphics.Color(0xFFFFC107)
@@ -1954,11 +1972,11 @@ fun NearbyDebugDialog(onDismiss: () -> Unit) {
                                 "failed" -> androidx.compose.ui.graphics.Color(0xFFFF5722)
                                 else -> MediumText
                             }
-                            Card(
+                            AeroCard(
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = OffWhite),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                                cornerRadius = 12.dp,
+                                containerColor = OffWhite,
+                                elevation = 2.dp
                             ) {
                                 Row(
                                     modifier = Modifier

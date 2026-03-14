@@ -5,8 +5,12 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInHorizontally
+import android.view.KeyEvent as AndroidKeyEvent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -26,10 +31,6 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -43,41 +44,50 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.pocketpass.app.data.AuthRepository
 import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.FriendRepository
 import com.pocketpass.app.data.PocketPassDatabase
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.rendering.Plaza3DMiiManager
-import com.pocketpass.app.rendering.PlazaAnimState
 import com.pocketpass.app.rendering.PlazaEnvironmentLoader
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.ErrorText
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.LocalDarkMode
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.util.LocalGamepadState
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.RegionFlags
 import com.pocketpass.app.util.gamepadFocusable
@@ -90,18 +100,19 @@ import kotlinx.coroutines.withContext
 
 // ── Constants ──
 
-private const val MAX_MIIS = 10
+private const val MAX_MIIS = 20
 
 @Composable
 fun AnimatedPlazaScreen(
     onBack: () -> Unit,
     sharedEngine: com.google.android.filament.Engine? = null,
-    sharedModelLoader: io.github.sceneview.loaders.ModelLoader? = null
+    sharedModelLoader: io.github.sceneview.loaders.ModelLoader? = null,
+    isDualScreen: Boolean = false,
+    onMiiSelected: ((Encounter?) -> Unit)? = null
 ) {
     val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val isDark = LocalDarkMode.current
-    val density = LocalDensity.current
     val coroutineScope = rememberCoroutineScope()
 
     val db = remember { PocketPassDatabase.getDatabase(context) }
@@ -132,8 +143,6 @@ fun AnimatedPlazaScreen(
     var sceneWidthPx by remember { mutableFloatStateOf(1080f) }
     var sceneHeightPx by remember { mutableFloatStateOf(1920f) }
 
-    // Frame tick to drive recomposition of name label overlays
-    var frameTick by remember { mutableIntStateOf(0) }
 
     // 3D scene engine — use shared engine from MainActivity to avoid recreating on tab switches
     val engine = sharedEngine ?: rememberEngine()
@@ -176,22 +185,51 @@ fun AnimatedPlazaScreen(
         }
     }
 
-    // Game loop — update 3D Mii positions each frame
-    LaunchedEffect(Unit) {
+    // Lifecycle awareness — pause game loop when app is backgrounded or screen not visible
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var isResumed by remember { mutableStateOf(false) }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            isResumed = event.targetState.isAtLeast(Lifecycle.State.RESUMED)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Game loop — only runs when screen is visible and resumed
+    LaunchedEffect(isResumed) {
+        if (!isResumed) return@LaunchedEffect
         var lastTime = 0L
-        var frameCount = 0
         while (isActive) {
             withFrameNanos { frameTime ->
                 if (lastTime == 0L) { lastTime = frameTime; return@withFrameNanos }
                 val dt = (frameTime - lastTime) / 1_000_000_000f
                 lastTime = frameTime
                 miiManager.updateFrame(dt)
-                // Throttle label recomposition to ~30fps (every 2nd frame at 60fps)
-                frameCount++
-                if (frameCount % 2 == 0) frameTick++
             }
         }
     }
+
+    val gamepadState = LocalGamepadState.current
+    val cursorIndex by miiManager.selectedIndex
+    val density = LocalDensity.current
+
+    // Helper to handle Mii selection (both tap and gamepad)
+    fun selectMii(encounter: Encounter) {
+        soundManager.playSelect()
+        miiManager.onMiiTapped(encounter)
+        if (isDualScreen) {
+            onMiiSelected?.invoke(encounter)
+        } else {
+            selectedEncounter = encounter
+            showProfileDetail = false
+            friendActionResult = null; friendActionIsError = false
+        }
+    }
+
+    // Scene focus requester for d-pad input
+    val sceneFocusRequester = remember { FocusRequester() }
 
     // ── UI ──
 
@@ -225,7 +263,7 @@ fun AnimatedPlazaScreen(
                         Icon(Icons.Filled.ArrowBack, "Back", tint = DarkText)
                     }
                     Text(
-                        text = if (encounters.isEmpty()) "Roaming Plaza" else "Roaming Plaza \u2022 ${encounters.size.coerceAtMost(MAX_MIIS)} Miis",
+                        text = if (encounters.isEmpty()) "StreetPass Plaza" else "StreetPass Plaza \u2022 ${encounters.size.coerceAtMost(MAX_MIIS)} Miis",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = DarkText
@@ -233,7 +271,7 @@ fun AnimatedPlazaScreen(
                     Spacer(modifier = Modifier.width(48.dp))
                 }
 
-                // Scene + labels area
+                // Scene + labels area with d-pad navigation
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -242,7 +280,50 @@ fun AnimatedPlazaScreen(
                             sceneWidthPx = size.width.toFloat()
                             sceneHeightPx = size.height.toFloat()
                         }
+                        .focusRequester(sceneFocusRequester)
+                        .onPreviewKeyEvent { keyEvent ->
+                            if (keyEvent.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                            val keyCode = keyEvent.nativeKeyEvent.keyCode
+                            when (keyCode) {
+                                AndroidKeyEvent.KEYCODE_DPAD_UP,
+                                AndroidKeyEvent.KEYCODE_DPAD_DOWN,
+                                AndroidKeyEvent.KEYCODE_DPAD_LEFT,
+                                AndroidKeyEvent.KEYCODE_DPAD_RIGHT -> {
+                                    val enc = miiManager.moveCursor(keyCode)
+                                    if (enc != null) {
+                                        soundManager.playNavigate()
+                                        if (isDualScreen) onMiiSelected?.invoke(enc)
+                                    }
+                                    true
+                                }
+                                AndroidKeyEvent.KEYCODE_BUTTON_A,
+                                AndroidKeyEvent.KEYCODE_ENTER,
+                                AndroidKeyEvent.KEYCODE_DPAD_CENTER -> {
+                                    val enc = miiManager.confirmSelection()
+                                    if (enc != null) selectMii(enc)
+                                    true
+                                }
+                                AndroidKeyEvent.KEYCODE_BUTTON_B -> {
+                                    if (cursorIndex >= 0) {
+                                        miiManager.clearSelection()
+                                        if (isDualScreen) onMiiSelected?.invoke(null)
+                                        true
+                                    } else {
+                                        soundManager.playBack()
+                                        onBack()
+                                        true
+                                    }
+                                }
+                                else -> false
+                            }
+                        }
+                        .focusable()
                 ) {
+                    // Request focus on the scene so d-pad works
+                    LaunchedEffect(Unit) {
+                        sceneFocusRequester.requestFocus()
+                    }
+
                     // 3D SceneView (opaque, renders its own sky background)
                     Plaza3DScene(
                         encounters = encounters.take(MAX_MIIS),
@@ -254,10 +335,7 @@ fun AnimatedPlazaScreen(
                         childNodes = combinedNodes,
                         isDark = isDark,
                         onMiiTapped = { encounter ->
-                            soundManager.playSelect()
-                            selectedEncounter = encounter
-                            showProfileDetail = false
-                            friendActionResult = null; friendActionIsError = false
+                            selectMii(encounter)
                         },
                         modifier = Modifier.fillMaxSize()
                     )
@@ -282,131 +360,59 @@ fun AnimatedPlazaScreen(
                         }
                     }
 
-                    // Name labels + tap targets — projected to Mii positions
-                    @Suppress("UNUSED_EXPRESSION") frameTick
-                    val miiStates = miiManager.getMiiStates()
-                    val aspectRatio = if (sceneHeightPx > 0f) sceneWidthPx / sceneHeightPx else 1f
-                    for (mii in miiStates) {
-                        if (mii.modelNode == null) continue
-
-                        // Use fixed Z=0 for X projection — Z variance is tiny (±0.5) and
-                        // would cause horizontal jitter through perspective math
-                        val screenX = projectWorldToScreenX(mii.positionX, 0f, aspectRatio) * sceneWidthPx
-
-                        // Project Mii head position to screen Y (above the head)
-                        val headWorldY = 1.4f
-                        val screenYFraction = projectWorldToScreenY(headWorldY, mii.positionZ)
-                        val labelY = sceneHeightPx * screenYFraction
-
-                        // Tap target covering the Mii body area (below the label)
-                        if (!mii.isUser) {
-                            val bodyYFraction = projectWorldToScreenY(0f, mii.positionZ)
-                            val tapTopY = sceneHeightPx * screenYFraction
-                            val tapBottomY = sceneHeightPx * bodyYFraction
-                            val tapHeight = (tapBottomY - tapTopY).coerceAtLeast(80f)
-                            val tapWidth = 80f
+                    // Selector square overlay for gamepad cursor
+                    if (cursorIndex >= 0) {
+                        val nonUserMiis = miiManager.getNonUserMiiStates()
+                        if (cursorIndex < nonUserMiis.size) {
+                            val mii = nonUserMiis[cursorIndex]
+                            val aspectRatio = if (sceneHeightPx > 0f) sceneWidthPx / sceneHeightPx else 1f
+                            val (screenX, screenY) = projectWorldToScreen(
+                                mii.positionX, Plaza3DMiiManager.MII_CENTER_Y, mii.positionZ, aspectRatio
+                            )
+                            // Convert normalized screen coords to pixel offset
+                            val selectorSizeDp = 64.dp
+                            val selectorSizePx = with(density) { selectorSizeDp.toPx() }
+                            val offsetX = (screenX * sceneWidthPx - selectorSizePx / 2f).toInt()
+                            val offsetY = (screenY * sceneHeightPx - selectorSizePx / 2f).toInt()
 
                             Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.TopStart)
-                                        .padding(
-                                            start = with(density) { (screenX - tapWidth / 2).coerceAtLeast(0f).toDp() },
-                                            top = with(density) { tapTopY.toDp() }
-                                        )
-                                        .size(
-                                            width = with(density) { tapWidth.toDp() },
-                                            height = with(density) { tapHeight.toDp() }
-                                        )
-                                        .clickable {
-                                            soundManager.playSelect()
-                                            val encounter = miiManager.onMiiTapped(mii.encounter)
-                                            if (encounter != null) {
-                                                selectedEncounter = encounter
-                                                showProfileDetail = false
-                                                friendActionResult = null; friendActionIsError = false
-                                            }
-                                        }
-                                )
-                            }
-                        }
-
-                        // Name label
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                        ) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier
-                                    .align(Alignment.TopStart)
-                                    .padding(
-                                        start = with(density) { (screenX - 30f).coerceAtLeast(0f).toDp() },
-                                        top = with(density) { labelY.toDp() }
-                                    )
-                                    .then(
-                                        if (!mii.isUser) Modifier.clickable {
-                                            soundManager.playSelect()
-                                            val encounter = miiManager.onMiiTapped(mii.encounter)
-                                            if (encounter != null) {
-                                                selectedEncounter = encounter
-                                                showProfileDetail = false
-                                                friendActionResult = null; friendActionIsError = false
-                                            }
-                                        } else Modifier
-                                    )
-                            ) {
-                                // Speech bubble when greeting
-                                if (mii.animState == PlazaAnimState.GREETING && mii.encounter.greeting.isNotBlank()) {
-                                    Card(
-                                        shape = RoundedCornerShape(8.dp),
-                                        colors = CardDefaults.cardColors(
-                                            containerColor = if (isDark) Color(0xFF2A2A2A) else Color.White
-                                        ),
-                                        elevation = CardDefaults.cardElevation(2.dp)
-                                    ) {
-                                        Text(
-                                            text = mii.encounter.greeting.take(30) + if (mii.encounter.greeting.length > 30) "\u2026" else "",
-                                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
-                                            style = MaterialTheme.typography.labelSmall,
-                                            fontStyle = FontStyle.Italic,
-                                            color = DarkText,
-                                            maxLines = 1,
-                                            fontSize = 9.sp
-                                        )
-                                    }
-                                    Spacer(Modifier.height(2.dp))
-                                }
-
-                                // Name tag
-                                val labelText = if (mii.isUser) (userName ?: "You") else mii.encounter.otherUserName
-                                val labelColor = if (mii.isUser) PocketPassGreen else (if (isDark) Color(0xFF2A2A2A) else Color(0xCC000000))
-                                Card(
-                                    shape = RoundedCornerShape(6.dp),
-                                    colors = CardDefaults.cardColors(containerColor = labelColor)
-                                ) {
-                                    Text(
-                                        text = labelText,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp),
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color.White,
-                                        maxLines = 1,
-                                        fontSize = 9.sp
-                                    )
-                                }
-                            }
+                                    .offset { IntOffset(offsetX, offsetY) }
+                                    .size(selectorSizeDp)
+                                    .border(3.dp, Color(0xFFFFD700), RoundedCornerShape(8.dp))
+                            )
                         }
                     }
+
+                    // Tap-to-select: map screen tap to normalized coords → nearest Mii via 2D projection
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                indication = null,
+                                interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+                            ) { /* handled by pointerInput below */ }
+                            .pointerInput(Unit) {
+                                detectTapGestures { offset ->
+                                    val normX = offset.x / sceneWidthPx
+                                    val normY = offset.y / sceneHeightPx
+                                    val aspectRatio = if (sceneHeightPx > 0f) sceneWidthPx / sceneHeightPx else 1f
+
+                                    val tappedEncounter = miiManager.findMiiNearScreenPosition(
+                                        normX, normY, aspectRatio, tolerance = 0.12f
+                                    )
+                                    if (tappedEncounter != null) {
+                                        selectMii(tappedEncounter)
+                                    }
+                                }
+                            }
+                    )
                 } // end scene + labels Box
             } // end Column
         } // end AnimatedVisibility
 
-        // ── Interaction Dialog ──
-        if (selectedEncounter != null && !showProfileDetail) {
+        // ── Interaction Dialog (only on non-dual-screen; dual-screen shows detail on companion) ──
+        if (!isDualScreen && selectedEncounter != null && !showProfileDetail) {
             LaunchedEffect(selectedEncounter?.otherUserId) {
                 friendshipStatus = "checking"
                 friendshipId = null
@@ -502,20 +508,20 @@ fun AnimatedPlazaScreen(
                         }
                         val friendButtonEnabled = friendshipStatus in listOf("none", "pending_received")
 
-                        Button(
-                            onClick = {
+                        AeroButton(
+                            onClick = onClick@{
                                 if (!isLoggedIn) {
                                     soundManager.playError()
                                     friendActionResult = "Sign in to add friends. Go to Settings to create an account."
                                     friendActionIsError = true
-                                    return@Button
+                                    return@onClick
                                 }
-                                val enc = selectedEncounter ?: return@Button
+                                val enc = selectedEncounter ?: return@onClick
                                 if (enc.otherUserId.isBlank()) {
                                     soundManager.playError()
                                     friendActionResult = "This person doesn't have an account yet."
                                     friendActionIsError = true
-                                    return@Button
+                                    return@onClick
                                 }
                                 coroutineScope.launch {
                                     when (friendshipStatus) {
@@ -550,12 +556,9 @@ fun AnimatedPlazaScreen(
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
+                            cornerRadius = 12.dp,
                             enabled = if (!isLoggedIn) true else friendButtonEnabled,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (!isLoggedIn) Color(0xFFFF9800) else PocketPassGreen,
-                                contentColor = Color.White
-                            )
+                            containerColor = if (!isLoggedIn) Color(0xFFFF9800) else PocketPassGreen
                         ) {
                             Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
@@ -583,7 +586,7 @@ fun AnimatedPlazaScreen(
         }
 
         // ── Profile Detail Dialog ──
-        if (selectedEncounter != null && showProfileDetail) {
+        if (!isDualScreen && selectedEncounter != null && showProfileDetail) {
             AlertDialog(
                 onDismissRequest = { showProfileDetail = false },
                 title = { Text(selectedEncounter!!.otherUserName, fontWeight = FontWeight.Bold) },
@@ -608,9 +611,9 @@ fun AnimatedPlazaScreen(
                         Spacer(Modifier.height(16.dp))
 
                         if (selectedEncounter!!.greeting.isNotBlank()) {
-                            Card(
-                                shape = RoundedCornerShape(12.dp),
-                                colors = CardDefaults.cardColors(containerColor = if (isDark) Color(0xFF2A2A2A) else Color(0xFFF0F0F0))
+                            AeroCard(
+                                cornerRadius = 12.dp,
+                                containerColor = if (isDark) Color(0xFF2A2A2A) else Color(0xFFF0F0F0)
                             ) {
                                 Text(
                                     text = "\"${selectedEncounter!!.greeting}\"",
@@ -627,7 +630,18 @@ fun AnimatedPlazaScreen(
                         val flag = RegionFlags.getFlagForRegion(selectedEncounter!!.origin)
                         ProfileDetailRow("From", "$flag ${selectedEncounter!!.origin}")
                         if (selectedEncounter!!.age.isNotBlank()) ProfileDetailRow("Age", selectedEncounter!!.age)
-                        if (selectedEncounter!!.hobbies.isNotBlank()) ProfileDetailRow("Hobbies", selectedEncounter!!.hobbies)
+                        if (selectedEncounter!!.hobbies.isNotBlank()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Text("Hobbies", style = MaterialTheme.typography.bodySmall, color = MediumText, fontWeight = FontWeight.SemiBold)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                com.pocketpass.app.ui.theme.HobbyChips(selectedEncounter!!.hobbies, modifier = Modifier.weight(1f))
+                            }
+                        }
                         ProfileDetailRow("Met", "${selectedEncounter!!.meetCount} time${if (selectedEncounter!!.meetCount != 1) "s" else ""}")
                     }
                 },
@@ -651,6 +665,193 @@ private fun ProfileDetailRow(label: String, value: String) {
     ) {
         Text(label, style = MaterialTheme.typography.bodySmall, color = MediumText, fontWeight = FontWeight.SemiBold)
         Text(value, style = MaterialTheme.typography.bodySmall, color = DarkText)
+    }
+}
+
+/**
+ * Companion screen for the dual-screen plaza (shown on the top screen of Ayn Thor).
+ * Shows selected Mii's greeting card and profile info, or a visitor list when nothing is selected.
+ */
+@Composable
+fun AnimatedPlazaCompanionScreen(
+    selectedEncounter: Encounter?,
+    onBack: () -> Unit
+) {
+    val isDark = LocalDarkMode.current
+    val context = LocalContext.current
+    val db = remember { PocketPassDatabase.getDatabase(context) }
+    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Top bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(if (isDark) Color(0xFF1A1A1A) else Color(0xFFF0F8F0))
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "StreetPass Plaza",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = DarkText,
+                modifier = Modifier.padding(start = 8.dp)
+            )
+            Text(
+                text = "${encounters.size} Miis",
+                style = MaterialTheme.typography.bodySmall,
+                color = MediumText,
+                modifier = Modifier.padding(end = 8.dp)
+            )
+        }
+
+        if (selectedEncounter != null) {
+            // ── Selected Mii greeting card ──
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                if (isDark) Color(0xFF1A2A3A) else Color(0xFFE8F5E9),
+                                if (isDark) Color(0xFF0A1628) else Color(0xFFC8E6C9)
+                            )
+                        )
+                    )
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Avatar
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    if (isDark) Color(0xFF1A2A3A) else Color(0xFFE3F2FD),
+                                    if (isDark) Color(0xFF1A3A3A) else Color(0xFFBBDEFB)
+                                )
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    MiiAvatarViewer(hexData = selectedEncounter.otherUserAvatarHex)
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    text = selectedEncounter.otherUserName,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDark) Color.White else DarkText
+                )
+
+                val flag = RegionFlags.getFlagForRegion(selectedEncounter.origin)
+                Text(
+                    text = "$flag ${selectedEncounter.origin}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MediumText
+                )
+
+                if (selectedEncounter.meetCount > 1) {
+                    Text(
+                        text = "Met ${selectedEncounter.meetCount} times",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = GreenText
+                    )
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                // Greeting card
+                if (selectedEncounter.greeting.isNotBlank()) {
+                    AeroCard(
+                        cornerRadius = 16.dp,
+                        containerColor = if (isDark) Color(0xFF2A2A2A) else Color.White
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                text = "Greeting",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MediumText
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                text = "\"${selectedEncounter.greeting}\"",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontStyle = FontStyle.Italic,
+                                color = if (isDark) Color.White else DarkText,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+
+                Spacer(Modifier.height(12.dp))
+
+                // Profile details
+                AeroCard(
+                    cornerRadius = 16.dp,
+                    containerColor = if (isDark) Color(0xFF2A2A2A) else Color.White
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        ProfileDetailRow("From", "$flag ${selectedEncounter.origin}")
+                        if (selectedEncounter.age.isNotBlank()) ProfileDetailRow("Age", selectedEncounter.age)
+                        if (selectedEncounter.hobbies.isNotBlank()) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 3.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Text("Hobbies", style = MaterialTheme.typography.bodySmall, color = MediumText, fontWeight = FontWeight.SemiBold)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                com.pocketpass.app.ui.theme.HobbyChips(selectedEncounter.hobbies, modifier = Modifier.weight(1f))
+                            }
+                        }
+                        ProfileDetailRow("Met", "${selectedEncounter.meetCount} time${if (selectedEncounter.meetCount != 1) "s" else ""}")
+                    }
+                }
+            }
+        } else {
+            // ── No Mii selected — show visitor list ──
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                if (isDark) Color(0xFF1A2A3A) else Color(0xFFE8F5E9),
+                                if (isDark) Color(0xFF0A1628) else Color(0xFFC8E6C9)
+                            )
+                        )
+                    )
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Select a Mii with the D-Pad",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDark) Color.White else DarkText
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = "Press A to view their greeting card",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MediumText
+                )
+            }
+        }
     }
 }
 

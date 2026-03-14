@@ -17,8 +17,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,6 +45,7 @@ import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.ErrorText
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.ui.theme.AeroButton
 import com.pocketpass.app.ui.theme.SkyBlue
 import com.pocketpass.app.data.AuthRepository
 import com.pocketpass.app.data.SyncRepository
@@ -114,7 +113,7 @@ fun PlazaSecondaryScreen() {
                 }
             } else {
                 val recentEncounters = encounters.sortedByDescending { it.timestamp }.take(10)
-                items(recentEncounters) { encounter ->
+                items(recentEncounters, key = { it.encounterId }) { encounter ->
                     SecondaryEncounterRow(encounter)
                     Spacer(modifier = Modifier.height(4.dp))
                 }
@@ -232,7 +231,7 @@ fun HistorySecondaryScreen() {
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }
-                items(topRegions) { (region, count) ->
+                items(topRegions, key = { it.key }) { (region, count) ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -316,7 +315,7 @@ fun FriendsSecondaryScreen() {
                     }
                 }
             } else {
-                items(friendsByMeetCount) { encounter ->
+                items(friendsByMeetCount, key = { it.encounterId }) { encounter ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -423,7 +422,7 @@ fun AnimatedPlazaSecondaryScreen() {
                     }
                 }
             } else {
-                items(displayedMiis) { encounter ->
+                items(displayedMiis, key = { it.encounterId }) { encounter ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -570,7 +569,7 @@ fun StatisticsSecondaryScreen() {
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            items(unlockedAchievements) { achievement ->
+            items(unlockedAchievements, key = { it.id }) { achievement ->
                 AchievementSecondaryRow(achievement, encounters, isUnlocked = true)
                 Spacer(modifier = Modifier.height(4.dp))
             }
@@ -586,7 +585,7 @@ fun StatisticsSecondaryScreen() {
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                 }
-                items(lockedAchievements.take(5)) { achievement ->
+                items(lockedAchievements.take(5), key = { it.id }) { achievement ->
                     AchievementSecondaryRow(achievement, encounters, isUnlocked = false)
                     Spacer(modifier = Modifier.height(4.dp))
                 }
@@ -751,7 +750,6 @@ fun SettingsSecondaryScreenContent(
     onCreateNewMii: () -> Unit,
     onOpenProfileSettings: () -> Unit = {},
     onOpenAppSettings: () -> Unit = {},
-    onOpenQrExchange: () -> Unit = {},
     onOpenAuth: () -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -835,20 +833,20 @@ fun SettingsSecondaryScreenContent(
                         }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    Button(
+                    AeroButton(
                         onClick = { soundManager.playTap(); showSignOutConfirm = true },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828), contentColor = Color.White)
+                        cornerRadius = 12.dp,
+                        containerColor = Color(0xFFC62828),
+                        contentColor = Color.White
                     ) {
                         Text("Sign Out", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                     }
                 } else {
-                    Button(
+                    AeroButton(
                         onClick = { soundManager.playNavigate(); onOpenAuth() },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen, contentColor = Color.White)
+                        cornerRadius = 12.dp
                     ) {
                         Text("Sign In to Sync", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                     }
@@ -856,48 +854,21 @@ fun SettingsSecondaryScreenContent(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // QR Code button (requires login)
-                Button(
-                    onClick = {
-                        if (isLoggedIn) { soundManager.playNavigate(); onOpenQrExchange() }
-                        else { soundManager.playError() }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = isLoggedIn,
-                    colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen, contentColor = Color.White)
-                ) {
-                    Text(
-                        text = if (isLoggedIn) "Share QR Code" else "Sign in to Share QR Code",
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Button(
+                AeroButton(
                     onClick = { soundManager.playNavigate(); onOpenProfileSettings() },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = PocketPassGreen,
-                        contentColor = Color.White
-                    )
+                    cornerRadius = 12.dp
                 ) {
                     Text("Profile Settings", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Button(
+                AeroButton(
                     onClick = { soundManager.playNavigate(); onOpenAppSettings() },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = DarkText.copy(alpha = 0.7f),
-                        contentColor = Color.White
-                    )
+                    cornerRadius = 12.dp,
+                    containerColor = if (com.pocketpass.app.ui.theme.LocalDarkMode.current) Color(0xFF4A4A4A) else Color(0xFF6B6B6B)
                 ) {
                     Text("App Settings", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                 }
@@ -927,7 +898,7 @@ fun SettingsSecondaryScreenContent(
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            items(savedMiis) { miiHex ->
+            items(savedMiis, key = { it }) { miiHex ->
                 val isActive = miiHex == activeMiiHex
                 Row(
                     modifier = Modifier
@@ -966,17 +937,13 @@ fun SettingsSecondaryScreenContent(
 
             item {
                 Spacer(modifier = Modifier.height(12.dp))
-                Button(
+                AeroButton(
                     onClick = { if (canCreateNewMii) onCreateNewMii() },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = canCreateNewMii,
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (canCreateNewMii) DarkText.copy(alpha = 0.7f) else DarkText.copy(alpha = 0.3f),
-                        contentColor = OffWhite,
-                        disabledContainerColor = DarkText.copy(alpha = 0.3f),
-                        disabledContentColor = OffWhite.copy(alpha = 0.5f)
-                    )
+                    cornerRadius = 12.dp,
+                    containerColor = if (com.pocketpass.app.ui.theme.LocalDarkMode.current) Color(0xFF4A4A4A) else Color(0xFF6B6B6B),
+                    contentColor = OffWhite
                 ) {
                     Text(
                         text = if (canCreateNewMii) "Create New Mii" else "Max Miis (3/3)",
@@ -994,12 +961,13 @@ fun SettingsSecondaryScreenContent(
             title = { Text("Sign Out", fontWeight = FontWeight.Bold) },
             text = { Text("Are you sure you want to sign out? Your data is saved locally but won't sync until you sign back in.") },
             confirmButton = {
-                Button(
+                AeroButton(
                     onClick = {
                         showSignOutConfirm = false
                         coroutineScope.launch { authRepo.signOut() }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828), contentColor = Color.White)
+                    containerColor = Color(0xFFC62828),
+                    contentColor = Color.White
                 ) {
                     Text("Sign Out", fontWeight = FontWeight.Bold)
                 }

@@ -42,11 +42,64 @@
     <link rel="stylesheet" href="dist/main.css" />
   </head>
   <body>
+    <div id="loading-msg" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#666;">
+      <div style="text-align:center;">
+        <p style="font-size:18px;">Loading Mii Creator...</p>
+        <p id="error-msg" style="color:red;display:none;font-size:14px;max-width:80vw;"></p>
+      </div>
+    </div>
     <script>
       const global = {};
       const process = { env: { NODE_DEBUG: false } };
+      // Catch module load errors
+      window.onerror = function(msg, src, line, col, err) {
+        var el = document.getElementById('error-msg');
+        if (el) {
+          el.style.display = 'block';
+          if (msg && (msg.indexOf('reserved word') !== -1 || msg.indexOf('SyntaxError') !== -1)) {
+            el.textContent = 'Your System WebView (Chrome) is too old. Version 89+ is required. Please update Android System WebView from the Play Store or your app store.';
+          } else {
+            el.textContent = 'Error: ' + msg;
+          }
+          document.getElementById('loading-msg').querySelector('p').textContent = 'Mii Creator cannot load';
+        }
+        console.error('[MiiCreator] onerror:', msg, src, line, col, err);
+      };
+      // Check WebGL support
+      (function() {
+        var canvas = document.createElement('canvas');
+        var gl = canvas.getContext('webgl2') || canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+        if (!gl) {
+          var el = document.getElementById('error-msg');
+          if (el) { el.style.display = 'block'; el.textContent = 'WebGL is not supported on this device. Please update your System WebView from the Play Store.'; }
+          document.getElementById('loading-msg').querySelector('p').textContent = 'Mii Creator cannot load';
+        }
+      })();
     </script>
     <!-- <script src="https://cdn.jsdelivr.net/npm/spectorjs@0.9.30/dist/spector.bundle.js"></script> -->
     <script type="module" src="dist/main.js"></script>
+    <script type="module">
+      // Hide loading message once the app renders
+      var loadMsg = document.getElementById('loading-msg');
+      if (loadMsg) {
+        var observer = new MutationObserver(function() {
+          if (document.querySelector('canvas, .editor, .library-sidebar')) {
+            loadMsg.style.display = 'none';
+            observer.disconnect();
+          }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+        // Timeout fallback — if nothing renders in 15s, show error
+        setTimeout(function() {
+          if (loadMsg.style.display !== 'none') {
+            var el = document.getElementById('error-msg');
+            if (el && el.style.display === 'none') {
+              el.style.display = 'block';
+              el.textContent = 'Mii Creator failed to load. Your System WebView may be too old. Try updating it from the Play Store.';
+            }
+          }
+        }, 15000);
+      }
+    </script>
   </body>
 </html>

@@ -6,7 +6,9 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import androidx.datastore.preferences.core.Preferences
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "pocketpass_prefs")
@@ -42,9 +44,13 @@ class UserPreferences(private val context: Context) {
         val BINGO_PROGRESS = stringPreferencesKey("bingo_progress")
         val SPOTPASS_UNREAD = stringPreferencesKey("spotpass_unread")
         val STREAK_REWARDS_CLAIMED = stringPreferencesKey("streak_rewards_claimed")
+        val WORLD_TOUR_MILESTONES = stringPreferencesKey("world_tour_milestones")
     }
 
     private val gson = Gson()
+
+    /** Read the entire DataStore once, avoiding N independent reads. */
+    suspend fun snapshot(): Preferences = context.dataStore.data.first()
 
     /** Combined profile data to reduce recomposition triggers in PlazaScreen */
     data class ProfileData(
@@ -292,6 +298,20 @@ class UserPreferences(private val context: Context) {
         }
     }
 
+    suspend fun saveUserName(name: String) {
+        context.dataStore.edit { preferences ->
+            preferences[USER_NAME] = name
+        }
+    }
+
+    suspend fun saveProfileDetails(age: String, hobbies: String, origin: String) {
+        context.dataStore.edit { preferences ->
+            preferences[USER_AGE] = age
+            preferences[USER_HOBBIES] = hobbies
+            preferences[USER_ORIGIN] = origin
+        }
+    }
+
     suspend fun saveUserProfile(name: String, age: String, hobbies: String, origin: String) {
         context.dataStore.edit { preferences ->
             preferences[USER_NAME] = name
@@ -447,48 +467,62 @@ class UserPreferences(private val context: Context) {
      * @return number of tokens awarded in this call (0 if cap reached or not enough steps)
      */
     suspend fun processSteps(totalStepsSinceBoot: Int, maxStepTokensOverride: Int? = null): Int {
-        var awarded = 0
         val dailyCap = maxStepTokensOverride ?: TokenSystem.MAX_STEP_TOKENS_PER_DAY
-        context.dataStore.edit { prefs ->
-            val today = java.time.LocalDate.now().toString()
-            val savedDate = prefs[STEP_TOKENS_DATE] ?: ""
+        val today = java.time.LocalDate.now().toString()
 
-            // Reset daily counter if the date has changed
-            var tokensToday = if (savedDate == today) {
-                prefs[STEP_TOKENS_TODAY]?.toIntOrNull() ?: 0
+        // Read current state without writing — avoids disk I/O when no update is needed
+        val prefs = context.dataStore.data.first()
+        val savedDate = prefs[STEP_TOKENS_DATE] ?: ""
+        val tokensToday = if (savedDate == today) {
+            prefs[STEP_TOKENS_TODAY]?.toIntOrNull() ?: 0
+        } else {
+            0
+        }
+        if (tokensToday >= dailyCap) return 0
+
+        val baseline = prefs[STEP_COUNTER_BASELINE]?.toIntOrNull()
+        if (baseline == null) {
+            // First time — set baseline, no tokens yet
+            context.dataStore.edit { mutablePrefs ->
+                mutablePrefs[STEP_COUNTER_BASELINE] = totalStepsSinceBoot.toString()
+                mutablePrefs[STEP_TOKENS_DATE] = today
+                mutablePrefs[STEP_TOKENS_TODAY] = tokensToday.toString()
+            }
+            return 0
+        }
+
+        val stepsSinceBaseline = totalStepsSinceBoot - baseline
+        if (stepsSinceBaseline < TokenSystem.STEPS_PER_TOKEN) return 0
+
+        // Enough steps accumulated — write the update
+        var awarded = 0
+        context.dataStore.edit { mutablePrefs ->
+            // Re-read inside edit for atomicity
+            val currentBaseline = mutablePrefs[STEP_COUNTER_BASELINE]?.toIntOrNull() ?: return@edit
+            val currentDate = mutablePrefs[STEP_TOKENS_DATE] ?: ""
+            var currentTokensToday = if (currentDate == today) {
+                mutablePrefs[STEP_TOKENS_TODAY]?.toIntOrNull() ?: 0
             } else {
                 0
             }
+            if (currentTokensToday >= dailyCap) return@edit
 
-            if (tokensToday >= dailyCap) return@edit
+            val steps = totalStepsSinceBoot - currentBaseline
+            if (steps < TokenSystem.STEPS_PER_TOKEN) return@edit
 
-            val baseline = prefs[STEP_COUNTER_BASELINE]?.toIntOrNull()
-            if (baseline == null) {
-                // First time — set baseline, no tokens yet
-                prefs[STEP_COUNTER_BASELINE] = totalStepsSinceBoot.toString()
-                prefs[STEP_TOKENS_DATE] = today
-                prefs[STEP_TOKENS_TODAY] = tokensToday.toString()
-                return@edit
-            }
-
-            val stepsSinceBaseline = totalStepsSinceBoot - baseline
-            if (stepsSinceBaseline < TokenSystem.STEPS_PER_TOKEN) return@edit
-
-            // How many tokens can we award from steps taken?
-            val earnableTokens = stepsSinceBaseline / TokenSystem.STEPS_PER_TOKEN
-            val remaining = dailyCap - tokensToday
+            val earnableTokens = steps / TokenSystem.STEPS_PER_TOKEN
+            val remaining = dailyCap - currentTokensToday
             awarded = minOf(earnableTokens, remaining)
 
             if (awarded > 0) {
-                val current = prefs[TOKEN_BALANCE]?.toIntOrNull() ?: 0
-                prefs[TOKEN_BALANCE] = (current + awarded).toString()
-                tokensToday += awarded
-                // Advance baseline by the steps that were "consumed" for tokens
-                prefs[STEP_COUNTER_BASELINE] = (baseline + awarded * TokenSystem.STEPS_PER_TOKEN).toString()
+                val current = mutablePrefs[TOKEN_BALANCE]?.toIntOrNull() ?: 0
+                mutablePrefs[TOKEN_BALANCE] = (current + awarded).toString()
+                currentTokensToday += awarded
+                mutablePrefs[STEP_COUNTER_BASELINE] = (currentBaseline + awarded * TokenSystem.STEPS_PER_TOKEN).toString()
             }
 
-            prefs[STEP_TOKENS_DATE] = today
-            prefs[STEP_TOKENS_TODAY] = tokensToday.toString()
+            mutablePrefs[STEP_TOKENS_DATE] = today
+            mutablePrefs[STEP_TOKENS_TODAY] = currentTokensToday.toString()
         }
         return awarded
     }
@@ -561,6 +595,37 @@ class UserPreferences(private val context: Context) {
             // Award tokens
             val currentTokens = preferences[TOKEN_BALANCE]?.toIntOrNull() ?: 0
             preferences[TOKEN_BALANCE] = (currentTokens + tier.reward).toString()
+        }
+    }
+
+    // ── World Tour Milestones ──
+
+    val claimedWorldTourMilestonesFlow: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        val json = prefs[WORLD_TOUR_MILESTONES]
+        if (json != null) {
+            try {
+                val type = object : TypeToken<Set<String>>() {}.type
+                gson.fromJson<Set<String>>(json, type) ?: emptySet()
+            } catch (e: Exception) { emptySet() }
+        } else emptySet()
+    }
+
+    suspend fun claimWorldTourMilestone(milestoneName: String, reward: Int) {
+        context.dataStore.edit { preferences ->
+            val json = preferences[WORLD_TOUR_MILESTONES]
+            val current: MutableSet<String> = if (json != null) {
+                try {
+                    val type = object : TypeToken<Set<String>>() {}.type
+                    val parsed: Set<String> = gson.fromJson(json, type) ?: emptySet()
+                    parsed.toMutableSet()
+                } catch (e: Exception) { mutableSetOf() }
+            } else { mutableSetOf() }
+            current.add(milestoneName)
+            preferences[WORLD_TOUR_MILESTONES] = gson.toJson(current)
+
+            // Award tokens
+            val currentTokens = preferences[TOKEN_BALANCE]?.toIntOrNull() ?: 0
+            preferences[TOKEN_BALANCE] = (currentTokens + reward).toString()
         }
     }
 

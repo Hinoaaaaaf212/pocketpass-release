@@ -18,14 +18,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +47,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.SyncRepository
 import com.pocketpass.app.data.UserPreferences
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
@@ -129,12 +128,8 @@ fun ProfileSettingsScreen(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         // Greeting Section
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(OffWhite)
-                                .padding(16.dp)
+                        AeroCard(
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             var greetingSaved by remember { mutableStateOf(false) }
 
@@ -145,7 +140,7 @@ fun ProfileSettingsScreen(
                                 }
                             }
 
-                            Column {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
                                     text = "Greeting Message",
                                     style = MaterialTheme.typography.bodyLarge,
@@ -169,7 +164,7 @@ fun ProfileSettingsScreen(
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         rowGreetings.forEach { greeting ->
-                                            Button(
+                                            AeroButton(
                                                 onClick = {
                                                     soundManager.playTap()
                                                     customGreeting = greeting
@@ -181,10 +176,8 @@ fun ProfileSettingsScreen(
                                                 modifier = Modifier
                                                     .weight(1f)
                                                     .height(48.dp),
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = if (userGreeting == greeting) PocketPassGreen else DarkText.copy(alpha = 0.7f)
-                                                ),
-                                                shape = RoundedCornerShape(12.dp)
+                                                containerColor = if (userGreeting == greeting) PocketPassGreen else if (com.pocketpass.app.ui.theme.LocalDarkMode.current) Color(0xFF4A4A4A) else Color(0xFF6B6B6B),
+                                                cornerRadius = 12.dp
                                             ) {
                                                 Text(
                                                     text = greeting.take(15) + if (greeting.length > 15) "..." else "",
@@ -205,7 +198,7 @@ fun ProfileSettingsScreen(
                                     singleLine = true
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
-                                Button(
+                                AeroButton(
                                     onClick = {
                                         soundManager.playSuccess()
                                         coroutineScope.launch {
@@ -214,10 +207,9 @@ fun ProfileSettingsScreen(
                                         }
                                         greetingSaved = true
                                     },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(if (greetingSaved) "Saved!" else "Save Custom Greeting")
+                                    Text(if (greetingSaved) "Saved!" else "Save Custom Greeting", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -227,14 +219,10 @@ fun ProfileSettingsScreen(
 
                     item {
                         // Mood Selector
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(OffWhite)
-                                .padding(16.dp)
+                        AeroCard(
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
                                     text = "Mood",
                                     style = MaterialTheme.typography.bodyLarge,
@@ -299,12 +287,8 @@ fun ProfileSettingsScreen(
 
                     item {
                         // About Me Section
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(OffWhite)
-                                .padding(16.dp)
+                        AeroCard(
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             val currentAge by userPreferences.userAgeFlow.collectAsState(initial = null)
                             val currentHobbies by userPreferences.userHobbiesFlow.collectAsState(initial = null)
@@ -319,7 +303,7 @@ fun ProfileSettingsScreen(
                                 }
                             }
 
-                            Column {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
                                     text = "About Me",
                                     style = MaterialTheme.typography.bodyLarge,
@@ -346,14 +330,20 @@ fun ProfileSettingsScreen(
 
                                 OutlinedTextField(
                                     value = hobbiesText,
-                                    onValueChange = { hobbiesText = it },
-                                    label = { Text("Hobby (e.g. Gaming, Drawing)") },
+                                    onValueChange = { hobbiesText = com.pocketpass.app.ui.theme.formatHobbiesInput(it) },
+                                    label = { Text("Hobbies (separate with spaces)") },
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true
                                 )
+
+                                if (hobbiesText.isNotBlank()) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    com.pocketpass.app.ui.theme.HobbyChips(hobbiesText)
+                                }
+
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                Button(
+                                AeroButton(
                                     onClick = {
                                         soundManager.playSuccess()
                                         coroutineScope.launch {
@@ -363,10 +353,9 @@ fun ProfileSettingsScreen(
                                         }
                                         showSaved = true
                                     },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(if (showSaved) "Saved!" else "Save")
+                                    Text(if (showSaved) "Saved!" else "Save", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -379,14 +368,10 @@ fun ProfileSettingsScreen(
                         val ownedItems by userPreferences.ownedShopItemsFlow.collectAsState(initial = emptySet())
                         val ownedThemes = ShopItems.cardThemes.filter { it.id in ownedItems }
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(OffWhite)
-                                .padding(16.dp)
+                        AeroCard(
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
                                     text = "Card Style",
                                     style = MaterialTheme.typography.bodyLarge,
@@ -435,14 +420,10 @@ fun ProfileSettingsScreen(
 
                     item {
                         // Favourite Games
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(OffWhite)
-                                .padding(16.dp)
+                        AeroCard(
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Column {
+                            Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
                                     text = "Favourite Games",
                                     style = MaterialTheme.typography.bodyLarge,
@@ -515,14 +496,10 @@ fun ProfileSettingsScreen(
                                 }
 
                                 if (selectedGames.size < 3) {
-                                    Button(
+                                    AeroButton(
                                         onClick = { soundManager.playNavigate(); onOpenGameSearch() },
                                         modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(
-                                            containerColor = PocketPassGreen,
-                                            contentColor = OffWhite
-                                        )
+                                        cornerRadius = 12.dp
                                     ) {
                                         Text(
                                             if (selectedGames.isEmpty()) "Add Games" else "Add Another Game",

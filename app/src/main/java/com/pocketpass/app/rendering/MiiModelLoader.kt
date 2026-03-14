@@ -194,7 +194,7 @@ object MiiModelLoader {
                 val cacheFile = File(cacheDir, "$fileBase.glb")
 
                 if (cacheFile.exists() && cacheFile.length() > 0 && !needsRepatch(cacheFile)) {
-                    return@withContext HeadGlbResult(cacheFile.readBytes(), cacheDir)
+                    return@withContext HeadGlbResult(cacheFile.readBytes(), cacheDir, fileBase)
                 }
 
                 val url = buildHeadGlbUrl(avatarHex)
@@ -202,7 +202,7 @@ object MiiModelLoader {
                 val rawBytes = URL(url).readBytes()
                 val bytes = patchHeadGlb(rawBytes, cacheDir, fileBase)
                 cacheFile.writeBytes(bytes)
-                HeadGlbResult(bytes, cacheDir)
+                HeadGlbResult(bytes, cacheDir, fileBase)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to download head GLB bytes", e)
                 null
@@ -210,7 +210,7 @@ object MiiModelLoader {
         }
     }
 
-    data class HeadGlbResult(val glbBytes: ByteArray, val textureDir: File)
+    data class HeadGlbResult(val glbBytes: ByteArray, val textureDir: File, val fileBase: String)
 
     /**
      * Download a non-bundled hat GLB from a remote source.

@@ -33,8 +33,6 @@ data class AppDimensions(
     val gameCoverHeight: Dp,
     /** Chat message max width */
     val chatBubbleMaxWidth: Dp,
-    /** QR code display size */
-    val qrCodeSize: Dp,
     /** Mood icon size in detail views */
     val moodIconSize: Dp,
     /** Whether layout is compact (phone portrait) */
@@ -60,7 +58,6 @@ private fun compactDimensions(width: Int, height: Int) = AppDimensions(
     gameCoverWidth = 50.dp,
     gameCoverHeight = 67.dp,
     chatBubbleMaxWidth = (width * 0.75f).dp,
-    qrCodeSize = 140.dp,
     moodIconSize = 36.dp,
     isCompact = true,
     screenWidthDp = width,
@@ -79,7 +76,6 @@ private fun mediumDimensions(width: Int, height: Int) = AppDimensions(
     gameCoverWidth = 60.dp,
     gameCoverHeight = 80.dp,
     chatBubbleMaxWidth = 280.dp,
-    qrCodeSize = 160.dp,
     moodIconSize = 48.dp,
     isCompact = false,
     screenWidthDp = width,
@@ -98,7 +94,6 @@ private fun expandedDimensions(width: Int, height: Int) = AppDimensions(
     gameCoverWidth = 70.dp,
     gameCoverHeight = 94.dp,
     chatBubbleMaxWidth = 280.dp,
-    qrCodeSize = 180.dp,
     moodIconSize = 56.dp,
     isCompact = false,
     screenWidthDp = width,

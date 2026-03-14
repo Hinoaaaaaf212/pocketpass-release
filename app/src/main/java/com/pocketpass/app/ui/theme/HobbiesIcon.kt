@@ -1,9 +1,19 @@
 package com.pocketpass.app.ui.theme
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
@@ -12,6 +22,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
 /**
@@ -137,5 +148,63 @@ fun HobbiesIcon(modifier: Modifier = Modifier) {
         )
         drawCircle(color = Color(0xFFE53935), radius = w * 0.055f, center = bristleTip)
         drawCircle(color = outlineColor, radius = w * 0.055f, center = bristleTip, style = Stroke(width = strokeW * 0.5f))
+    }
+}
+
+/**
+ * Split a hobbies string (comma or space-separated) into individual hobby strings.
+ * Each word is capitalized. Empty/blank entries are dropped.
+ */
+fun parseHobbies(raw: String): List<String> =
+    raw.split(",", " ")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .map { it.replaceFirstChar { c -> c.uppercaseChar() } }
+
+/**
+ * Auto-format hobbies text as the user types: capitalize each word.
+ * Spaces act as separators between hobbies.
+ */
+fun formatHobbiesInput(input: String): String =
+    input.split(" ").joinToString(" ") { word ->
+        if (word.isNotEmpty()) word.replaceFirstChar { it.uppercaseChar() } else word
+    }
+
+/**
+ * Display hobbies as individual rounded chips in a flow layout.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun HobbyChips(
+    hobbies: String,
+    modifier: Modifier = Modifier
+) {
+    val chips = parseHobbies(hobbies)
+    if (chips.isEmpty()) return
+
+    val isDark = LocalDarkMode.current
+    val chipBg = if (isDark) Color(0xFF3A5A2A) else PocketPassGreen.copy(alpha = 0.12f)
+    val chipText = if (isDark) Color(0xFFA8E063) else Color(0xFF2E7D0E)
+
+    FlowRow(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        for (hobby in chips) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(chipBg)
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    text = hobby,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = chipText
+                )
+            }
+        }
     }
 }

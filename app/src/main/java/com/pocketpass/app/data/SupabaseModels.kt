@@ -27,6 +27,8 @@ data class SupabaseProfile(
     @SerialName("sfx_volume") val sfxVolume: Float = 0.5f,
     @SerialName("is_male") val isMale: Boolean = true,
     @SerialName("friend_code") val friendCode: String = "",
+    @SerialName("public_key") val publicKey: String = "",
+    @SerialName("encrypted_key_backup") val encryptedKeyBackup: String = "",
     @SerialName("updated_at") val updatedAt: String? = null
 )
 

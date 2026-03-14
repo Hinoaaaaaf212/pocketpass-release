@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -27,10 +26,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -82,6 +78,8 @@ import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.ErrorText
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.RegionFlags
 import com.pocketpass.app.util.gamepadFocusable
@@ -221,17 +219,16 @@ fun FriendsScreen(
                 // Add Friend button
                 if (isLoggedIn) {
                     val addFocus = remember { FocusRequester() }
-                    Button(
+                    AeroButton(
                         onClick = { soundManager.playSelect(); showFriendCodeDialog = true },
                         modifier = Modifier.gamepadFocusable(
                             focusRequester = addFocus,
                             shape = RoundedCornerShape(12.dp),
                             onSelect = { soundManager.playSelect(); showFriendCodeDialog = true }
                         ),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = OffWhite),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        cornerRadius = 12.dp,
+                        containerColor = OffWhite,
+                        contentColor = PocketPassGreen
                     ) {
                         Icon(Icons.Filled.Add, contentDescription = "Add", tint = PocketPassGreen, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
@@ -241,17 +238,16 @@ fun FriendsScreen(
                 }
                 // History button (moved from nav bar)
                 val historyFocus = remember { FocusRequester() }
-                Button(
+                AeroButton(
                     onClick = { soundManager.playNavigate(); onOpenHistory() },
                     modifier = Modifier.gamepadFocusable(
                         focusRequester = historyFocus,
                         shape = RoundedCornerShape(12.dp),
                         onSelect = { soundManager.playNavigate(); onOpenHistory() }
                     ),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = OffWhite),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                    cornerRadius = 12.dp,
+                    containerColor = OffWhite,
+                    contentColor = DarkText
                 ) {
                     Icon(Icons.Filled.List, contentDescription = "History", tint = DarkText, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
@@ -415,10 +411,10 @@ private fun FriendCodeDialog(
     }
 
     Dialog(onDismissRequest = onDismiss) {
-        Card(
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = OffWhite),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        AeroCard(
+            cornerRadius = 16.dp,
+            containerColor = OffWhite,
+            elevation = 8.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(
@@ -524,12 +520,12 @@ private fun FriendCodeDialog(
                 }
 
                 // Send request button
-                Button(
+                AeroButton(
                     onClick = {
                         if (codeInput.length != 8) {
                             statusMessage = "Enter a full 8-digit code"
                             isError = true
-                            return@Button
+                            return@AeroButton
                         }
                         isLoading = true
                         statusMessage = null
@@ -556,8 +552,8 @@ private fun FriendCodeDialog(
                     },
                     enabled = codeInput.length == 8 && !isLoading,
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
+                    cornerRadius = 12.dp,
+                    containerColor = PocketPassGreen
                 ) {
                     if (isLoading) {
                         CircularProgressIndicator(
@@ -622,11 +618,11 @@ private fun PendingRequestsBanner(
             val displayName = profile?.userName ?: matchingEncounter?.otherUserName ?: "Unknown"
             val avatarHex = profile?.avatarHex ?: matchingEncounter?.otherUserAvatarHex ?: ""
 
-            Card(
+            AeroCard(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(containerColor = OffWhite),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                cornerRadius = 12.dp,
+                containerColor = OffWhite,
+                elevation = 2.dp
             ) {
                 Row(
                     modifier = Modifier
@@ -665,7 +661,7 @@ private fun PendingRequestsBanner(
                     )
 
                     // Accept button
-                    Button(
+                    AeroButton(
                         onClick = {
                             soundManager.playSuccess()
                             coroutineScope.launch {
@@ -697,9 +693,8 @@ private fun PendingRequestsBanner(
                             }
                         },
                         modifier = Modifier.height(36.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
+                        cornerRadius = 12.dp,
+                        containerColor = PocketPassGreen
                     ) {
                         Text("Accept", style = MaterialTheme.typography.labelMedium)
                     }
@@ -742,18 +737,18 @@ fun FriendCard(
     onClick: () -> Unit
 ) {
     val dims = LocalAppDimensions.current
-    Card(
+    AeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .height(dims.friendCardHeight)
             .gamepadFocusable(
                 shape = RoundedCornerShape(16.dp),
                 onSelect = onClick
-            )
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = OffWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ),
+        cornerRadius = 16.dp,
+        containerColor = OffWhite,
+        elevation = 4.dp,
+        onClick = onClick
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -881,11 +876,11 @@ fun FriendDetailDialog(
 
     val detailDims = LocalAppDimensions.current
     Dialog(onDismissRequest = onDismiss) {
-        Card(
+        AeroCard(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = OffWhite),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            cornerRadius = 24.dp,
+            containerColor = OffWhite,
+            elevation = 8.dp
         ) {
             Column(
                 modifier = Modifier
@@ -964,22 +959,14 @@ fun FriendDetailDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalAlignment = Alignment.Top
                     ) {
                         com.pocketpass.app.ui.theme.HobbiesIcon(
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "Hobbies: ",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MediumText
-                        )
-                        Text(
-                            text = encounter.hobbies,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = DarkText,
+                        com.pocketpass.app.ui.theme.HobbyChips(
+                            encounter.hobbies,
                             modifier = Modifier.weight(1f)
                         )
                     }
@@ -1020,14 +1007,14 @@ fun FriendDetailDialog(
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.weight(1f)
                                 )
-                                Button(
+                                AeroButton(
                                     onClick = {
                                         soundManager.playTap()
                                         onDismiss()
                                         onOpenChat(encounter.otherUserId, encounter.otherUserName, encounter.otherUserAvatarHex)
                                     },
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
+                                    cornerRadius = 12.dp,
+                                    containerColor = PocketPassGreen
                                 ) {
                                     Text("Message", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                                 }
@@ -1067,15 +1054,13 @@ fun FriendDetailDialog(
                         }
                         // I sent a pending request
                         fs != null && fs.status == "pending" && fs.requesterId == myUserId -> {
-                            Button(
+                            AeroButton(
                                 onClick = { },
                                 modifier = Modifier.fillMaxWidth(),
                                 enabled = false,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    disabledContainerColor = if (isDark) Color(0xFF444444) else Color(0xFFE0E0E0),
-                                    disabledContentColor = MediumText
-                                )
+                                cornerRadius = 12.dp,
+                                containerColor = if (isDark) Color(0xFF444444) else Color(0xFFE0E0E0),
+                                contentColor = MediumText
                             ) {
                                 Text("Request Sent", fontWeight = FontWeight.Bold)
                             }
@@ -1086,7 +1071,7 @@ fun FriendDetailDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Button(
+                                AeroButton(
                                     onClick = {
                                         soundManager.playSuccess()
                                         coroutineScope.launch {
@@ -1098,8 +1083,8 @@ fun FriendDetailDialog(
                                         }
                                     },
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
+                                    cornerRadius = 12.dp,
+                                    containerColor = PocketPassGreen
                                 ) {
                                     Text("Accept", fontWeight = FontWeight.Bold)
                                 }
@@ -1127,7 +1112,7 @@ fun FriendDetailDialog(
                         }
                         // No friendship exists
                         else -> {
-                            Button(
+                            AeroButton(
                                 onClick = {
                                     soundManager.playSuccess()
                                     friendshipLoading = true
@@ -1141,8 +1126,8 @@ fun FriendDetailDialog(
                                     }
                                 },
                                 modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
+                                cornerRadius = 12.dp,
+                                containerColor = PocketPassGreen
                             ) {
                                 Text("Add Friend", fontWeight = FontWeight.Bold)
                             }
@@ -1181,7 +1166,7 @@ fun FriendDetailDialog(
                         }
                     }
 
-                    Button(
+                    AeroButton(
                         onClick = { soundManager.playBack(); onDismiss() },
                         modifier = Modifier
                             .weight(1f)
@@ -1189,7 +1174,7 @@ fun FriendDetailDialog(
                                 shape = RoundedCornerShape(24.dp),
                                 onSelect = { soundManager.playBack(); onDismiss() }
                             ),
-                        colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen)
+                        containerColor = PocketPassGreen
                     ) {
                         Text("Close")
                     }

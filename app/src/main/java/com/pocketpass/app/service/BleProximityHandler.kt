@@ -21,6 +21,8 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.os.ParcelUuid
 import android.util.Log
 import java.util.UUID
@@ -58,6 +60,9 @@ class BleProximityHandler(
         // BLE can transfer larger payloads via GATT, but chunk if needed
         private const val MAX_CHUNK_SIZE = 512
         private const val MAX_PAYLOAD_SIZE = ExchangePayload.MAX_PAYLOAD_SIZE_BYTES
+
+        // GATT connection timeout — older BLE stacks can hang indefinitely
+        private const val GATT_CONNECT_TIMEOUT_MS = 10_000L
     }
 
     private var bluetoothManager: BluetoothManager? = null
@@ -76,6 +81,13 @@ class BleProximityHandler(
     // Buffer for incoming chunked writes from GATT clients
     private val incomingBuffers: MutableMap<String, StringBuilder> = Collections.synchronizedMap(mutableMapOf())
 
+    // Track BT addresses that have written to the PocketPass write characteristic
+    private val knownPocketPassDevices: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
+
+    // Timeout handler for stuck GATT connections
+    private val timeoutHandler = Handler(Looper.getMainLooper())
+    private val pendingGatts: MutableMap<String, BluetoothGatt> = Collections.synchronizedMap(mutableMapOf())
+
     fun start() {
         bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         bluetoothAdapter = bluetoothManager?.adapter
@@ -91,12 +103,15 @@ class BleProximityHandler(
     }
 
     fun stop() {
+        cancelTimeouts()
         stopAdvertising()
         stopScanning()
         stopGattServer()
         exchangedAddresses.clear()
         pendingConnections.clear()
+        pendingGatts.clear()
         incomingBuffers.clear()
+        knownPocketPassDevices.clear()
     }
 
     // ── GATT Server (so other devices can read our payload) ──
@@ -150,6 +165,12 @@ class BleProximityHandler(
             offset: Int,
             characteristic: BluetoothGattCharacteristic
         ) {
+            // Reject reads from devices that haven't written a PocketPass payload
+            if (device.address !in knownPocketPassDevices) {
+                try { gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null) } catch (_: SecurityException) {}
+                return
+            }
+
             if (characteristic.uuid == PAYLOAD_READ_CHAR_UUID) {
                 try {
                     val payload = getMyPayload().toByteArray(Charsets.UTF_8)
@@ -163,6 +184,8 @@ class BleProximityHandler(
                 } catch (e: SecurityException) {
                     Log.e(TAG, "Security exception on read request", e)
                 }
+            } else {
+                try { gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null) } catch (_: SecurityException) {}
             }
         }
 
@@ -178,6 +201,7 @@ class BleProximityHandler(
             if (characteristic.uuid == PAYLOAD_WRITE_CHAR_UUID && value != null) {
                 try {
                     val address = device.address
+                    knownPocketPassDevices.add(address)
                     val existingLength = incomingBuffers[address]?.length ?: 0
 
                     // Drop writes that would exceed the payload size limit
@@ -221,7 +245,17 @@ class BleProximityHandler(
                 } catch (e: SecurityException) {
                     Log.e(TAG, "Security exception on write request", e)
                 }
+            } else {
+                if (responseNeeded) {
+                    try { gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null) } catch (_: SecurityException) {}
+                }
             }
+        }
+
+        override fun onExecuteWrite(device: BluetoothDevice, requestId: Int, execute: Boolean) {
+            try {
+                gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
+            } catch (_: SecurityException) {}
         }
 
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
@@ -230,6 +264,7 @@ class BleProximityHandler(
                 if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                     Log.d(TAG, "GATT server: device disconnected: $address")
                     incomingBuffers.remove(address)
+                    knownPocketPassDevices.remove(address)
                 }
             } catch (e: SecurityException) {
                 Log.e(TAG, "Security exception on connection state change", e)
@@ -249,7 +284,7 @@ class BleProximityHandler(
 
         try {
             val settings = AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .setConnectable(true)
                 .build()
@@ -306,7 +341,7 @@ class BleProximityHandler(
                 .build()
 
             val settings = ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
                 .build()
 
             scanner?.startScan(listOf(filter), settings, scanCallback)
@@ -398,9 +433,12 @@ class BleProximityHandler(
 
     private fun connectToDevice(device: BluetoothDevice) {
         try {
-            device.connectGatt(context, false, object : BluetoothGattCallback() {
+            val gattRef = device.connectGatt(context, false, object : BluetoothGattCallback() {
                 override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
                     try {
+                        // Cancel timeout — we got a response
+                        pendingGatts.remove(device.address)
+
                         if (newState == BluetoothProfile.STATE_CONNECTED) {
                             Log.d(TAG, "GATT client connected to ${device.address}, discovering services...")
                             gatt.discoverServices()
@@ -416,6 +454,7 @@ class BleProximityHandler(
                 }
 
                 override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+                    pendingGatts.remove(device.address)
                     if (status != BluetoothGatt.GATT_SUCCESS) {
                         Log.e(TAG, "Service discovery failed for ${device.address}")
                         pendingConnections.remove(device.address)
@@ -506,6 +545,23 @@ class BleProximityHandler(
                 }
             })
 
+            // Store GATT ref and schedule timeout to clean up stuck connections
+            if (gattRef != null) {
+                pendingGatts[device.address] = gattRef
+                timeoutHandler.postDelayed({
+                    val stuckGatt = pendingGatts.remove(device.address)
+                    if (stuckGatt != null) {
+                        Log.w(TAG, "GATT connection to ${device.address} timed out, closing")
+                        pendingConnections.remove(device.address)
+                        onDeviceFound(device.address, "timeout")
+                        try {
+                            stuckGatt.disconnect()
+                            stuckGatt.close()
+                        } catch (_: Exception) {}
+                    }
+                }, GATT_CONNECT_TIMEOUT_MS)
+            }
+
             // Mark scanning as active since we're getting results
             if (!isScanning) {
                 isScanning = true
@@ -515,5 +571,11 @@ class BleProximityHandler(
             Log.e(TAG, "Missing BT permission to connect GATT", e)
             pendingConnections.remove(device.address)
         }
+    }
+
+    /** Cancel all pending connection timeouts */
+    private fun cancelTimeouts() {
+        timeoutHandler.removeCallbacksAndMessages(null)
+        pendingGatts.clear()
     }
 }

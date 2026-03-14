@@ -54,9 +54,9 @@
 }
 -keep class com.pocketpass.app.data.NativeKeys { *; }
 
-# ── ZXing ──
--keep class com.google.zxing.** { *; }
--keep class com.journeyapps.barcodescanner.** { *; }
+# ── Tink (crypto) ──
+-keep class com.google.crypto.tink.** { *; }
+-dontwarn com.google.crypto.tink.**
 
 # ── Accompanist ──
 -dontwarn com.google.accompanist.**

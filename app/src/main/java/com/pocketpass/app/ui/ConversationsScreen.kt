@@ -24,8 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
+import com.pocketpass.app.ui.theme.AeroCard
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -53,7 +52,6 @@ import com.pocketpass.app.data.MessageRepository
 import com.pocketpass.app.data.getCurrentTier
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
-import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
@@ -191,7 +189,7 @@ private fun ConversationCard(
     conversation: ConversationSummary,
     onClick: () -> Unit
 ) {
-    Card(
+    AeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .gamepadFocusable(
@@ -199,9 +197,7 @@ private fun ConversationCard(
                 onSelect = onClick
             )
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = OffWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        containerColor = OffWhite
     ) {
         Row(
             modifier = Modifier

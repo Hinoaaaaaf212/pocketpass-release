@@ -7,7 +7,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,10 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -57,6 +52,8 @@ import com.pocketpass.app.data.SpotPassItemEntity
 import com.pocketpass.app.data.SpotPassRepository
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.data.parseEventEffect
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.GreenText
@@ -81,8 +78,9 @@ fun SpotPassInboxScreen(
 
     val items by repo.allItems.collectAsState(initial = emptyList())
 
-    // Clear unread counter when screen opens
+    // Mark all items as read when screen opens
     LaunchedEffect(Unit) {
+        repo.markAllAsRead()
         userPreferences.clearSpotPassUnread()
     }
 
@@ -209,13 +207,9 @@ private fun SpotPassItemCard(
         if (!item.isRead) onRead()
     }
 
-    Card(
+    AeroCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (!item.isRead) OffWhite else OffWhite.copy(alpha = 0.7f)
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (!item.isRead) 4.dp else 2.dp)
+        containerColor = if (!item.isRead) OffWhite else OffWhite.copy(alpha = 0.7f)
     ) {
         Row(
             modifier = Modifier
@@ -351,13 +345,8 @@ private fun SpotPassItemCard(
                             )
                         }
                         isPuzzle && !item.isClaimed -> {
-                            Button(
+                            AeroButton(
                                 onClick = onClaim,
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = PocketPassGreen,
-                                    contentColor = Color.White
-                                ),
-                                shape = RoundedCornerShape(8.dp),
                                 modifier = Modifier.height(32.dp)
                             ) {
                                 Text(

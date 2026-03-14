@@ -5,7 +5,6 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInHorizontally
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,8 +21,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,9 +37,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -52,6 +47,9 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import com.pocketpass.app.data.AuthRepository
 import com.pocketpass.app.data.SyncRepository
+import com.pocketpass.app.data.UserPreferences
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
@@ -80,6 +78,7 @@ fun AuthScreen(
     val soundManager = LocalSoundManager.current
     val authRepo = remember { AuthRepository() }
     val syncRepo = remember { SyncRepository(context) }
+    val userPreferences = remember { UserPreferences(context) }
 
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -112,19 +111,8 @@ fun AuthScreen(
                         .padding(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    val backFocus = remember { FocusRequester() }
-                    if (setupMode) {
-                        TextButton(
-                            onClick = { soundManager.playBack(); onBack() },
-                            modifier = Modifier.gamepadFocusable(
-                                focusRequester = backFocus,
-                                shape = RoundedCornerShape(8.dp),
-                                onSelect = { soundManager.playBack(); onBack() }
-                            )
-                        ) {
-                            Text("Skip", color = DarkText, fontWeight = FontWeight.SemiBold)
-                        }
-                    } else {
+                    if (!setupMode) {
+                        val backFocus = remember { FocusRequester() }
                         IconButton(
                             onClick = { soundManager.playBack(); onBack() },
                             modifier = Modifier.gamepadFocusable(
@@ -153,14 +141,15 @@ fun AuthScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(24.dp))
-                            .background(OffWhite)
-                            .padding(24.dp)
+                    AeroCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 24.dp,
+                        containerColor = OffWhite
                     ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
                             Text(
                                 text = if (isSignUp) "Sign up to sync your data" else "Welcome back!",
                                 style = MaterialTheme.typography.bodyLarge,
@@ -231,7 +220,7 @@ fun AuthScreen(
                             Spacer(modifier = Modifier.height(20.dp))
 
                             // Submit button
-                            Button(
+                            AeroButton(
                                 onClick = {
                                     errorMessage = null
                                     successMessage = null
@@ -243,25 +232,25 @@ fun AuthScreen(
                                     val hasInternet = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
                                     if (!hasInternet) {
                                         errorMessage = "No internet connection. Please connect to the internet to create an account."
-                                        return@Button
+                                        return@AeroButton
                                     }
 
                                     // Validate
                                     if (username.length < 3) {
                                         errorMessage = "Username must be at least 3 characters"
-                                        return@Button
+                                        return@AeroButton
                                     }
                                     if (password.length < 6) {
                                         errorMessage = "Password must be at least 6 characters"
-                                        return@Button
+                                        return@AeroButton
                                     }
 
                                     isLoading = true
                                     coroutineScope.launch {
                                         val result = if (isSignUp) {
-                                            authRepo.signUp(username, password)
+                                            authRepo.signUp(username, password, context)
                                         } else {
-                                            authRepo.signIn(username, password)
+                                            authRepo.signIn(username, password, context)
                                         }
 
                                         result.onSuccess {
@@ -282,6 +271,10 @@ fun AuthScreen(
                                                     onAuthSuccess()
                                                 }
                                             } else {
+                                                // Save signup username as display name
+                                                if (isSignUp) {
+                                                    userPreferences.saveUserName(username.trim())
+                                                }
                                                 soundManager.playSuccess()
                                                 // Run full sync after auth
                                                 try {
@@ -309,11 +302,9 @@ fun AuthScreen(
                                     .fillMaxWidth()
                                     .height(48.dp),
                                 enabled = !isLoading && username.length >= 3 && password.length >= 6,
-                                shape = RoundedCornerShape(12.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = PocketPassGreen,
-                                    contentColor = OffWhite
-                                )
+                                containerColor = PocketPassGreen,
+                                contentColor = OffWhite,
+                                cornerRadius = 12.dp
                             ) {
                                 if (isLoading) {
                                     CircularProgressIndicator(

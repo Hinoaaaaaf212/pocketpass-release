@@ -26,8 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -57,6 +55,7 @@ import com.pocketpass.app.data.SupabaseLeaderboardEntry
 import com.pocketpass.app.data.SyncRepository
 import com.pocketpass.app.ui.CheckeredBackground
 import com.pocketpass.app.ui.MiiAvatarViewer
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.LocalDarkMode
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
@@ -301,11 +300,11 @@ private fun LeaderboardRow(
         if (isDark) Color(0xFF2A4020) else Color(0xFFDFF2D0)
     } else OffWhite
 
-    Card(
+    AeroCard(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isCurrentUser) 6.dp else 2.dp)
+        cornerRadius = 16.dp,
+        containerColor = backgroundColor,
+        elevation = if (isCurrentUser) 6.dp else 2.dp
     ) {
         Row(
             modifier = Modifier

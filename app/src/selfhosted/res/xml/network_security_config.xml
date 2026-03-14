@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Default: HTTPS only -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- Allow cleartext HTTP for self-hosted Supabase on LAN -->
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">26.164.1.5</domain>
+        <!-- Android emulator host loopback -->
+        <domain includeSubdomains="true">10.0.2.2</domain>
+        <!-- localhost for direct connections -->
+        <domain includeSubdomains="true">localhost</domain>
+    </domain-config>
+</network-security-config>

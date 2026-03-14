@@ -24,8 +24,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -51,9 +49,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.NotificationRepository
 import com.pocketpass.app.data.SupabaseNotification
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
-import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.LocalDarkMode
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
@@ -254,7 +252,7 @@ private fun NotificationCard(
         else -> "🔔"
     }
 
-    Card(
+    AeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .gamepadFocusable(
@@ -262,15 +260,13 @@ private fun NotificationCard(
                 onSelect = onClick
             )
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (!notification.read) {
-                if (isDark) Color(0xFF1A3A1A) else Color(0xFFEFF8EF)
-            } else {
-                OffWhite
-            }
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (!notification.read) 3.dp else 1.dp)
+        cornerRadius = 16.dp,
+        elevation = if (!notification.read) 3.dp else 1.dp,
+        containerColor = if (!notification.read) {
+            if (isDark) Color(0xFF1A3A1A) else Color(0xFFEFF8EF)
+        } else {
+            OffWhite
+        }
     ) {
         Row(
             modifier = Modifier

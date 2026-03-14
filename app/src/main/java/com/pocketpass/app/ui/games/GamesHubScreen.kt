@@ -6,7 +6,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,8 +23,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -49,10 +46,10 @@ import androidx.compose.ui.unit.dp
 import com.pocketpass.app.R
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.ui.CheckeredBackground
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
-import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.util.LocalSoundManager
@@ -187,17 +184,14 @@ internal fun GameCard(
     subtitle: String,
     onClick: () -> Unit
 ) {
-    Card(
+    AeroCard(
         modifier = Modifier
             .fillMaxWidth()
             .gamepadFocusable(
                 shape = RoundedCornerShape(16.dp),
                 onSelect = onClick
-            )
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = OffWhite),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ),
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier

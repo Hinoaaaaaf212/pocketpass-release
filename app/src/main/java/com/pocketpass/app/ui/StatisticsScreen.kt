@@ -18,12 +18,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -48,6 +45,8 @@ import com.pocketpass.app.data.Achievements
 import com.pocketpass.app.data.PocketPassDatabase
 import com.pocketpass.app.ui.theme.AchievementIcon
 import com.pocketpass.app.ui.theme.AchievementIconView
+import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
@@ -56,13 +55,14 @@ import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
+import com.pocketpass.app.util.WorldMapRegions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.focus.FocusRequester
 import java.text.DateFormat
 import java.util.Date
 
 @Composable
-fun StatisticsScreen(onBack: () -> Unit) {
+fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
     val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
@@ -134,11 +134,9 @@ fun StatisticsScreen(onBack: () -> Unit) {
             ) {
                 // Overview Stats
                 item {
-                    Card(
+                    AeroCard(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = OffWhite),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        containerColor = OffWhite
                     ) {
                         Column(modifier = Modifier.padding(20.dp)) {
                             Text(
@@ -161,11 +159,9 @@ fun StatisticsScreen(onBack: () -> Unit) {
                 // Timeline
                 if (firstEncounter != null && latestEncounter != null) {
                     item {
-                        Card(
+                        AeroCard(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = OffWhite),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            containerColor = OffWhite
                         ) {
                             Column(modifier = Modifier.padding(20.dp)) {
                                 Text(
@@ -215,11 +211,9 @@ fun StatisticsScreen(onBack: () -> Unit) {
                 // Top Locations
                 if (locationCounts.isNotEmpty()) {
                     item {
-                        Card(
+                        AeroCard(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = OffWhite),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            containerColor = OffWhite
                         ) {
                             Column(modifier = Modifier.padding(20.dp)) {
                                 Text(
@@ -267,13 +261,57 @@ fun StatisticsScreen(onBack: () -> Unit) {
                     }
                 }
 
+                // World Tour
+                item {
+                    val visitedRegions = remember(encounters) {
+                        encounters.map { it.origin }.filter { it.isNotBlank() }.distinct()
+                    }
+                    val visitedCount = visitedRegions.size
+                    val totalRegions = WorldMapRegions.TOTAL_REGIONS
+
+                    AeroCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        containerColor = OffWhite
+                    ) {
+                        Column(modifier = Modifier.padding(20.dp)) {
+                            Text(
+                                text = "World Tour",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = DarkText
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "$visitedCount / $totalRegions regions discovered",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MediumText
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LinearProgressIndicator(
+                                progress = if (totalRegions > 0) visitedCount.toFloat() / totalRegions else 0f,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                color = PocketPassGreen,
+                                trackColor = androidx.compose.ui.graphics.Color(0xFFE0E0E0)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            AeroButton(
+                                onClick = { soundManager.playSelect(); onOpenWorldTourMap() },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Open Map")
+                            }
+                        }
+                    }
+                }
+
                 // Achievements
                 item {
-                    Card(
+                    AeroCard(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = OffWhite),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        containerColor = OffWhite
                     ) {
                         Column(modifier = Modifier.padding(20.dp)) {
                             Row(
@@ -313,11 +351,9 @@ fun StatisticsScreen(onBack: () -> Unit) {
                     val categoryAchievements = allAchievements.filter { it.category == category }
 
                     item {
-                        Card(
+                        AeroCard(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = OffWhite),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                            containerColor = OffWhite
                         ) {
                             Column(modifier = Modifier.padding(20.dp)) {
                                 val categoryIcon = when (category) {

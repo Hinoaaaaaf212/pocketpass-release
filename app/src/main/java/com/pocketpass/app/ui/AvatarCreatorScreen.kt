@@ -108,16 +108,38 @@ fun AvatarCreatorScreen(
 
     // Mii Maker background music
     val musicVolume by userPreferences.musicVolumeFlow.collectAsState(initial = 0.3f)
+    val miiMusicRef = remember { mutableStateOf<MediaPlayer?>(null) }
     DisposableEffect(Unit) {
         val mp = MediaPlayer.create(context, com.pocketpass.app.R.raw.mii_maker_theme)?.apply {
             isLooping = true
             setVolume(musicVolume, musicVolume)
             if (musicVolume > 0f) start()
         }
+        miiMusicRef.value = mp
         onDispose {
             mp?.stop()
             mp?.release()
+            miiMusicRef.value = null
         }
+    }
+
+    // Pause/resume on app background/foreground
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            val mp = miiMusicRef.value ?: return@LifecycleEventObserver
+            when (event) {
+                androidx.lifecycle.Lifecycle.Event.ON_STOP -> {
+                    if (mp.isPlaying) mp.pause()
+                }
+                androidx.lifecycle.Lifecycle.Event.ON_START -> {
+                    if (musicVolume > 0f) mp.start()
+                }
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     // Intercept system back button

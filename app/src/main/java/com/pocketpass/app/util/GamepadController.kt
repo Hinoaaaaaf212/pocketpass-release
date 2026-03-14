@@ -101,62 +101,73 @@ class JoystickToDpad(
     }
 }
 
+// ── Screen hierarchy ──
+
+sealed class Screen {
+    // Main tabs (shown with nav bar)
+    object Plaza : Screen()
+    object Messages : Screen()
+    object Friends : Screen()
+    object PlazaOverview : Screen()
+    object Statistics : Screen()
+    object Activities : Screen()
+    object Settings : Screen()
+
+    // Sub-screens
+    object Auth : Screen()
+    object ProfileSettings : Screen()
+    object AppSettings : Screen()
+    object GameSearch : Screen()
+    object Mii3DTest : Screen()
+    object History : Screen()
+    object EncounterHistory : Screen()
+    object Games : Screen()
+    object PuzzleSwap : Screen()
+    object Shop : Screen()
+    object Leaderboard : Screen()
+    object Bingo : Screen()
+    object Notifications : Screen()
+    object SpotPassInbox : Screen()
+    object WorldTourMap : Screen()
+    data class PuzzleBoard(val panelId: String) : Screen()
+    data class Chat(val friendId: String, val friendName: String, val avatarHex: String) : Screen()
+}
+
 // ── Navigation State (refactored from MainActivity) ──
 
 class NavigationState {
-    var showSettings by mutableStateOf(false)
-    var showAppSettings by mutableStateOf(false)
-    var showHistory by mutableStateOf(false)
-    var showStatistics by mutableStateOf(false)
-    var showFriends by mutableStateOf(false)
-    var showPlazaOverview by mutableStateOf(false)
-    var showQrExchange by mutableStateOf(false)
-    var showGameSearch by mutableStateOf(false)
-    var showProfileSettings by mutableStateOf(false)
+    var screen by mutableStateOf<Screen>(Screen.Plaza)
     var forceCreateNewMii by mutableStateOf(false)
-    var showActivities by mutableStateOf(false)
-    var showGames by mutableStateOf(false)
-    var showPuzzleSwap by mutableStateOf(false)
-    var showShop by mutableStateOf(false)
-    var showLeaderboard by mutableStateOf(false)
-    var selectedPuzzlePanel by mutableStateOf<String?>(null)
-    var showAuth by mutableStateOf(false)
-    var showMessages by mutableStateOf(false)
-    var showChat by mutableStateOf(false)
-    var showNotifications by mutableStateOf(false)
-    var chatFriendId by mutableStateOf<String?>(null)
-    var chatFriendName by mutableStateOf<String?>(null)
-    var chatFriendAvatarHex by mutableStateOf<String?>(null)
-    var showEncounterHistory by mutableStateOf(false)
-    var showBingo by mutableStateOf(false)
-    var showMii3DTest by mutableStateOf(false)
-    var showSpotPassInbox by mutableStateOf(false)
+    var pendingUpdate: com.pocketpass.app.data.AppVersion? = null
 
     /** Whether the user has completed or skipped the setup login prompt. */
     var setupAuthDone by mutableStateOf(false)
 
     enum class MainScreen { PLAZA, MESSAGES, FRIENDS, PLAZA_OVERVIEW, STATISTICS, ACTIVITIES, SETTINGS }
 
-    private val mainScreenOrder = MainScreen.values().toList()
+    private val mainScreenOrder = MainScreen.entries
+
+    private val mainScreenSet = setOf(
+        Screen.Plaza::class, Screen.Messages::class, Screen.Friends::class,
+        Screen.PlazaOverview::class, Screen.Statistics::class,
+        Screen.Activities::class, Screen.Settings::class
+    )
 
     fun currentMainScreen(): MainScreen {
-        return when {
-            showMessages -> MainScreen.MESSAGES
-            showFriends -> MainScreen.FRIENDS
-            showPlazaOverview -> MainScreen.PLAZA_OVERVIEW
-            showStatistics -> MainScreen.STATISTICS
-            showActivities -> MainScreen.ACTIVITIES
-            showSettings -> MainScreen.SETTINGS
+        return when (screen) {
+            Screen.Messages, is Screen.Chat -> MainScreen.MESSAGES
+            Screen.Friends, Screen.EncounterHistory -> MainScreen.FRIENDS
+            Screen.PlazaOverview -> MainScreen.PLAZA_OVERVIEW
+            Screen.Statistics, Screen.WorldTourMap -> MainScreen.STATISTICS
+            Screen.Activities, Screen.Games, Screen.PuzzleSwap, is Screen.PuzzleBoard,
+            Screen.Shop, Screen.Leaderboard, Screen.Bingo, Screen.SpotPassInbox -> MainScreen.ACTIVITIES
+            Screen.Settings, Screen.Auth, Screen.ProfileSettings,
+            Screen.AppSettings, Screen.GameSearch, Screen.Mii3DTest -> MainScreen.SETTINGS
             else -> MainScreen.PLAZA
         }
     }
 
-    fun isOnSubScreen(): Boolean {
-        return showAppSettings || showQrExchange || showGameSearch || showProfileSettings ||
-                forceCreateNewMii || showGames || showPuzzleSwap || selectedPuzzlePanel != null || showAuth ||
-                showChat || showNotifications || showEncounterHistory || showMii3DTest || showShop ||
-                showLeaderboard || showBingo || showSpotPassInbox
-    }
+    fun isOnSubScreen(): Boolean = screen::class !in mainScreenSet
 
     fun switchScreen(direction: Int) {
         if (isOnSubScreen()) return
@@ -167,71 +178,43 @@ class NavigationState {
         navigateToMainScreen(mainScreenOrder[newIndex])
     }
 
-    fun navigateToMainScreen(screen: MainScreen) {
-        showSettings = false
-        showAppSettings = false
-        showHistory = false
-        showStatistics = false
-        showFriends = false
-        showPlazaOverview = false
-        showQrExchange = false
-        showGameSearch = false
-        showProfileSettings = false
-        showActivities = false
-        showGames = false
-        showPuzzleSwap = false
-        showShop = false
-        showLeaderboard = false
-        showBingo = false
-        selectedPuzzlePanel = null
-        showAuth = false
-        showMessages = false
-        showChat = false
-        showNotifications = false
-        chatFriendId = null
-        chatFriendName = null
-        chatFriendAvatarHex = null
-        showEncounterHistory = false
-        showMii3DTest = false
-        showSpotPassInbox = false
-
-        when (screen) {
-            MainScreen.PLAZA -> { /* all cleared = plaza */ }
-            MainScreen.MESSAGES -> showMessages = true
-            MainScreen.FRIENDS -> showFriends = true
-            MainScreen.PLAZA_OVERVIEW -> showPlazaOverview = true
-            MainScreen.STATISTICS -> showStatistics = true
-            MainScreen.ACTIVITIES -> showActivities = true
-            MainScreen.SETTINGS -> showSettings = true
+    fun navigateToMainScreen(target: MainScreen) {
+        screen = when (target) {
+            MainScreen.PLAZA -> Screen.Plaza
+            MainScreen.MESSAGES -> Screen.Messages
+            MainScreen.FRIENDS -> Screen.Friends
+            MainScreen.PLAZA_OVERVIEW -> Screen.PlazaOverview
+            MainScreen.STATISTICS -> Screen.Statistics
+            MainScreen.ACTIVITIES -> Screen.Activities
+            MainScreen.SETTINGS -> Screen.Settings
         }
     }
 
     fun handleBack(): Boolean {
-        return when {
-            selectedPuzzlePanel != null -> { selectedPuzzlePanel = null; true }
-            showBingo -> { showBingo = false; showGames = true; true }
-            showLeaderboard -> { showLeaderboard = false; showActivities = true; true }
-            showShop -> { showShop = false; showActivities = true; true }
-            showPuzzleSwap -> { showPuzzleSwap = false; showGames = true; true }
-            showGames -> { showGames = false; showActivities = true; true }
-            showGameSearch -> { showGameSearch = false; showProfileSettings = true; true }
-            showProfileSettings -> { showProfileSettings = false; showSettings = true; true }
-            showAppSettings -> { showAppSettings = false; showSettings = true; true }
-            showQrExchange -> { showQrExchange = false; showSettings = true; true }
-            showAuth -> { showAuth = false; showSettings = true; true }
-            showChat -> { showChat = false; chatFriendId = null; chatFriendName = null; chatFriendAvatarHex = null; showMessages = true; true }
-            showSpotPassInbox -> { showSpotPassInbox = false; true }
-            showNotifications -> { showNotifications = false; true }
-            showEncounterHistory -> { showEncounterHistory = false; showFriends = true; true }
-            showMii3DTest -> { showMii3DTest = false; showAppSettings = true; true }
-            showPlazaOverview -> { showPlazaOverview = false; true }
-            showActivities -> { showActivities = false; true }
-            showSettings -> { showSettings = false; true }
-            showMessages -> { showMessages = false; true }
-            showHistory -> { showHistory = false; true }
-            showStatistics -> { showStatistics = false; true }
-            showFriends -> { showFriends = false; true }
-            else -> false
+        val parent = when (screen) {
+            is Screen.PuzzleBoard -> Screen.PuzzleSwap
+            Screen.Bingo -> Screen.Games
+            Screen.Leaderboard -> Screen.Activities
+            Screen.Shop -> Screen.Activities
+            Screen.PuzzleSwap -> Screen.Games
+            Screen.Games -> Screen.Activities
+            Screen.GameSearch -> Screen.ProfileSettings
+            Screen.ProfileSettings -> Screen.Settings
+            Screen.AppSettings -> Screen.Settings
+            Screen.Auth -> Screen.Settings
+            is Screen.Chat -> Screen.Messages
+            Screen.WorldTourMap -> Screen.Statistics
+            Screen.SpotPassInbox -> Screen.Plaza
+            Screen.Notifications -> Screen.Plaza
+            Screen.EncounterHistory -> Screen.Friends
+            Screen.Mii3DTest -> Screen.AppSettings
+            Screen.History -> Screen.Plaza
+            // Main screens go back to Plaza
+            Screen.PlazaOverview, Screen.Activities, Screen.Settings,
+            Screen.Messages, Screen.Statistics, Screen.Friends -> Screen.Plaza
+            Screen.Plaza -> return false
         }
+        screen = parent
+        return true
     }
 }
