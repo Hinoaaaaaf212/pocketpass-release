@@ -5,14 +5,20 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
 import android.provider.Settings
 import androidx.core.content.FileProvider
-import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.Order
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import java.io.File
+import java.net.URL
 
 class AppUpdateRepository(private val context: Context) {
+
+    companion object {
+        private const val GITHUB_REPO = "Hinoaaaaaf212/pocketpass-release"
+        private const val GITHUB_API = "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
+    }
 
     fun getCurrentVersionCode(): Int {
         val info = context.packageManager.getPackageInfo(context.packageName, 0)
@@ -28,19 +34,54 @@ class AppUpdateRepository(private val context: Context) {
         return context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "Unknown"
     }
 
-    suspend fun checkForUpdate(): AppVersion? {
-        return try {
-            val current = getCurrentVersionCode()
-            val result = SupabaseClient.client.postgrest
-                .from("app_versions")
-                .select {
-                    order("version_code", Order.DESCENDING)
-                    limit(1)
-                }
-                .decodeList<AppVersion>()
+    suspend fun checkForUpdate(): AppVersion? = withContext(Dispatchers.IO) {
+        try {
+            val connection = URL(GITHUB_API).openConnection().apply {
+                setRequestProperty("Accept", "application/vnd.github+json")
+                connectTimeout = 10000
+                readTimeout = 10000
+            }
+            val json = connection.getInputStream().bufferedReader().readText()
+            val release = org.json.JSONObject(json)
 
-            val latest = result.firstOrNull()
-            if (latest != null && latest.versionCode > current) latest else null
+            val tagName = release.getString("tag_name") // e.g. "v1.5"
+            val body = release.optString("body", "")
+            val assets = release.getJSONArray("assets")
+
+            // Find the APK asset
+            var downloadUrl: String? = null
+            for (i in 0 until assets.length()) {
+                val asset = assets.getJSONObject(i)
+                val name = asset.getString("name")
+                if (name.endsWith(".apk")) {
+                    downloadUrl = asset.getString("browser_download_url")
+                    break
+                }
+            }
+
+            if (downloadUrl == null) return@withContext null
+
+            // Parse version from tag: "v1.5" -> versionCode derived from name
+            val versionName = tagName.removePrefix("v")
+            val parts = versionName.split(".")
+            val remoteVersionCode = if (parts.size >= 2) {
+                parts[0].toIntOrNull()?.let { major ->
+                    parts[1].toIntOrNull()?.let { minor ->
+                        major * 10 + minor
+                    }
+                }
+            } else null
+
+            if (remoteVersionCode == null || remoteVersionCode <= getCurrentVersionCode()) {
+                return@withContext null
+            }
+
+            AppVersion(
+                versionCode = remoteVersionCode,
+                versionName = versionName,
+                downloadUrl = downloadUrl,
+                changelog = body
+            )
         } catch (e: Exception) {
             e.printStackTrace()
             null

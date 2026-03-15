@@ -3,8 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>Mii Creator</title>
-    <meta property="og:title" content="Mii Creator - Web-based Mii editor" />
+    <title>Pal Creator</title>
+    <meta property="og:title" content="Pal Creator - Web-based Pal editor" />
     <meta
       property="og:description"
       content="Create and share Mii characters online with just a few clicks!"
@@ -44,7 +44,7 @@
   <body>
     <div id="loading-msg" style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;color:#666;">
       <div style="text-align:center;">
-        <p style="font-size:18px;">Loading Mii Creator...</p>
+        <p style="font-size:18px;">Loading Pal Creator...</p>
         <p id="error-msg" style="color:red;display:none;font-size:14px;max-width:80vw;"></p>
       </div>
     </div>
@@ -61,7 +61,7 @@
           } else {
             el.textContent = 'Error: ' + msg;
           }
-          document.getElementById('loading-msg').querySelector('p').textContent = 'Mii Creator cannot load';
+          document.getElementById('loading-msg').querySelector('p').textContent = 'Pal Creator cannot load';
         }
         console.error('[MiiCreator] onerror:', msg, src, line, col, err);
       };
@@ -72,7 +72,7 @@
         if (!gl) {
           var el = document.getElementById('error-msg');
           if (el) { el.style.display = 'block'; el.textContent = 'WebGL is not supported on this device. Please update your System WebView from the Play Store.'; }
-          document.getElementById('loading-msg').querySelector('p').textContent = 'Mii Creator cannot load';
+          document.getElementById('loading-msg').querySelector('p').textContent = 'Pal Creator cannot load';
         }
       })();
     </script>
@@ -95,7 +95,7 @@
             var el = document.getElementById('error-msg');
             if (el && el.style.display === 'none') {
               el.style.display = 'block';
-              el.textContent = 'Mii Creator failed to load. Your System WebView may be too old. Try updating it from the Play Store.';
+              el.textContent = 'Pal Creator failed to load. Your System WebView may be too old. Try updating it from the Play Store.';
             }
           }
         }, 15000);

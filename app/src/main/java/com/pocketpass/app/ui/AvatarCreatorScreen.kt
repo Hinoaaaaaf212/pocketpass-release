@@ -400,6 +400,13 @@ fun AvatarCreatorScreen(
                                                     btn.style.display = 'none';
                                                 }
                                             });
+                                            // Hide FFSD/MiiCreator export buttons in the export modal
+                                            document.querySelectorAll('button').forEach(function(btn) {
+                                                var text = btn.textContent.trim().toLowerCase();
+                                                if (text.indexOf('ffsd') !== -1 || text.indexOf('pal creator data') !== -1 || text.indexOf('studio data') !== -1 || text.indexOf('qr') !== -1) {
+                                                    btn.style.display = 'none';
+                                                }
+                                            });
                                         }
                                         hideButtons();
                                         new MutationObserver(hideButtons).observe(document.body, {childList: true, subtree: true});

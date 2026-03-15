@@ -364,7 +364,7 @@ class MainActivity : ComponentActivity() {
 
                                     if (showUpdateDialog && availableUpdate != null) {
                                         val update = availableUpdate!!
-                                        val isForced = update.minVersionCode > updateRepo.getCurrentVersionCode()
+                                        val isForced = false
 
                                         Dialog(
                                             onDismissRequest = {

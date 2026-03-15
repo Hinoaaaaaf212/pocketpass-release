@@ -97,15 +97,11 @@ fun Encounter.toSupabase(userId: String) = SupabaseEncounter(
     isMale = isMale
 )
 
-@Serializable
 data class AppVersion(
-    val id: Int = 0,
-    @SerialName("version_code") val versionCode: Int,
-    @SerialName("version_name") val versionName: String,
-    @SerialName("download_url") val downloadUrl: String,
-    val changelog: String = "",
-    @SerialName("min_version_code") val minVersionCode: Int = 0,
-    @SerialName("created_at") val createdAt: String? = null
+    val versionCode: Int,
+    val versionName: String,
+    val downloadUrl: String,
+    val changelog: String = ""
 )
 
 @Serializable
