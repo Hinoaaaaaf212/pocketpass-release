@@ -1577,13 +1577,13 @@ fun DebugAddEncounterDialog(
                     OutlinedTextField(
                         value = miiHex,
                         onValueChange = { miiHex = it },
-                        label = { Text("Pii Hex Data (optional)") },
+                        label = { Text("Pal Hex Data (optional)") },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Leave blank for default Pii") },
+                        placeholder = { Text("Leave blank for default Pal") },
                         maxLines = 3,
                         supportingText = {
                             Text(
-                                text = "To use a custom Pii: Create one in the Pii Creator, then copy the hex from your saved Piis",
+                                text = "To use a custom Pal: Create one in the Pal Creator, then copy the hex from your saved Pals",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MediumText
                             )

@@ -130,7 +130,7 @@ fun ActivitiesScreen(
                             iconRes = R.drawable.ic_puzzle_swap,
                             title = "Games",
                             description = "Play mini-games and collect puzzle pieces!",
-                            subtitle = "Puzzle Swap, Pii Bingo",
+                            subtitle = "Puzzle Swap, Pal Bingo",
                             onClick = { soundManager.playNavigate(); onOpenGames() }
                         )
                     }

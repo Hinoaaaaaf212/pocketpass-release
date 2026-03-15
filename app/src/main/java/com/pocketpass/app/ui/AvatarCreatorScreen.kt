@@ -6,12 +6,15 @@ import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.webkit.JavascriptInterface
+import android.webkit.ValueCallback
 import android.webkit.WebResourceRequest
 import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -67,6 +70,15 @@ fun AvatarCreatorScreen(
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
     var miiHexData by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
+
+    // File picker for WebView <input type="file">
+    var fileUploadCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        fileUploadCallback?.onReceiveValue(if (uri != null) arrayOf(uri) else emptyArray())
+        fileUploadCallback = null
+    }
 
     // Check if user has saved Miis
     val miiCount by userPreferences.getMiiCount().collectAsState(initial = 0)
@@ -319,6 +331,17 @@ fun AvatarCreatorScreen(
 
                             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                                 android.util.Log.d("AvatarCreator", "Loading progress: $newProgress%")
+                            }
+
+                            override fun onShowFileChooser(
+                                webView: WebView?,
+                                callback: ValueCallback<Array<Uri>>?,
+                                params: FileChooserParams?
+                            ): Boolean {
+                                fileUploadCallback?.onReceiveValue(emptyArray())
+                                fileUploadCallback = callback
+                                filePickerLauncher.launch(arrayOf("*/*"))
+                                return true
                             }
                         }
                         

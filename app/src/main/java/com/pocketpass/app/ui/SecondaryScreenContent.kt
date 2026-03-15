@@ -946,7 +946,7 @@ fun SettingsSecondaryScreenContent(
                     contentColor = OffWhite
                 ) {
                     Text(
-                        text = if (canCreateNewMii) "Create New Pii" else "Max Piis (3/3)",
+                        text = if (canCreateNewMii) "Create New Pal" else "Max Pals (3/3)",
                         fontWeight = FontWeight.Bold
                     )
                 }

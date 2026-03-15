@@ -279,7 +279,10 @@ fun AuthScreen(
                                                 // Run full sync after auth
                                                 try {
                                                     syncRepo.fullSync()
-                                                } catch (_: Exception) { }
+                                                } catch (_: Exception) {
+                                                    // If full sync fails, at least push profile
+                                                    try { syncRepo.syncProfile() } catch (_: Exception) { }
+                                                }
                                                 isLoading = false
                                                 onAuthSuccess()
                                             }
