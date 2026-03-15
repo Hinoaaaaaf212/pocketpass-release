@@ -340,10 +340,15 @@ fun AnimatedPlazaScreen(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Empty state overlay text
+                    // Empty state overlay
                     if (encounters.isEmpty()) {
                         Column(
-                            modifier = Modifier.align(Alignment.Center),
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .padding(horizontal = 32.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(Color.Black.copy(alpha = 0.45f))
+                                .padding(horizontal = 24.dp, vertical = 16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
@@ -352,10 +357,11 @@ fun AnimatedPlazaScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                "Meet people to populate your plaza",
+                                "Meet people nearby to populate your plaza",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = Color.White.copy(alpha = 0.8f)
+                                color = Color.White.copy(alpha = 0.85f)
                             )
                         }
                     }
@@ -839,7 +845,7 @@ fun AnimatedPlazaCompanionScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Select a Mii with the D-Pad",
+                    text = "Select a Pii with the D-Pad",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (isDark) Color.White else DarkText

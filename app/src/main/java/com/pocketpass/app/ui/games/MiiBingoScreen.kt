@@ -226,7 +226,7 @@ fun MiiBingoScreen(onBack: () -> Unit) {
                             Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = DarkText)
                         }
                         Text(
-                            text = "Mii Bingo",
+                            text = "Pii Bingo",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = DarkText,
@@ -493,7 +493,7 @@ private fun EmptyBingoPrompt(onGenerate: () -> Unit) {
         Spacer(modifier = Modifier.height(20.dp))
 
         Text(
-            text = "Mii Bingo",
+            text = "Pii Bingo",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = DarkText

@@ -1577,13 +1577,13 @@ fun DebugAddEncounterDialog(
                     OutlinedTextField(
                         value = miiHex,
                         onValueChange = { miiHex = it },
-                        label = { Text("Mii Hex Data (optional)") },
+                        label = { Text("Pii Hex Data (optional)") },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Leave blank for default Mii") },
+                        placeholder = { Text("Leave blank for default Pii") },
                         maxLines = 3,
                         supportingText = {
                             Text(
-                                text = "To use a custom Mii: Create one in the Mii Creator, then copy the hex from your saved Miis",
+                                text = "To use a custom Pii: Create one in the Pii Creator, then copy the hex from your saved Piis",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MediumText
                             )

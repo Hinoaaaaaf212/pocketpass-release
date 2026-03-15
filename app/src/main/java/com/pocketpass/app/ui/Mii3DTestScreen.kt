@@ -140,7 +140,7 @@ fun Mii3DTestScreen(
                 currentBodyNode = it
                 if (it.animationCount > 0) it.playAnimation(0, loop = true)
                 // Apply head textures to the merged model
-                MiiSceneAssembler.applyHeadTextures(engine, it, mergedResult?.headTextureDir, mergedResult?.headFileBase)
+                MiiSceneAssembler.applyHeadTextures(engine, it, mergedResult?.headTextureDir, mergedResult?.headFileBase, mergedResult?.materialTextureMap ?: emptyMap())
                 // Boost head size post-load (avoids bounding-box issues with scaleToUnits)
                 MiiSceneAssembler.boostMergedHeadSize(it)
             }
@@ -209,7 +209,7 @@ fun Mii3DTestScreen(
                     Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = DarkText)
                 }
                 Text(
-                    text = "3D Mii Viewer",
+                    text = "3D Pii Viewer",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = DarkText,

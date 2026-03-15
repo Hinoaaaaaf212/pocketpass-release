@@ -137,7 +137,7 @@ fun GamesHubScreen(
                     item {
                         GameCard(
                             iconRes = R.drawable.ic_bingo,
-                            title = "Mii Bingo",
+                            title = "Pii Bingo",
                             description = "Complete encounter challenges to fill your bingo card!",
                             subtitle = "Earn tokens for lines",
                             onClick = { soundManager.playNavigate(); onOpenBingo() }

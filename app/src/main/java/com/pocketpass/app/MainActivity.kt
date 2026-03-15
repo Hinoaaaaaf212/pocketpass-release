@@ -188,7 +188,7 @@ class MainActivity : ComponentActivity() {
 
                     val nav = navigationState
                     val mainAuthRepo = remember { AuthRepository() }
-                    val isAuthenticated = mainAuthRepo.currentUserId != null
+                    val isAuthenticated by mainAuthRepo.isLoggedIn.collectAsState(initial = mainAuthRepo.currentUserId != null)
 
                     // ── Plaza music (persists across Plaza, Settings, Roaming Plaza) ──
                     val musicVolume by userPreferences.musicVolumeFlow.collectAsState(initial = 0.3f)
@@ -285,7 +285,7 @@ class MainActivity : ComponentActivity() {
                                 }
                                 // First launch: require account creation or sign-in
                                 // Skip if already authenticated (e.g. after process restart)
-                                !nav.setupAuthDone && !isAuthenticated -> {
+                                !isAuthenticated -> {
                                     AuthScreen(
                                         setupMode = true,
                                         onBack = {
@@ -531,7 +531,10 @@ class MainActivity : ComponentActivity() {
 
                                     if (isDualScreen && secondaryDisplay != null) {
                                         DualScreenPresentation(secondaryDisplay = secondaryDisplay) {
-                                            Column(modifier = Modifier.fillMaxSize()) {
+                                            Column(modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(Brush.verticalGradient(colors = BackgroundGradient))
+                                            ) {
                                                 // Nav bar on bottom screen (Thor)
                                                 if (!nav.isOnSubScreen()) {
                                                     PlazaNavBar(

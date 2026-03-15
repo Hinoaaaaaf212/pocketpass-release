@@ -130,7 +130,7 @@ fun ActivitiesScreen(
                             iconRes = R.drawable.ic_puzzle_swap,
                             title = "Games",
                             description = "Play mini-games and collect puzzle pieces!",
-                            subtitle = "Puzzle Swap, Mii Bingo",
+                            subtitle = "Puzzle Swap, Pii Bingo",
                             onClick = { soundManager.playNavigate(); onOpenGames() }
                         )
                     }
@@ -164,7 +164,7 @@ fun ActivitiesScreen(
 
                         ActivityCategoryCard(
                             iconRes = R.drawable.ic_puzzle_swap,
-                            title = "SpotPass",
+                            title = "WaveLink",
                             description = "Receive new puzzle panels and event announcements delivered to your device!",
                             subtitle = if (spotPassUnread > 0) "$spotPassUnread new item${if (spotPassUnread > 1) "s" else ""}" else "Server-delivered content",
                             onClick = { soundManager.playNavigate(); onOpenSpotPass() }

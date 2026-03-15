@@ -180,7 +180,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                     },
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = Color.White,
-                                        checkedTrackColor = PocketPassGreen
+                                        checkedTrackColor = PocketPassGreen,
+                                        uncheckedThumbColor = Color.White,
+                                        uncheckedTrackColor = Color(0xFFB0B0B0),
+                                        uncheckedBorderColor = Color(0xFF999999)
                                     )
                                 )
                             }
@@ -244,7 +247,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                     },
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = Color.White,
-                                        checkedTrackColor = PocketPassGreen
+                                        checkedTrackColor = PocketPassGreen,
+                                        uncheckedThumbColor = Color.White,
+                                        uncheckedTrackColor = Color(0xFFB0B0B0),
+                                        uncheckedBorderColor = Color(0xFF999999)
                                     )
                                 )
                             }
@@ -290,7 +296,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                     },
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = Color.White,
-                                        checkedTrackColor = PocketPassGreen
+                                        checkedTrackColor = PocketPassGreen,
+                                        uncheckedThumbColor = Color.White,
+                                        uncheckedTrackColor = Color(0xFFB0B0B0),
+                                        uncheckedBorderColor = Color(0xFF999999)
                                     )
                                 )
                             }
@@ -331,7 +340,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                 },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
-                                    checkedTrackColor = PocketPassGreen
+                                    checkedTrackColor = PocketPassGreen,
+                                    uncheckedThumbColor = Color.White,
+                                    uncheckedTrackColor = Color(0xFFB0B0B0),
+                                    uncheckedBorderColor = Color(0xFF999999)
                                 )
                             )
                         }
@@ -399,7 +411,10 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                 },
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color.White,
-                                    checkedTrackColor = PocketPassGreen
+                                    checkedTrackColor = PocketPassGreen,
+                                    uncheckedThumbColor = Color.White,
+                                    uncheckedTrackColor = Color(0xFFB0B0B0),
+                                    uncheckedBorderColor = Color(0xFF999999)
                                 )
                             )
                         }
@@ -512,7 +527,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "3D Mii Viewer",
+                            text = "3D Pii Viewer",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.SemiBold,
                             color = DarkText
@@ -533,6 +548,46 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                         ) {
                             Text(
                                 "Open 3D Viewer",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Clear Mii Head Cache (debug only)
+                if (BuildConfig.DEBUG) AeroCard(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        var cacheCleared by remember { mutableStateOf(false) }
+                        Text(
+                            text = "Pii Head Cache",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = DarkText
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Delete cached head GLBs and textures. Heads will be re-downloaded on next plaza load.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MediumText
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        AeroButton(
+                            onClick = {
+                                soundManager.playSelect()
+                                val cacheDir = java.io.File(context.cacheDir, "mii_heads")
+                                if (cacheDir.exists()) {
+                                    val count = cacheDir.listFiles()?.size ?: 0
+                                    cacheDir.deleteRecursively()
+                                    android.util.Log.d("AppSettings", "Cleared mii_heads cache: $count files")
+                                }
+                                cacheCleared = true
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                if (cacheCleared) "Cache Cleared" else "Clear Cache",
                                 fontWeight = FontWeight.Bold
                             )
                         }

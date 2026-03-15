@@ -71,12 +71,12 @@ object BingoChallenges {
         // Gender challenge
         pool += BingoChallenge(
             type = BingoChallengeType.GENDER,
-            description = "Meet a female Mii",
+            description = "Meet a female Pii",
             targetValue = "female"
         )
         pool += BingoChallenge(
             type = BingoChallengeType.GENDER,
-            description = "Meet a male Mii",
+            description = "Meet a male Pii",
             targetValue = "male"
         )
 

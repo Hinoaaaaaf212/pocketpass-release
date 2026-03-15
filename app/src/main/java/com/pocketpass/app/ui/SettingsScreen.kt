@@ -54,6 +54,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -440,9 +441,6 @@ private fun SettingsProfileCard(
                             userPreferences.clearAll()
                             val db = PocketPassDatabase.getDatabase(context)
                             db.clearAllTables()
-                            // Restart activity to reset all in-memory navigation state
-                            val activity = context as? android.app.Activity
-                            activity?.recreate()
                         }
                     },
                     containerColor = Color(0xFFC62828),
@@ -1059,7 +1057,7 @@ private fun SettingsCreateMiiButton(
         )
         Spacer(modifier = Modifier.size(8.dp))
         Text(
-            text = if (canCreateNewMii) "Create New Mii" else "Max Miis Reached (3/3)",
+            text = if (canCreateNewMii) "Create New Pii" else "Max Piis Reached (3/3)",
             fontWeight = FontWeight.Bold
         )
     }
@@ -1067,7 +1065,7 @@ private fun SettingsCreateMiiButton(
     if (!canCreateNewMii) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Delete a Mii to create a new one",
+            text = "Delete a Pii to create a new one",
             style = MaterialTheme.typography.bodySmall,
             color = MediumText,
             textAlign = TextAlign.Center,
@@ -1095,13 +1093,13 @@ private fun SettingsCreditsSection() {
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = "Mii Creator",
+            text = "Pii Creator",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = DarkText
         )
         Text(
-            text = "The Mii editor used in this app was made by the following people:",
+            text = "The Pii editor used in this app was made by the following people:",
             style = MaterialTheme.typography.bodySmall,
             color = MediumText
         )
@@ -1109,13 +1107,27 @@ private fun SettingsCreditsSection() {
         Spacer(modifier = Modifier.height(8.dp))
 
         CreditEntry("datkat21", "Creator and lead developer", imageRes = R.drawable.credit_datkat21)
-        CreditEntry("ariankordi", "Mii rendering API and contributions", imageRes = R.drawable.credit_ariankordi)
+        CreditEntry("ariankordi", "Pii rendering API and contributions", imageRes = R.drawable.credit_ariankordi)
         CreditEntry("Timiimiimii", "Contributions")
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text(
+            text = "Pii Plaza 3D Assets",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = DarkText
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        CreditEntry("Takachi", "3D plaza models", assetPath = "credits_takachi.png")
     }
 }
 
 @Composable
-private fun CreditEntry(name: String, role: String, imageRes: Int? = null) {
+private fun CreditEntry(name: String, role: String, imageRes: Int? = null, assetPath: String? = null) {
+    val context = LocalContext.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -1131,6 +1143,22 @@ private fun CreditEntry(name: String, role: String, imageRes: Int? = null) {
                     .clip(CircleShape),
                 contentScale = ContentScale.Crop
             )
+        } else if (assetPath != null) {
+            val bitmap = remember(assetPath) {
+                context.assets.open(assetPath).use { stream ->
+                    android.graphics.BitmapFactory.decodeStream(stream)?.asImageBitmap()
+                }
+            }
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap,
+                    contentDescription = name,
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+            }
         } else {
             Box(
                 modifier = Modifier
