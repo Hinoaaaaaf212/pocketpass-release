@@ -287,12 +287,14 @@ fun AuthScreen(
                                             isLoading = false
                                             soundManager.playError()
                                             errorMessage = when {
-                                                e.message?.contains("already registered", ignoreCase = true) == true ->
+                                                e.message?.contains("already", ignoreCase = true) == true ->
                                                     "Username already taken"
                                                 e.message?.contains("invalid", ignoreCase = true) == true ->
                                                     "Invalid username or password"
                                                 e.message?.contains("network", ignoreCase = true) == true ->
                                                     "Network error. Check your connection."
+                                                e.message?.contains("too many", ignoreCase = true) == true ->
+                                                    "Too many attempts. Try again later."
                                                 else -> e.message ?: "Something went wrong"
                                             }
                                         }

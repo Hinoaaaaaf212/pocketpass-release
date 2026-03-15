@@ -70,9 +70,17 @@ class AuthRepository {
             if (status == 409) {
                 return Result.failure(Exception("Username already taken"))
             }
+            if (status == 429) {
+                return Result.failure(Exception("Too many attempts. Try again later."))
+            }
             if (status !in 200..299) {
                 val errorBody = response.bodyAsText()
-                return Result.failure(Exception("Signup failed ($status): $errorBody"))
+                val message = when {
+                    errorBody.contains("already", ignoreCase = true) -> "Username already taken"
+                    errorBody.contains("password", ignoreCase = true) -> "Password is too weak. Use at least 6 characters."
+                    else -> "Could not create account. Please try again."
+                }
+                return Result.failure(Exception(message))
             }
 
             // Sign in to get a session
