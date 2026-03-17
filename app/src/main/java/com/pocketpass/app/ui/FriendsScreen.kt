@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -66,6 +67,7 @@ import com.pocketpass.app.data.AuthRepository
 import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.FriendRepository
 import com.pocketpass.app.data.PocketPassDatabase
+import com.pocketpass.app.data.crypto.decryptFields
 import com.pocketpass.app.data.SyncRepository
 import com.pocketpass.app.data.SupabaseFriendship
 import com.pocketpass.app.data.SupabaseProfile
@@ -98,7 +100,8 @@ fun FriendsScreen(
     val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
     val coroutineScope = rememberCoroutineScope()
 
     val authRepo = remember { AuthRepository() }
@@ -358,6 +361,7 @@ fun FriendsScreen(
                     coroutineScope.launch {
                         withContext(Dispatchers.IO) {
                             db.encounterDao().deleteEncounter(encounterToDelete)
+                            SyncRepository(context).softDeleteEncounter(encounterToDelete.encounterId)
                         }
                     }
                 },
@@ -661,7 +665,7 @@ private fun PendingRequestsBanner(
                     )
 
                     // Accept button
-                    AeroButton(
+                    Button(
                         onClick = {
                             soundManager.playSuccess()
                             coroutineScope.launch {
@@ -693,8 +697,9 @@ private fun PendingRequestsBanner(
                             }
                         },
                         modifier = Modifier.height(36.dp),
-                        cornerRadius = 12.dp,
-                        containerColor = PocketPassGreen
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = PocketPassGreen),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp)
                     ) {
                         Text("Accept", style = MaterialTheme.typography.labelMedium)
                     }

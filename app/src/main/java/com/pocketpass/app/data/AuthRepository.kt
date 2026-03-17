@@ -5,6 +5,7 @@ import android.util.Log
 import com.pocketpass.app.data.crypto.CryptoManager
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.SignOutScope
 import io.github.jan.supabase.auth.status.SessionStatus
 import io.github.jan.supabase.functions.functions
 import io.github.jan.supabase.postgrest.postgrest
@@ -127,12 +128,14 @@ class AuthRepository {
     }
 
     suspend fun signOut() {
+        CryptoManager.clearKeys()
         try {
-            CryptoManager.clearKeys()
             auth.signOut()
         } catch (_: Exception) {
-            // Best-effort sign out
+            // If global sign-out fails (e.g. no network), force local session clear
+            try { auth.signOut(scope = SignOutScope.LOCAL) } catch (_: Exception) {}
         }
+        sessionLoaded = false
     }
 
     suspend fun deleteAccount(): Result<Unit> = withContext(Dispatchers.IO) {

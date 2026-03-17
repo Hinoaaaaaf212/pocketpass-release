@@ -23,23 +23,51 @@ class SyncRepository(private val context: Context) {
 
     // ── Profile Sync ──
 
-    suspend fun syncProfile() = withContext(Dispatchers.IO) {
+    /**
+     * Push local profile to Supabase.
+     * If the local username is blank but the server has one, pull it down first.
+     * @param userNameOverride If non-null, use this value instead of reading from DataStore.
+     *   Needed during sign-up where the DataStore write may not have flushed yet.
+     */
+    suspend fun syncProfile(userNameOverride: String? = null) = withContext(Dispatchers.IO) {
         val userId = authRepo.currentUserId ?: return@withContext
         val prefs = UserPreferences(context)
 
         try {
-            val profile = buildProfileFromLocal(userId, prefs).let {
-                // Include crypto public key if initialized
-                if (CryptoManager.isInitialized) {
-                    it.copy(
-                        publicKey = CryptoManager.getPublicKeyBase64()
-                    )
-                } else it
+            var profile = buildProfileFromLocal(userId, prefs)
+
+            // Apply override if provided (sign-up race condition fix)
+            if (!userNameOverride.isNullOrBlank()) {
+                profile = profile.copy(userName = userNameOverride)
             }
+
+            // If local username is still blank, pull from server before pushing
+            if (profile.userName.isBlank()) {
+                try {
+                    val serverProfiles = client.postgrest["profiles"].select {
+                        filter { eq("id", userId) }
+                    }.decodeList<SupabaseProfile>()
+                    val serverName = serverProfiles.firstOrNull()?.userName
+                    if (!serverName.isNullOrBlank()) {
+                        profile = profile.copy(userName = serverName)
+                        // Save to local DataStore so UI picks it up
+                        prefs.saveUserName(serverName)
+                        Log.d(TAG, "Pulled username from server: $serverName")
+                    }
+                } catch (e: Exception) {
+                    Log.w(TAG, "Failed to pull username from server: ${e.message}")
+                }
+            }
+
+            // Include crypto public key if initialized
+            if (CryptoManager.isInitialized) {
+                profile = profile.copy(publicKey = CryptoManager.getPublicKeyBase64())
+            }
+
             client.postgrest["profiles"].update(profile) {
                 filter { eq("id", userId) }
             }
-            Log.d(TAG, "Profile synced to Supabase")
+            Log.d(TAG, "Profile synced to Supabase (userName=${profile.userName})")
         } catch (e: Exception) {
             Log.e(TAG, "Profile sync failed: ${e.message}", e)
         }
@@ -398,13 +426,19 @@ class SyncRepository(private val context: Context) {
 
     // ── Full Sync ──
 
-    suspend fun fullSync() {
-        syncProfile()
-        syncEncounters()
-        refreshFriendEncounters()
-        syncLeaderboard()
+    /**
+     * @param isNewAccount If true, skip encounter/friend sync (fresh account, no server data).
+     *   Prevents stale local encounters from being pushed to a brand-new account.
+     */
+    suspend fun fullSync(userNameOverride: String? = null, isNewAccount: Boolean = false) {
+        syncProfile(userNameOverride)
+        if (!isNewAccount) {
+            syncEncounters()
+            refreshFriendEncounters()
+            syncLeaderboard()
+            try { syncStreaks() } catch (_: Exception) {}
+        }
         try { SpotPassRepository(context).syncFromServer() } catch (_: Exception) {}
-        try { syncStreaks() } catch (_: Exception) {}
     }
 
     // ── Build profile from local DataStore ──

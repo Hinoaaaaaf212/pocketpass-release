@@ -10,7 +10,26 @@ import com.pocketpass.app.data.BroadcastMessagePayload
 
 private const val TAG = "EncryptedFieldHelper"
 
-// ── Encounter encryption (per-user symmetric key) ──
+// ── Local encounter decryption (Room → UI) ──
+
+fun com.pocketpass.app.data.Encounter.decryptFields(): com.pocketpass.app.data.Encounter {
+    if (!CryptoManager.isInitialized) return this
+    // Only decrypt fields that start with the encrypted prefix
+    fun decryptIfEncrypted(value: String): String {
+        if (!value.startsWith("enc:1:")) return value
+        return try { CryptoManager.decryptForSelf(value) } catch (_: Exception) { value }
+    }
+    return copy(
+        otherUserAvatarHex = decryptIfEncrypted(otherUserAvatarHex),
+        greeting = decryptIfEncrypted(greeting),
+        origin = decryptIfEncrypted(origin),
+        age = decryptIfEncrypted(age),
+        hobbies = decryptIfEncrypted(hobbies),
+        games = decryptIfEncrypted(games)
+    )
+}
+
+// ── Supabase encounter encryption (per-user symmetric key) ──
 
 fun SupabaseEncounter.encryptFields(): SupabaseEncounter {
     if (!CryptoManager.isInitialized) return this

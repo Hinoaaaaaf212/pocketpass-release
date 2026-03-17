@@ -143,6 +143,9 @@ class NavigationState {
     /** Whether the user has completed or skipped the setup login prompt. */
     var setupAuthDone by mutableStateOf(false)
 
+    /** Set only after sign-in restore — skip avatar/profile setup since data was pulled from cloud. */
+    var signInRestored by mutableStateOf(false)
+
     enum class MainScreen { PLAZA, MESSAGES, FRIENDS, PLAZA_OVERVIEW, STATISTICS, ACTIVITIES, SETTINGS }
 
     private val mainScreenOrder = MainScreen.entries

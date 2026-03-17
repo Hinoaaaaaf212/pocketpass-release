@@ -31,19 +31,28 @@ import java.util.Collections
 /**
  * Raw BLE fallback for devices without Google Play Services.
  *
- * Protocol:
+ * Protocol (encrypted):
  * 1. Both devices advertise a GATT server with POCKETPASS_SERVICE_UUID
  * 2. Both devices scan for that UUID
  * 3. When a scanner finds an advertiser, the scanner connects as a GATT client
- * 4. Scanner writes its JSON payload to the WRITE characteristic
- * 5. Scanner reads the advertiser's JSON payload from the READ characteristic
- * 6. Both sides process the exchange and disconnect
+ * 4. Scanner generates ephemeral EC keypair, writes public key to KEY_EXCHANGE_CHAR
+ * 5. Server generates ephemeral EC keypair, writes its public key back via KEY_EXCHANGE_CHAR read
+ * 6. Both sides derive shared AES-256-GCM key via ECDH + HKDF
+ * 7. Scanner writes its encrypted payload to WRITE characteristic
+ * 8. Scanner reads the server's encrypted payload from READ characteristic
+ * 9. Both sides decrypt, process, and disconnect
+ *
+ * Security properties:
+ * - Forward secrecy: ephemeral keypair per encounter
+ * - Confidentiality: AES-256-GCM encryption
+ * - Integrity + authentication: GCM auth tag (tampered data → decryption failure)
+ * - Replay protection: timestamp validation + unique ephemeral keys per encounter
  *
  * Tie-breaker: only the device with the lexicographically smaller BT address initiates.
  */
 class BleProximityHandler(
     private val context: Context,
-    private val onPayloadReceived: (String) -> Unit,  // JSON string
+    private val onPayloadReceived: (String) -> Unit,  // JSON string (decrypted)
     private val onStatusChanged: (Boolean, Boolean) -> Unit, // (isAdvertising, isScanning)
     private val onDeviceFound: (String, String) -> Unit, // (address, state)
     private val onError: (String) -> Unit,
@@ -56,13 +65,14 @@ class BleProximityHandler(
         val POCKETPASS_SERVICE_UUID: UUID = UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567890")
         val PAYLOAD_READ_CHAR_UUID: UUID = UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567891")
         val PAYLOAD_WRITE_CHAR_UUID: UUID = UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567892")
+        val KEY_EXCHANGE_CHAR_UUID: UUID = UUID.fromString("a1b2c3d4-e5f6-7890-abcd-ef1234567893")
 
         // BLE can transfer larger payloads via GATT, but chunk if needed
         private const val MAX_CHUNK_SIZE = 512
         private const val MAX_PAYLOAD_SIZE = ExchangePayload.MAX_PAYLOAD_SIZE_BYTES
 
         // GATT connection timeout — older BLE stacks can hang indefinitely
-        private const val GATT_CONNECT_TIMEOUT_MS = 10_000L
+        private const val GATT_CONNECT_TIMEOUT_MS = 15_000L // Increased for key exchange round-trip
     }
 
     private var bluetoothManager: BluetoothManager? = null
@@ -79,14 +89,42 @@ class BleProximityHandler(
     private val pendingConnections: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
 
     // Buffer for incoming chunked writes from GATT clients
-    private val incomingBuffers: MutableMap<String, StringBuilder> = Collections.synchronizedMap(mutableMapOf())
+    private val incomingBuffers: MutableMap<String, ByteArrayBuffer> = Collections.synchronizedMap(mutableMapOf())
 
-    // Track BT addresses that have written to the PocketPass write characteristic
+    // Track BT addresses that have completed the key exchange
     private val knownPocketPassDevices: MutableSet<String> = Collections.synchronizedSet(mutableSetOf())
+
+    // Per-device crypto handshake state (server side)
+    private val serverHandshakes: MutableMap<String, BleCryptoHandshake> = Collections.synchronizedMap(mutableMapOf())
 
     // Timeout handler for stuck GATT connections
     private val timeoutHandler = Handler(Looper.getMainLooper())
     private val pendingGatts: MutableMap<String, BluetoothGatt> = Collections.synchronizedMap(mutableMapOf())
+
+    /** Simple growable byte buffer for accumulating encrypted chunks */
+    private class ByteArrayBuffer {
+        private val chunks = mutableListOf<ByteArray>()
+        private var totalSize = 0
+
+        fun append(data: ByteArray): Boolean {
+            if (totalSize + data.size > MAX_PAYLOAD_SIZE + 128) return false // Allow overhead for encryption
+            chunks.add(data.copyOf())
+            totalSize += data.size
+            return true
+        }
+
+        fun toByteArray(): ByteArray {
+            val result = ByteArray(totalSize)
+            var offset = 0
+            for (chunk in chunks) {
+                chunk.copyInto(result, offset)
+                offset += chunk.size
+            }
+            return result
+        }
+
+        val size: Int get() = totalSize
+    }
 
     fun start() {
         bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
@@ -112,6 +150,9 @@ class BleProximityHandler(
         pendingGatts.clear()
         incomingBuffers.clear()
         knownPocketPassDevices.clear()
+        // Clear all crypto handshake state
+        serverHandshakes.values.forEach { it.clear() }
+        serverHandshakes.clear()
     }
 
     // ── GATT Server (so other devices can read our payload) ──
@@ -124,24 +165,32 @@ class BleProximityHandler(
                 BluetoothGattService.SERVICE_TYPE_PRIMARY
             )
 
-            // Characteristic for others to READ our payload
+            // Characteristic for ephemeral key exchange (32+ bytes each way)
+            val keyExchangeChar = BluetoothGattCharacteristic(
+                KEY_EXCHANGE_CHAR_UUID,
+                BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE,
+                BluetoothGattCharacteristic.PERMISSION_READ or BluetoothGattCharacteristic.PERMISSION_WRITE
+            )
+
+            // Characteristic for others to READ our encrypted payload
             val readChar = BluetoothGattCharacteristic(
                 PAYLOAD_READ_CHAR_UUID,
                 BluetoothGattCharacteristic.PROPERTY_READ,
                 BluetoothGattCharacteristic.PERMISSION_READ
             )
 
-            // Characteristic for others to WRITE their payload to us
+            // Characteristic for others to WRITE their encrypted payload to us
             val writeChar = BluetoothGattCharacteristic(
                 PAYLOAD_WRITE_CHAR_UUID,
                 BluetoothGattCharacteristic.PROPERTY_WRITE,
                 BluetoothGattCharacteristic.PERMISSION_WRITE
             )
 
+            service.addCharacteristic(keyExchangeChar)
             service.addCharacteristic(readChar)
             service.addCharacteristic(writeChar)
             gattServer?.addService(service)
-            Log.d(TAG, "GATT server started")
+            Log.d(TAG, "GATT server started (with key exchange)")
         } catch (e: SecurityException) {
             Log.e(TAG, "Missing BT permission for GATT server", e)
             onError("missing BT permissions")
@@ -165,27 +214,74 @@ class BleProximityHandler(
             offset: Int,
             characteristic: BluetoothGattCharacteristic
         ) {
-            // Reject reads from devices that haven't written a PocketPass payload
-            if (device.address !in knownPocketPassDevices) {
-                try { gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null) } catch (_: SecurityException) {}
-                return
-            }
+            try {
+                val address = device.address
 
-            if (characteristic.uuid == PAYLOAD_READ_CHAR_UUID) {
-                try {
-                    val payload = getMyPayload().toByteArray(Charsets.UTF_8)
-                    val chunk = if (offset < payload.size) {
-                        payload.copyOfRange(offset, minOf(offset + MAX_CHUNK_SIZE, payload.size))
-                    } else {
-                        byteArrayOf()
+                when (characteristic.uuid) {
+                    KEY_EXCHANGE_CHAR_UUID -> {
+                        // Return our ephemeral public key
+                        val handshake = serverHandshakes[address]
+                        if (handshake == null) {
+                            Log.w(TAG, "Key exchange read from $address but no handshake started")
+                            gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null)
+                            return
+                        }
+                        // The handshake already generated a keypair when we received their key
+                        val myPubKey = handshake.let {
+                            // Public key was generated during the write phase
+                            // We store it temporarily in the handshake object
+                            serverPublicKeys[address]
+                        }
+                        if (myPubKey == null) {
+                            gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null)
+                            return
+                        }
+                        val chunk = if (offset < myPubKey.size) {
+                            myPubKey.copyOfRange(offset, minOf(offset + MAX_CHUNK_SIZE, myPubKey.size))
+                        } else {
+                            byteArrayOf()
+                        }
+                        gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, chunk)
+                        Log.d(TAG, "Sent ephemeral public key to $address (offset=$offset, size=${chunk.size})")
                     }
-                    gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, chunk)
-                    Log.d(TAG, "Sent payload chunk to ${device.address} (offset=$offset, size=${chunk.size})")
-                } catch (e: SecurityException) {
-                    Log.e(TAG, "Security exception on read request", e)
+
+                    PAYLOAD_READ_CHAR_UUID -> {
+                        // Reject reads from devices that haven't completed key exchange
+                        if (address !in knownPocketPassDevices) {
+                            gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null)
+                            return
+                        }
+
+                        val handshake = serverHandshakes[address]
+                        if (handshake == null || !handshake.hasKey) {
+                            Log.w(TAG, "Payload read from $address but no shared key")
+                            gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null)
+                            return
+                        }
+
+                        // Encrypt our payload with the derived key
+                        val plainPayload = getMyPayload().toByteArray(Charsets.UTF_8)
+                        val encrypted = handshake.encrypt(plainPayload)
+                        if (encrypted == null) {
+                            gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null)
+                            return
+                        }
+
+                        val chunk = if (offset < encrypted.size) {
+                            encrypted.copyOfRange(offset, minOf(offset + MAX_CHUNK_SIZE, encrypted.size))
+                        } else {
+                            byteArrayOf()
+                        }
+                        gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, chunk)
+                        Log.d(TAG, "Sent encrypted payload to $address (offset=$offset, size=${chunk.size})")
+                    }
+
+                    else -> {
+                        gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null)
+                    }
                 }
-            } else {
-                try { gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null) } catch (_: SecurityException) {}
+            } catch (e: SecurityException) {
+                Log.e(TAG, "Security exception on read request", e)
             }
         }
 
@@ -198,57 +294,101 @@ class BleProximityHandler(
             offset: Int,
             value: ByteArray?
         ) {
-            if (characteristic.uuid == PAYLOAD_WRITE_CHAR_UUID && value != null) {
-                try {
-                    val address = device.address
-                    knownPocketPassDevices.add(address)
-                    val existingLength = incomingBuffers[address]?.length ?: 0
-
-                    // Drop writes that would exceed the payload size limit
-                    if (existingLength + value.size > MAX_PAYLOAD_SIZE) {
-                        Log.w(TAG, "Dropping oversized payload from $address")
-                        incomingBuffers.remove(address)
-                        if (responseNeeded) {
-                            gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
-                        }
-                        return
-                    }
-
-                    val data = String(value, Charsets.UTF_8)
-
-                    if (responseNeeded) {
-                        gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
-                    }
-
-                    // Check for end-of-message marker
-                    if (data.endsWith("\u0000")) {
-                        val buffer = incomingBuffers.getOrPut(address) { StringBuilder() }
-                        buffer.append(data.dropLast(1))
-                        val fullPayload = buffer.toString()
-                        incomingBuffers.remove(address)
-
-                        if (fullPayload.length > MAX_PAYLOAD_SIZE) {
-                            Log.w(TAG, "Complete payload from $address exceeds size limit")
-                            return
-                        }
-
-                        if (address !in exchangedAddresses) {
-                            exchangedAddresses.add(address)
-                            Log.d(TAG, "Received complete payload from $address via GATT server")
-                            onDeviceFound(address, "exchanged")
-                            onPayloadReceived(fullPayload)
-                        }
-                    } else {
-                        val buffer = incomingBuffers.getOrPut(address) { StringBuilder() }
-                        buffer.append(data)
-                    }
-                } catch (e: SecurityException) {
-                    Log.e(TAG, "Security exception on write request", e)
-                }
-            } else {
+            if (value == null) {
                 if (responseNeeded) {
                     try { gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null) } catch (_: SecurityException) {}
                 }
+                return
+            }
+
+            try {
+                val address = device.address
+
+                when (characteristic.uuid) {
+                    KEY_EXCHANGE_CHAR_UUID -> {
+                        // Receive peer's ephemeral public key, generate our own, derive shared secret
+                        val handshake = BleCryptoHandshake()
+                        val myPubKey = handshake.generateEphemeralKeypair()
+
+                        if (handshake.deriveSharedKey(value)) {
+                            serverHandshakes[address] = handshake
+                            serverPublicKeys[address] = myPubKey
+                            knownPocketPassDevices.add(address)
+                            Log.d(TAG, "Key exchange completed (server side) with $address")
+                        } else {
+                            Log.w(TAG, "Key derivation failed for $address")
+                            handshake.clear()
+                        }
+
+                        if (responseNeeded) {
+                            gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
+                        }
+                    }
+
+                    PAYLOAD_WRITE_CHAR_UUID -> {
+                        if (address !in knownPocketPassDevices) {
+                            Log.w(TAG, "Payload write from $address without key exchange")
+                            if (responseNeeded) {
+                                gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null)
+                            }
+                            return
+                        }
+
+                        if (responseNeeded) {
+                            gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
+                        }
+
+                        // Check for end-of-message marker (null byte at end)
+                        val hasEndMarker = value.isNotEmpty() && value.last() == 0.toByte()
+                        val dataToBuffer = if (hasEndMarker) value.copyOf(value.size - 1) else value
+
+                        val buffer = incomingBuffers.getOrPut(address) { ByteArrayBuffer() }
+                        if (!buffer.append(dataToBuffer)) {
+                            Log.w(TAG, "Dropping oversized payload from $address")
+                            incomingBuffers.remove(address)
+                            return
+                        }
+
+                        if (hasEndMarker) {
+                            val encryptedPayload = buffer.toByteArray()
+                            incomingBuffers.remove(address)
+
+                            // Decrypt with shared key
+                            val handshake = serverHandshakes[address]
+                            if (handshake == null || !handshake.hasKey) {
+                                Log.w(TAG, "No shared key for $address, dropping payload")
+                                return
+                            }
+
+                            val decrypted = handshake.decrypt(encryptedPayload)
+                            if (decrypted == null) {
+                                Log.w(TAG, "Decryption failed for payload from $address (tampered or wrong key)")
+                                return
+                            }
+
+                            val jsonStr = String(decrypted, Charsets.UTF_8)
+                            if (jsonStr.length > MAX_PAYLOAD_SIZE) {
+                                Log.w(TAG, "Decrypted payload from $address exceeds size limit")
+                                return
+                            }
+
+                            if (address !in exchangedAddresses) {
+                                exchangedAddresses.add(address)
+                                Log.d(TAG, "Received + decrypted payload from $address via GATT server")
+                                onDeviceFound(address, "exchanged")
+                                onPayloadReceived(jsonStr)
+                            }
+                        }
+                    }
+
+                    else -> {
+                        if (responseNeeded) {
+                            gattServer?.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null)
+                        }
+                    }
+                }
+            } catch (e: SecurityException) {
+                Log.e(TAG, "Security exception on write request", e)
             }
         }
 
@@ -265,12 +405,18 @@ class BleProximityHandler(
                     Log.d(TAG, "GATT server: device disconnected: $address")
                     incomingBuffers.remove(address)
                     knownPocketPassDevices.remove(address)
+                    // Clean up crypto state for this device
+                    serverHandshakes.remove(address)?.clear()
+                    serverPublicKeys.remove(address)
                 }
             } catch (e: SecurityException) {
                 Log.e(TAG, "Security exception on connection state change", e)
             }
         }
     }
+
+    // Temporary storage for server-side public keys (needed between write and read of KEY_EXCHANGE_CHAR)
+    private val serverPublicKeys: MutableMap<String, ByteArray> = Collections.synchronizedMap(mutableMapOf())
 
     // ── BLE Advertising ──
 
@@ -284,7 +430,7 @@ class BleProximityHandler(
 
         try {
             val settings = AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_POWER)
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
                 .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
                 .setConnectable(true)
                 .build()
@@ -312,7 +458,7 @@ class BleProximityHandler(
 
     private val advertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-            Log.d(TAG, "BLE advertising started")
+            Log.d(TAG, "BLE advertising started (low latency)")
             isAdvertising = true
             onStatusChanged(isAdvertising, isScanning)
         }
@@ -341,13 +487,13 @@ class BleProximityHandler(
                 .build()
 
             val settings = ScanSettings.Builder()
-                .setScanMode(ScanSettings.SCAN_MODE_LOW_POWER)
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                 .build()
 
             scanner?.startScan(listOf(filter), settings, scanCallback)
             isScanning = true
             onStatusChanged(isAdvertising, isScanning)
-            Log.d(TAG, "BLE scanning started")
+            Log.d(TAG, "BLE scanning started (low latency)")
         } catch (e: SecurityException) {
             Log.e(TAG, "Missing BT permission to scan", e)
             onError("missing BT permissions")
@@ -399,44 +545,57 @@ class BleProximityHandler(
         }
 
         override fun onBatchScanResults(results: MutableList<ScanResult>) {
-            // On some devices scanMode triggers batch results
             results.forEach { onScanResult(ScanSettings.CALLBACK_TYPE_ALL_MATCHES, it) }
         }
     }
 
     // ── GATT Client (connect to discovered device, exchange payloads) ──
 
-    private fun handleCharacteristicRead(
-        gatt: BluetoothGatt, charUuid: UUID, data: ByteArray?, status: Int, address: String
+    private fun handleEncryptedRead(
+        gatt: BluetoothGatt, charUuid: UUID, data: ByteArray?, status: Int,
+        address: String, handshake: BleCryptoHandshake
     ) {
         try {
             if (status == BluetoothGatt.GATT_SUCCESS && charUuid == PAYLOAD_READ_CHAR_UUID) {
-                if (data != null && data.isNotEmpty() && data.size <= MAX_PAYLOAD_SIZE) {
-                    val jsonStr = String(data, Charsets.UTF_8)
-                    if (address !in exchangedAddresses) {
-                        exchangedAddresses.add(address)
-                        Log.d(TAG, "Received payload from $address via GATT client read")
-                        onDeviceFound(address, "exchanged")
-                        onPayloadReceived(jsonStr)
+                if (data != null && data.isNotEmpty()) {
+                    if (data.size > MAX_PAYLOAD_SIZE + 128) {
+                        Log.w(TAG, "Dropping oversized encrypted read from $address")
+                    } else {
+                        // Decrypt the payload
+                        val decrypted = handshake.decrypt(data)
+                        if (decrypted == null) {
+                            Log.w(TAG, "Decryption failed for read from $address (tampered or wrong key)")
+                        } else {
+                            val jsonStr = String(decrypted, Charsets.UTF_8)
+                            if (address !in exchangedAddresses) {
+                                exchangedAddresses.add(address)
+                                Log.d(TAG, "Received + decrypted payload from $address via GATT client read")
+                                onDeviceFound(address, "exchanged")
+                                onPayloadReceived(jsonStr)
+                            }
+                        }
                     }
-                } else if (data != null && data.size > MAX_PAYLOAD_SIZE) {
-                    Log.w(TAG, "Dropping oversized read payload from $address")
                 }
             }
             pendingConnections.remove(address)
+            handshake.clear()
             gatt.disconnect()
         } catch (e: SecurityException) {
             Log.e(TAG, "Security exception on characteristic read", e)
             pendingConnections.remove(address)
+            handshake.clear()
         }
     }
 
     private fun connectToDevice(device: BluetoothDevice) {
         try {
+            // Client-side crypto handshake
+            val handshake = BleCryptoHandshake()
+            val myPubKey = handshake.generateEphemeralKeypair()
+
             val gattRef = device.connectGatt(context, false, object : BluetoothGattCallback() {
                 override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
                     try {
-                        // Cancel timeout — we got a response
                         pendingGatts.remove(device.address)
 
                         if (newState == BluetoothProfile.STATE_CONNECTED) {
@@ -445,11 +604,13 @@ class BleProximityHandler(
                         } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                             Log.d(TAG, "GATT client disconnected from ${device.address}")
                             pendingConnections.remove(device.address)
+                            handshake.clear()
                             gatt.close()
                         }
                     } catch (e: SecurityException) {
                         Log.e(TAG, "Security exception on GATT connection state change", e)
                         pendingConnections.remove(device.address)
+                        handshake.clear()
                     }
                 }
 
@@ -458,6 +619,7 @@ class BleProximityHandler(
                     if (status != BluetoothGatt.GATT_SUCCESS) {
                         Log.e(TAG, "Service discovery failed for ${device.address}")
                         pendingConnections.remove(device.address)
+                        handshake.clear()
                         try { gatt.close() } catch (_: Exception) {}
                         return
                     }
@@ -466,35 +628,40 @@ class BleProximityHandler(
                     if (service == null) {
                         Log.e(TAG, "PocketPass service not found on ${device.address}")
                         pendingConnections.remove(device.address)
+                        handshake.clear()
                         try { gatt.close() } catch (_: Exception) {}
                         return
                     }
 
-                    // First write our payload, then read theirs
-                    val writeChar = service.getCharacteristic(PAYLOAD_WRITE_CHAR_UUID)
-                    if (writeChar != null) {
-                        val payload = getMyPayload().toByteArray(Charsets.UTF_8)
-                        // Append null terminator as end-of-message marker
-                        val payloadWithMarker = payload + byteArrayOf(0)
-                        try {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                                gatt.writeCharacteristic(
-                                    writeChar,
-                                    payloadWithMarker,
-                                    BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                                )
-                            } else {
-                                @Suppress("DEPRECATION")
-                                writeChar.value = payloadWithMarker
-                                writeChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
-                                @Suppress("DEPRECATION")
-                                gatt.writeCharacteristic(writeChar)
-                            }
-                            Log.d(TAG, "Writing payload to ${device.address} (${payloadWithMarker.size} bytes)")
-                        } catch (e: SecurityException) {
-                            Log.e(TAG, "Security exception writing characteristic", e)
-                            pendingConnections.remove(device.address)
+                    // Step 1: Write our ephemeral public key to KEY_EXCHANGE_CHAR
+                    val keyExchangeChar = service.getCharacteristic(KEY_EXCHANGE_CHAR_UUID)
+                    if (keyExchangeChar == null) {
+                        Log.e(TAG, "Key exchange characteristic not found on ${device.address}")
+                        pendingConnections.remove(device.address)
+                        handshake.clear()
+                        try { gatt.close() } catch (_: Exception) {}
+                        return
+                    }
+
+                    try {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            gatt.writeCharacteristic(
+                                keyExchangeChar,
+                                myPubKey,
+                                BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                            )
+                        } else {
+                            @Suppress("DEPRECATION")
+                            keyExchangeChar.value = myPubKey
+                            keyExchangeChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                            @Suppress("DEPRECATION")
+                            gatt.writeCharacteristic(keyExchangeChar)
                         }
+                        Log.d(TAG, "Sent ephemeral public key to ${device.address} (${myPubKey.size} bytes)")
+                    } catch (e: SecurityException) {
+                        Log.e(TAG, "Security exception writing key exchange", e)
+                        pendingConnections.remove(device.address)
+                        handshake.clear()
                     }
                 }
 
@@ -503,37 +670,60 @@ class BleProximityHandler(
                     characteristic: BluetoothGattCharacteristic,
                     status: Int
                 ) {
-                    if (status == BluetoothGatt.GATT_SUCCESS) {
-                        Log.d(TAG, "Payload written to ${device.address}, now reading theirs...")
-                        // Now read their payload
-                        val service = gatt.getService(POCKETPASS_SERVICE_UUID)
-                        val readChar = service?.getCharacteristic(PAYLOAD_READ_CHAR_UUID)
-                        if (readChar != null) {
-                            try {
-                                gatt.readCharacteristic(readChar)
-                            } catch (e: SecurityException) {
-                                Log.e(TAG, "Security exception reading characteristic", e)
-                                pendingConnections.remove(device.address)
+                    if (status != BluetoothGatt.GATT_SUCCESS) {
+                        Log.e(TAG, "Write failed to ${device.address}: status=$status, char=${characteristic.uuid}")
+                        pendingConnections.remove(device.address)
+                        handshake.clear()
+                        try { gatt.close() } catch (_: Exception) {}
+                        return
+                    }
+
+                    when (characteristic.uuid) {
+                        KEY_EXCHANGE_CHAR_UUID -> {
+                            // Step 2: Read server's ephemeral public key
+                            Log.d(TAG, "Key written to ${device.address}, reading server's public key...")
+                            val service = gatt.getService(POCKETPASS_SERVICE_UUID)
+                            val keyChar = service?.getCharacteristic(KEY_EXCHANGE_CHAR_UUID)
+                            if (keyChar != null) {
+                                try {
+                                    gatt.readCharacteristic(keyChar)
+                                } catch (e: SecurityException) {
+                                    Log.e(TAG, "Security exception reading key exchange", e)
+                                    pendingConnections.remove(device.address)
+                                    handshake.clear()
+                                }
                             }
                         }
-                    } else {
-                        Log.e(TAG, "Failed to write payload to ${device.address}: status=$status")
-                        pendingConnections.remove(device.address)
-                        try { gatt.close() } catch (_: Exception) {}
+
+                        PAYLOAD_WRITE_CHAR_UUID -> {
+                            // Step 5: Read server's encrypted payload
+                            Log.d(TAG, "Encrypted payload written to ${device.address}, reading theirs...")
+                            val service = gatt.getService(POCKETPASS_SERVICE_UUID)
+                            val readChar = service?.getCharacteristic(PAYLOAD_READ_CHAR_UUID)
+                            if (readChar != null) {
+                                try {
+                                    gatt.readCharacteristic(readChar)
+                                } catch (e: SecurityException) {
+                                    Log.e(TAG, "Security exception reading payload", e)
+                                    pendingConnections.remove(device.address)
+                                    handshake.clear()
+                                }
+                            }
+                        }
                     }
                 }
 
-                // API 33+ overload — receives value directly (preferred)
+                // API 33+ overload
                 override fun onCharacteristicRead(
                     gatt: BluetoothGatt,
                     characteristic: BluetoothGattCharacteristic,
                     value: ByteArray,
                     status: Int
                 ) {
-                    handleCharacteristicRead(gatt, characteristic.uuid, value, status, device.address)
+                    handleCharRead(gatt, characteristic.uuid, value, status, device.address, handshake)
                 }
 
-                // Pre-API 33 overload — reads value from characteristic object
+                // Pre-API 33 overload
                 @Suppress("DEPRECATION")
                 @Deprecated("Deprecated in API 33")
                 override fun onCharacteristicRead(
@@ -541,11 +731,83 @@ class BleProximityHandler(
                     characteristic: BluetoothGattCharacteristic,
                     status: Int
                 ) {
-                    handleCharacteristicRead(gatt, characteristic.uuid, characteristic.value, status, device.address)
+                    handleCharRead(gatt, characteristic.uuid, characteristic.value, status, device.address, handshake)
+                }
+
+                private fun handleCharRead(
+                    gatt: BluetoothGatt, charUuid: UUID, data: ByteArray?, status: Int,
+                    address: String, hs: BleCryptoHandshake
+                ) {
+                    when (charUuid) {
+                        KEY_EXCHANGE_CHAR_UUID -> {
+                            // Step 3: Derive shared secret from server's public key
+                            if (status != BluetoothGatt.GATT_SUCCESS || data == null || data.isEmpty()) {
+                                Log.e(TAG, "Failed to read server public key from $address")
+                                pendingConnections.remove(address)
+                                hs.clear()
+                                try { gatt.close() } catch (_: Exception) {}
+                                return
+                            }
+
+                            if (!hs.deriveSharedKey(data)) {
+                                Log.e(TAG, "Key derivation failed for $address")
+                                pendingConnections.remove(address)
+                                hs.clear()
+                                try { gatt.close() } catch (_: Exception) {}
+                                return
+                            }
+
+                            Log.d(TAG, "Key exchange completed (client side) with $address")
+
+                            // Step 4: Encrypt and write our payload
+                            val plainPayload = getMyPayload().toByteArray(Charsets.UTF_8)
+                            val encrypted = hs.encrypt(plainPayload)
+                            if (encrypted == null) {
+                                Log.e(TAG, "Encryption failed for $address")
+                                pendingConnections.remove(address)
+                                hs.clear()
+                                try { gatt.close() } catch (_: Exception) {}
+                                return
+                            }
+
+                            // Append null terminator as end-of-message marker
+                            val payloadWithMarker = encrypted + byteArrayOf(0)
+
+                            val service = gatt.getService(POCKETPASS_SERVICE_UUID)
+                            val writeChar = service?.getCharacteristic(PAYLOAD_WRITE_CHAR_UUID)
+                            if (writeChar != null) {
+                                try {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        gatt.writeCharacteristic(
+                                            writeChar,
+                                            payloadWithMarker,
+                                            BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                                        )
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        writeChar.value = payloadWithMarker
+                                        writeChar.writeType = BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                                        @Suppress("DEPRECATION")
+                                        gatt.writeCharacteristic(writeChar)
+                                    }
+                                    Log.d(TAG, "Writing encrypted payload to $address (${payloadWithMarker.size} bytes)")
+                                } catch (e: SecurityException) {
+                                    Log.e(TAG, "Security exception writing encrypted payload", e)
+                                    pendingConnections.remove(address)
+                                    hs.clear()
+                                }
+                            }
+                        }
+
+                        PAYLOAD_READ_CHAR_UUID -> {
+                            // Step 6: Decrypt server's payload
+                            handleEncryptedRead(gatt, charUuid, data, status, address, hs)
+                        }
+                    }
                 }
             })
 
-            // Store GATT ref and schedule timeout to clean up stuck connections
+            // Store GATT ref and schedule timeout
             if (gattRef != null) {
                 pendingGatts[device.address] = gattRef
                 timeoutHandler.postDelayed({
@@ -553,6 +815,7 @@ class BleProximityHandler(
                     if (stuckGatt != null) {
                         Log.w(TAG, "GATT connection to ${device.address} timed out, closing")
                         pendingConnections.remove(device.address)
+                        handshake.clear()
                         onDeviceFound(device.address, "timeout")
                         try {
                             stuckGatt.disconnect()
@@ -562,7 +825,6 @@ class BleProximityHandler(
                 }, GATT_CONNECT_TIMEOUT_MS)
             }
 
-            // Mark scanning as active since we're getting results
             if (!isScanning) {
                 isScanning = true
                 onStatusChanged(isAdvertising, isScanning)

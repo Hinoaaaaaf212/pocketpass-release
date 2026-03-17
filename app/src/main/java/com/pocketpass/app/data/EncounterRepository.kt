@@ -1,7 +1,9 @@
 package com.pocketpass.app.data
 
 import android.content.Context
+import com.pocketpass.app.data.crypto.decryptFields
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import java.util.UUID
 
 class EncounterRepository(private val context: Context) {
@@ -10,8 +12,9 @@ class EncounterRepository(private val context: Context) {
     private val syncRepo = SyncRepository(context)
     private val authRepo = AuthRepository()
 
-    /** Observable list of all encounters (from local Room DB) */
+    /** Observable list of all encounters (from local Room DB), decrypted for display */
     val allEncounters: Flow<List<Encounter>> = dao.getAllEncountersFlow()
+        .map { list -> list.map { it.decryptFields() } }
 
     /** Insert or update an encounter locally, then push to cloud if authenticated */
     suspend fun saveEncounter(

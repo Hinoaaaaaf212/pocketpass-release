@@ -29,6 +29,7 @@ import com.pocketpass.app.data.AuthRepository
 import com.pocketpass.app.data.SyncRepository
 import java.util.UUID
 import java.util.Collections
+import com.pocketpass.app.data.crypto.CryptoManager
 
 import android.content.pm.ServiceInfo
 
@@ -288,6 +289,11 @@ class ProximityService : Service(), android.hardware.SensorEventListener {
         bleHandler?.start()
     }
 
+    private fun encryptField(value: String): String {
+        if (!CryptoManager.isInitialized || value.isBlank()) return value
+        return try { CryptoManager.encryptForSelf(value) } catch (_: Exception) { value }
+    }
+
     private fun saveEncounterToRoom(payload: ExchangePayload) {
         serviceScope.launch {
             val db = database
@@ -311,17 +317,17 @@ class ProximityService : Service(), android.hardware.SensorEventListener {
                     }
                 } catch (_: Exception) { }
             } else {
-                // Genuinely new encounter
+                // Genuinely new encounter — encrypt sensitive fields before Room insert
                 val newEncounter = Encounter(
                     encounterId = UUID.randomUUID().toString(),
                     timestamp = System.currentTimeMillis(),
-                    otherUserAvatarHex = payload.avatarHex,
-                    otherUserName = payload.userName,
-                    greeting = payload.greeting,
-                    origin = payload.origin,
-                    age = payload.age,
-                    hobbies = payload.hobbies,
-                    games = payload.games,
+                    otherUserAvatarHex = encryptField(payload.avatarHex),
+                    otherUserName = payload.userName, // Keep plaintext for lookup/dedup
+                    greeting = encryptField(payload.greeting),
+                    origin = encryptField(payload.origin),
+                    age = encryptField(payload.age),
+                    hobbies = encryptField(payload.hobbies),
+                    games = encryptField(payload.games),
                     needsSync = true,
                     otherUserId = payload.userId,
                     hatId = payload.hatId,

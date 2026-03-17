@@ -37,6 +37,7 @@ import com.pocketpass.app.data.Achievement
 import com.pocketpass.app.data.Achievements
 import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.PocketPassDatabase
+import com.pocketpass.app.data.crypto.decryptFields
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
@@ -69,7 +70,8 @@ import kotlinx.coroutines.launch
 fun PlazaSecondaryScreen() {
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
 
     Box(modifier = Modifier.fillMaxSize()) {
         CheckeredBackground(
@@ -178,7 +180,8 @@ private fun SecondaryEncounterRow(encounter: Encounter) {
 fun HistorySecondaryScreen() {
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
 
     val totalEncounters = encounters.size
     val uniquePeople = remember(encounters) { encounters.map { it.otherUserName }.distinct().size }
@@ -268,7 +271,8 @@ fun HistorySecondaryScreen() {
 fun FriendsSecondaryScreen() {
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
 
     val friendsByMeetCount = remember(encounters) {
         encounters.sortedByDescending { it.meetCount }.take(10)
@@ -369,7 +373,8 @@ fun FriendsSecondaryScreen() {
 fun AnimatedPlazaSecondaryScreen() {
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
 
     val displayedMiis = remember(encounters) {
         encounters.sortedByDescending { it.timestamp }.take(30)
@@ -536,7 +541,8 @@ fun MessagesSecondaryScreen() {
 fun StatisticsSecondaryScreen() {
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
 
     val allAchievements = remember { Achievements.getAll() }
     val unlockedAchievements = remember(encounters) {

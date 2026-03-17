@@ -44,6 +44,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.PocketPassDatabase
+import com.pocketpass.app.data.crypto.decryptFields
+import com.pocketpass.app.data.SyncRepository
 import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
@@ -66,7 +68,8 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
     val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
     val coroutineScope = rememberCoroutineScope()
 
     val authRepo = remember { com.pocketpass.app.data.AuthRepository() }
@@ -165,6 +168,7 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
                             onDelete = {
                                 coroutineScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                                     db.encounterDao().deleteEncounter(encounter)
+                                    SyncRepository(context).softDeleteEncounter(encounter.encounterId)
                                 }
                             }
                         )
@@ -189,6 +193,7 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
                     coroutineScope.launch {
                         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                             db.encounterDao().deleteEncounter(encounterToDelete)
+                            SyncRepository(context).softDeleteEncounter(encounterToDelete.encounterId)
                         }
                     }
                 },

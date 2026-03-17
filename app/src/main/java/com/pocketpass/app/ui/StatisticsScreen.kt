@@ -43,6 +43,7 @@ import com.pocketpass.app.data.Achievement
 import com.pocketpass.app.data.AchievementCategory
 import com.pocketpass.app.data.Achievements
 import com.pocketpass.app.data.PocketPassDatabase
+import com.pocketpass.app.data.crypto.decryptFields
 import com.pocketpass.app.ui.theme.AchievementIcon
 import com.pocketpass.app.ui.theme.AchievementIconView
 import com.pocketpass.app.ui.theme.AeroButton
@@ -52,6 +53,7 @@ import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.GreenText
+import com.pocketpass.app.ui.theme.LocalDarkMode
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
@@ -66,7 +68,8 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
     val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
 
     // Calculate statistics (memoized to avoid recomputation during animations)
     val totalEncounters = encounters.size
@@ -440,13 +443,17 @@ fun AchievementBadge(
     current: Int,
     total: Int
 ) {
+    val isDark = LocalDarkMode.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(
-                if (unlocked) PocketPassGreen.copy(alpha = 0.15f)
-                else androidx.compose.ui.graphics.Color(0xFFF5F5F5)
+                when {
+                    unlocked -> PocketPassGreen.copy(alpha = 0.15f)
+                    isDark -> androidx.compose.ui.graphics.Color(0xFF2A2A2A)
+                    else -> androidx.compose.ui.graphics.Color(0xFFF5F5F5)
+                }
             )
             .padding(14.dp)
     ) {
@@ -460,8 +467,11 @@ fun AchievementBadge(
                     .size(48.dp)
                     .clip(RoundedCornerShape(24.dp))
                     .background(
-                        if (unlocked) PocketPassGreen
-                        else androidx.compose.ui.graphics.Color(0xFFBDBDBD)
+                        when {
+                            unlocked -> PocketPassGreen
+                            isDark -> androidx.compose.ui.graphics.Color(0xFF4A4A4A)
+                            else -> androidx.compose.ui.graphics.Color(0xFFBDBDBD)
+                        }
                     ),
                 contentAlignment = Alignment.Center
             ) {
@@ -504,7 +514,7 @@ fun AchievementBadge(
                         .height(6.dp)
                         .clip(RoundedCornerShape(3.dp)),
                     color = PocketPassGreen,
-                    trackColor = androidx.compose.ui.graphics.Color(0xFFE0E0E0)
+                    trackColor = if (isDark) androidx.compose.ui.graphics.Color(0xFF3A3A3A) else androidx.compose.ui.graphics.Color(0xFFE0E0E0)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(

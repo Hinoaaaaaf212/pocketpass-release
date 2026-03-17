@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -70,7 +72,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun AuthScreen(
     onBack: () -> Unit,
-    onAuthSuccess: () -> Unit,
+    onAuthSuccess: (restoredFromCloud: Boolean) -> Unit,
     setupMode: Boolean = false
 ) {
     val context = LocalContext.current
@@ -137,7 +139,9 @@ fun AuthScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(horizontal = 24.dp),
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 24.dp)
+                        .padding(bottom = 32.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
@@ -147,22 +151,16 @@ fun AuthScreen(
                         containerColor = OffWhite
                     ) {
                         Column(
-                            modifier = Modifier.padding(24.dp),
+                            modifier = Modifier.padding(horizontal = 24.dp).padding(top = 16.dp, bottom = 20.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
                                 text = if (isSignUp) "Sign up to sync your data" else "Welcome back!",
-                                style = MaterialTheme.typography.bodyLarge,
+                                style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = DarkText
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "Your data is saved locally and synced to the cloud",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MediumText
-                            )
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             OutlinedTextField(
                                 value = username,
@@ -175,7 +173,7 @@ fun AuthScreen(
                                 singleLine = true,
                                 enabled = !isLoading
                             )
-                            Spacer(modifier = Modifier.height(12.dp))
+                            Spacer(modifier = Modifier.height(8.dp))
 
                             OutlinedTextField(
                                 value = password,
@@ -187,9 +185,9 @@ fun AuthScreen(
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                                 enabled = !isLoading
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
 
                             if (isSignUp) {
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = "Username: 3-20 chars, alphanumeric. Password: 6+ chars.",
                                     style = MaterialTheme.typography.labelSmall,
@@ -199,7 +197,7 @@ fun AuthScreen(
 
                             // Error message
                             if (errorMessage != null) {
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = errorMessage!!,
                                     style = MaterialTheme.typography.bodySmall,
@@ -209,7 +207,7 @@ fun AuthScreen(
 
                             // Success message
                             if (successMessage != null) {
-                                Spacer(modifier = Modifier.height(8.dp))
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
                                     text = successMessage!!,
                                     style = MaterialTheme.typography.bodySmall,
@@ -217,7 +215,7 @@ fun AuthScreen(
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(20.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
 
                             // Submit button
                             AeroButton(
@@ -254,37 +252,33 @@ fun AuthScreen(
                                         }
 
                                         result.onSuccess {
-                                            if (setupMode && !isSignUp) {
-                                                // Setup mode sign-in: restore profile from cloud
+                                            if (!isSignUp) {
+                                                // Sign-in: restore profile from cloud before navigating
                                                 successMessage = "Restoring your data..."
                                                 val restoreResult = syncRepo.restoreFromCloud()
                                                 restoreResult.onSuccess {
                                                     soundManager.playSuccess()
                                                     isLoading = false
-                                                    onAuthSuccess()
+                                                    onAuthSuccess(true)
                                                 }.onFailure { re ->
                                                     // Restore failed but auth succeeded — continue anyway
                                                     soundManager.playSuccess()
                                                     isLoading = false
                                                     errorMessage = "Signed in, but restore failed: ${re.message}"
-                                                    // Still navigate — they can sync later
-                                                    onAuthSuccess()
+                                                    onAuthSuccess(true)
                                                 }
                                             } else {
-                                                // Save signup username as display name
-                                                if (isSignUp) {
-                                                    userPreferences.saveUserName(username.trim())
-                                                }
+                                                // Sign-up: save username, sync profile only (no encounters for fresh account)
+                                                val trimmedName = username.trim()
+                                                userPreferences.saveUserName(trimmedName)
                                                 soundManager.playSuccess()
-                                                // Run full sync after auth
                                                 try {
-                                                    syncRepo.fullSync()
+                                                    syncRepo.fullSync(userNameOverride = trimmedName, isNewAccount = true)
                                                 } catch (_: Exception) {
-                                                    // If full sync fails, at least push profile
-                                                    try { syncRepo.syncProfile() } catch (_: Exception) { }
+                                                    try { syncRepo.syncProfile(userNameOverride = trimmedName) } catch (_: Exception) { }
                                                 }
                                                 isLoading = false
-                                                onAuthSuccess()
+                                                onAuthSuccess(false)
                                             }
                                         }.onFailure { e ->
                                             isLoading = false
@@ -303,9 +297,7 @@ fun AuthScreen(
                                         }
                                     }
                                 },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 enabled = !isLoading && username.length >= 3 && password.length >= 6,
                                 containerColor = PocketPassGreen,
                                 contentColor = OffWhite,
@@ -324,26 +316,24 @@ fun AuthScreen(
                                     fontWeight = FontWeight.Bold
                                 )
                             }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Toggle sign up / sign in
-                            TextButton(
-                                onClick = {
-                                    soundManager.playTap()
-                                    isSignUp = !isSignUp
-                                    errorMessage = null
-                                    successMessage = null
-                                }
-                            ) {
-                                Text(
-                                    text = if (isSignUp) "Already have an account? Sign In"
-                                    else "Don't have an account? Sign Up",
-                                    color = GreenText,
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
                         }
+                    }
+
+                    // Toggle sign up / sign in (outside card to save space)
+                    TextButton(
+                        onClick = {
+                            soundManager.playTap()
+                            isSignUp = !isSignUp
+                            errorMessage = null
+                            successMessage = null
+                        }
+                    ) {
+                        Text(
+                            text = if (isSignUp) "Already have an account? Sign In"
+                            else "Don't have an account? Sign Up",
+                            color = GreenText,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
                     }
                 }
             }

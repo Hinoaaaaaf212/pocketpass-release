@@ -74,6 +74,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.PocketPassDatabase
+import com.pocketpass.app.data.crypto.decryptFields
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.CheckerDark
@@ -463,7 +464,7 @@ fun PlazaScreen(
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
     val encountersLoaded by db.encounterDao().getAllEncountersFlow().collectAsState(initial = null)
-    val encounters = encountersLoaded ?: emptyList()
+    val encounters = remember(encountersLoaded) { encountersLoaded?.map { it.decryptFields() } ?: emptyList() }
     val userPreferences = remember { UserPreferences(context) }
     val coroutineScope = rememberCoroutineScope()
 

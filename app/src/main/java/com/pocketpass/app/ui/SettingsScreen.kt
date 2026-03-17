@@ -90,7 +90,8 @@ fun SettingsScreen(
     onCreateNewMii: () -> Unit,
     onOpenAppSettings: () -> Unit = {},
     onOpenProfileSettings: () -> Unit = {},
-    onOpenAuth: () -> Unit = {}
+    onOpenAuth: () -> Unit = {},
+    onSignOut: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -238,6 +239,7 @@ fun SettingsScreen(
                             onOpenAppSettings = onOpenAppSettings,
                             onOpenProfileSettings = onOpenProfileSettings,
                             onOpenAuth = onOpenAuth,
+                            onSignOut = onSignOut,
                             soundManager = soundManager
                         )
                         Spacer(modifier = Modifier.height(24.dp))
@@ -290,6 +292,7 @@ private fun SettingsProfileCard(
     onOpenAppSettings: () -> Unit,
     onOpenProfileSettings: () -> Unit = {},
     onOpenAuth: () -> Unit = {},
+    onSignOut: () -> Unit = {},
     soundManager: com.pocketpass.app.util.SoundManager
 ) {
     val authRepo = remember { AuthRepository() }
@@ -441,6 +444,7 @@ private fun SettingsProfileCard(
                             userPreferences.clearAll()
                             val db = PocketPassDatabase.getDatabase(context)
                             db.clearAllTables()
+                            onSignOut()
                         }
                     },
                     containerColor = Color(0xFFC62828),

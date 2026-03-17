@@ -61,12 +61,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import com.pocketpass.app.data.PocketPassDatabase
 import com.pocketpass.app.data.UserPreferences
+import com.pocketpass.app.data.crypto.decryptFields
 import com.pocketpass.app.data.WorldTourMilestone
 import com.pocketpass.app.ui.theme.AeroButton
 import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.GreenText
+import com.pocketpass.app.ui.theme.LocalDarkMode
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
@@ -86,7 +88,8 @@ fun WorldTourMapScreen(onBack: () -> Unit, isDualScreen: Boolean = false) {
     val db = remember { PocketPassDatabase.getDatabase(context) }
     val prefs = remember { UserPreferences(context) }
 
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
     val claimedMilestones by prefs.claimedWorldTourMilestonesFlow.collectAsState(initial = emptySet())
 
     val visitedRegions = remember(encounters) {
@@ -416,6 +419,7 @@ fun WorldTourMapScreen(onBack: () -> Unit, isDualScreen: Boolean = false) {
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
 
+                                val isDark = LocalDarkMode.current
                                 WorldTourMilestone.entries.forEach { milestone ->
                                     val unlocked = milestone.isUnlocked(visitedRegions)
                                     val claimed = milestone.name in claimedMilestones
@@ -428,7 +432,9 @@ fun WorldTourMapScreen(onBack: () -> Unit, isDualScreen: Boolean = false) {
                                             .background(
                                                 when {
                                                     claimed -> PocketPassGreen.copy(alpha = 0.10f)
+                                                    unlocked && isDark -> Color(0xFF3A3520)
                                                     unlocked -> Color(0xFFFFF9C4)
+                                                    isDark -> Color(0xFF2A2A2A)
                                                     else -> Color(0xFFF5F5F5)
                                                 }
                                             )
@@ -443,6 +449,7 @@ fun WorldTourMapScreen(onBack: () -> Unit, isDualScreen: Boolean = false) {
                                                     when {
                                                         claimed -> PocketPassGreen
                                                         unlocked -> Color(0xFFFFC107)
+                                                        isDark -> Color(0xFF4A4A4A)
                                                         else -> Color(0xFFBDBDBD)
                                                     }
                                                 ),
@@ -585,7 +592,8 @@ fun WorldTourSecondaryScreen() {
     val db = remember { PocketPassDatabase.getDatabase(context) }
     val prefs = remember { UserPreferences(context) }
 
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
     val claimedMilestones by prefs.claimedWorldTourMilestonesFlow.collectAsState(initial = emptySet())
 
     val visitedRegions = remember(encounters) {
@@ -667,6 +675,7 @@ fun WorldTourSecondaryScreen() {
             item(key = "milestones") {
                 AeroCard(modifier = Modifier.fillMaxWidth(), containerColor = OffWhite) {
                     Column(modifier = Modifier.padding(16.dp)) {
+                        val isDark = LocalDarkMode.current
                         Text("Milestones", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = DarkText)
                         Spacer(modifier = Modifier.height(8.dp))
                         WorldTourMilestone.entries.forEach { milestone ->
@@ -677,7 +686,9 @@ fun WorldTourSecondaryScreen() {
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(when {
                                         claimed -> PocketPassGreen.copy(alpha = 0.10f)
+                                        unlocked && isDark -> Color(0xFF3A3520)
                                         unlocked -> Color(0xFFFFF9C4)
+                                        isDark -> Color(0xFF2A2A2A)
                                         else -> Color(0xFFF5F5F5)
                                     })
                                     .padding(10.dp),
@@ -685,7 +696,7 @@ fun WorldTourSecondaryScreen() {
                             ) {
                                 Box(
                                     modifier = Modifier.size(28.dp).clip(CircleShape).background(when {
-                                        claimed -> PocketPassGreen; unlocked -> Color(0xFFFFC107); else -> Color(0xFFBDBDBD)
+                                        claimed -> PocketPassGreen; unlocked -> Color(0xFFFFC107); isDark -> Color(0xFF4A4A4A); else -> Color(0xFFBDBDBD)
                                     }),
                                     contentAlignment = Alignment.Center
                                 ) {

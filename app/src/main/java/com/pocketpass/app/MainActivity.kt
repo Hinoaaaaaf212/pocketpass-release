@@ -275,6 +275,14 @@ class MainActivity : ComponentActivity() {
                     ) {
                         // ── Screen content ──
                         if (dataStoreReady) {
+                            // Show auth if:
+                            // - Not authenticated, OR
+                            // - Stale session after sign-out (authenticated but no avatar in DataStore)
+                            //   Gated by !setupAuthDone so fresh sign-ups (avatar not yet created) go to Mii maker instead
+                            // Note: uses avatarHex only — userName can be pulled by background sync and defeat this check
+                            val needsAuth = !isAuthenticated ||
+                                (!nav.setupAuthDone && avatarHex == null)
+
                             when {
                                 !permissionsGranted -> {
                                     PermissionsScreen(
@@ -283,27 +291,26 @@ class MainActivity : ComponentActivity() {
                                         }
                                     )
                                 }
-                                // First launch: require account creation or sign-in
-                                // Skip if already authenticated (e.g. after process restart)
-                                !isAuthenticated -> {
+                                needsAuth -> {
                                     AuthScreen(
                                         setupMode = true,
                                         onBack = {
                                             // No-op: account is required (Skip removed)
                                         },
-                                        onAuthSuccess = {
+                                        onAuthSuccess = { restored ->
                                             nav.setupAuthDone = true
+                                            nav.signInRestored = restored
                                         }
                                     )
                                 }
-                                avatarHex == null && !nav.forceCreateNewMii -> {
+                                avatarHex == null && !nav.forceCreateNewMii && !nav.signInRestored -> {
                                     AvatarCreatorScreen(
                                         onAvatarSaved = {
                                             nav.forceCreateNewMii = false
                                         }
                                     )
                                 }
-                                userRegion.isNullOrBlank() && !nav.forceCreateNewMii -> {
+                                userRegion.isNullOrBlank() && !nav.forceCreateNewMii && !nav.signInRestored -> {
                                     ProfileSetupScreen(
                                         onProfileSaved = { }
                                     )
@@ -626,7 +633,7 @@ class MainActivity : ComponentActivity() {
                                                 Screen.Auth -> {
                                                     AuthScreen(
                                                         onBack = { nav.screen = Screen.Settings },
-                                                        onAuthSuccess = { nav.screen = Screen.Settings }
+                                                        onAuthSuccess = { _ -> nav.screen = Screen.Settings }
                                                     )
                                                 }
                                                 Screen.GameSearch -> {
@@ -670,7 +677,12 @@ class MainActivity : ComponentActivity() {
                                                         },
                                                         onOpenAppSettings = { nav.screen = Screen.AppSettings },
                                                         onOpenProfileSettings = { nav.screen = Screen.ProfileSettings },
-                                                        onOpenAuth = { nav.screen = Screen.Auth }
+                                                        onOpenAuth = { nav.screen = Screen.Auth },
+                                                        onSignOut = {
+                                                            nav.setupAuthDone = false
+                                                            nav.signInRestored = false
+                                                            nav.screen = Screen.Plaza
+                                                        }
                                                     )
                                                 }
                                                 is Screen.Chat -> {

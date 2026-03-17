@@ -66,6 +66,7 @@ import com.pocketpass.app.data.BingoProgress
 import com.pocketpass.app.data.EventEffect
 import com.pocketpass.app.data.EventEffectManager
 import com.pocketpass.app.data.PocketPassDatabase
+import com.pocketpass.app.data.crypto.decryptFields
 import com.pocketpass.app.data.SpotPassRepository
 import com.pocketpass.app.data.TokenSystem
 import com.pocketpass.app.data.UserPreferences
@@ -131,7 +132,8 @@ fun MiiBingoScreen(onBack: () -> Unit) {
 
     val tokenBalance by userPreferences.tokenBalanceFlow.collectAsState(initial = 0)
     val bingoProgress by userPreferences.bingoProgressFlow.collectAsState(initial = BingoProgress())
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
 
     var selectedCell by remember { mutableStateOf<BingoCell?>(null) }
     var visible by remember { mutableStateOf(false) }

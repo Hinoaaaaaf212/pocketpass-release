@@ -76,6 +76,7 @@ import com.pocketpass.app.data.AuthRepository
 import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.FriendRepository
 import com.pocketpass.app.data.PocketPassDatabase
+import com.pocketpass.app.data.crypto.decryptFields
 import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.rendering.Plaza3DMiiManager
 import com.pocketpass.app.rendering.PlazaEnvironmentLoader
@@ -116,7 +117,8 @@ fun AnimatedPlazaScreen(
     val coroutineScope = rememberCoroutineScope()
 
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
 
     val userPreferences = remember { UserPreferences(context) }
     val userName by userPreferences.userNameFlow.collectAsState(initial = null)
@@ -686,7 +688,8 @@ fun AnimatedPlazaCompanionScreen(
     val isDark = LocalDarkMode.current
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val encounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
+    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Top bar
