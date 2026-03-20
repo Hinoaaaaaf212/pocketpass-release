@@ -3,6 +3,7 @@ package com.pocketpass.app.data
 import android.app.DownloadManager
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -16,6 +17,7 @@ import java.net.URL
 class AppUpdateRepository(private val context: Context) {
 
     companion object {
+        private const val TAG = "AppUpdateRepository"
         private const val GITHUB_REPO = "Hinoaaaaaf212/pocketpass-release"
         private const val GITHUB_API = "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
     }
@@ -83,7 +85,7 @@ class AppUpdateRepository(private val context: Context) {
                 changelog = body
             )
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.e(TAG, "Check for update failed", e)
             null
         }
     }

@@ -37,6 +37,13 @@ object GlbHeadMerger {
     private const val HEAD_Y_TRANSLATE = 70.0  // Y offset to place head at neck level
     private const val HEAD_Z_TRANSLATE = -3.0   // Z offset — push head back so it sits centered on neck during animations
 
+    // Node/mesh names from the head GLB that are actual head parts.
+    // The API can return a full body mesh too — we must exclude everything else.
+    private val HEAD_PART_PREFIXES = listOf(
+        "OpaFaceline", "OpaNose", "OpaForehead", "OpaHair",
+        "XluMask", "XluNoseLine", "XluGlass", "XluHair"
+    )
+
     /**
      * Merge head GLB meshes into the body GLB as children of headPs.
      *
@@ -175,19 +182,59 @@ object GlbHeadMerger {
                 bodyMaterials.put(mat)
             }
 
-            // --- Merge head meshes ---
+            // --- Identify which head meshes are head parts (by node name) ---
+            // In glTF, semantic names like "OpaFaceline" are on nodes, not meshes.
+            // Walk all head nodes to find which mesh indices belong to head parts.
             val headMeshes = headJson.optJSONArray("meshes") ?: JSONArray()
+            val headNodes = headJson.optJSONArray("nodes") ?: JSONArray()
+
+            // Log all node names and mesh names for debugging
+            for (i in 0 until headNodes.length()) {
+                val n = headNodes.getJSONObject(i)
+                Log.d(TAG, "Head GLB node[$i]: name='${n.optString("name", "")}' mesh=${n.optInt("mesh", -1)}")
+            }
+            for (i in 0 until headMeshes.length()) {
+                Log.d(TAG, "Head GLB mesh[$i]: name='${headMeshes.getJSONObject(i).optString("name", "")}'")
+            }
+
+            // Build set of mesh indices that are referenced by head-part nodes
+            val headPartMeshIndices = mutableSetOf<Int>()
+            val headPartNodeIndices = mutableSetOf<Int>()
+            for (i in 0 until headNodes.length()) {
+                val node = headNodes.getJSONObject(i)
+                val nodeName = node.optString("name", "")
+                val meshIdx = node.optInt("mesh", -1)
+                val isHeadPart = HEAD_PART_PREFIXES.any { nodeName.startsWith(it) }
+                // Also check mesh name as fallback
+                val meshName = if (meshIdx >= 0 && meshIdx < headMeshes.length())
+                    headMeshes.getJSONObject(meshIdx).optString("name", "") else ""
+                val isMeshHeadPart = HEAD_PART_PREFIXES.any { meshName.startsWith(it) }
+
+                if (isHeadPart || isMeshHeadPart) {
+                    headPartNodeIndices.add(i)
+                    if (meshIdx >= 0) headPartMeshIndices.add(meshIdx)
+                } else if (meshIdx >= 0) {
+                    Log.d(TAG, "Excluding non-head node '$nodeName' (mesh '$meshName', idx $meshIdx)")
+                }
+                // Nodes without meshes (empty/transform nodes) are always kept
+            }
+
+            // --- Merge head meshes (only head parts) ---
             var bodyMeshes = bodyJson.optJSONArray("meshes")
             if (bodyMeshes == null) {
                 bodyMeshes = JSONArray()
                 bodyJson.put("meshes", bodyMeshes)
             }
+            val headMeshIndexMap = mutableMapOf<Int, Int>() // old head mesh index → new body mesh index
             for (i in 0 until headMeshes.length()) {
+                if (i !in headPartMeshIndices) {
+                    Log.d(TAG, "Skipping non-head mesh index $i: '${headMeshes.getJSONObject(i).optString("name", "")}'")
+                    continue
+                }
                 val mesh = JSONObject(headMeshes.getJSONObject(i).toString())
                 val prims = mesh.optJSONArray("primitives") ?: continue
                 for (p in 0 until prims.length()) {
                     val prim = prims.getJSONObject(p)
-                    // Remap accessor indices in attributes
                     val attrs = prim.optJSONObject("attributes")
                     if (attrs != null) {
                         val keys = attrs.keys().asSequence().toList()
@@ -195,24 +242,18 @@ object GlbHeadMerger {
                             attrs.put(key, attrs.getInt(key) + bodyAccessorCount)
                         }
                     }
-                    // Remap indices accessor
                     if (prim.has("indices")) {
                         prim.put("indices", prim.getInt("indices") + bodyAccessorCount)
                     }
-                    // Remap material
                     if (prim.has("material")) {
                         prim.put("material", prim.getInt("material") + bodyMaterialCount)
                     }
                 }
+                headMeshIndexMap[i] = bodyMeshes.length()
                 bodyMeshes.put(mesh)
             }
 
             // --- Merge head nodes as children of headPs via a transform wrapper ---
-            // The head GLB uses scene-unit coordinates (~50 units wide, Y 0–70).
-            // The body GLB uses raw units (~36 wide, Y 16–76).
-            // We add a wrapper node with scale + translation so the head sits
-            // correctly on top of the body neck.
-            val headNodes = headJson.optJSONArray("nodes") ?: JSONArray()
             val headChildIndices = JSONArray()
 
             // Collect top-level head scene nodes
@@ -225,25 +266,55 @@ object GlbHeadMerger {
                 }
             }
 
-            // Add all head nodes to the body, tracking new indices
+            // Add head nodes, skipping nodes that reference excluded meshes
+            val headNodeIndexMap = mutableMapOf<Int, Int>()
             for (i in 0 until headNodes.length()) {
                 val node = JSONObject(headNodes.getJSONObject(i).toString())
-                if (node.has("mesh")) {
-                    node.put("mesh", node.getInt("mesh") + bodyMeshCount)
+                val meshIdx = node.optInt("mesh", -1)
+
+                // Skip nodes that have a mesh but it's not a head part
+                if (meshIdx >= 0 && meshIdx !in headPartMeshIndices) {
+                    Log.d(TAG, "Skipping node '${node.optString("name", "node_$i")}' (non-head mesh)")
+                    continue
                 }
-                if (node.has("children")) {
-                    val children = node.getJSONArray("children")
-                    val newChildren = JSONArray()
-                    for (c in 0 until children.length()) {
-                        newChildren.put(children.getInt(c) + bodyNodeCount)
+
+                // Remap mesh index
+                if (meshIdx >= 0) {
+                    val newMeshIdx = headMeshIndexMap[meshIdx]
+                    if (newMeshIdx != null) {
+                        node.put("mesh", newMeshIdx)
+                    } else {
+                        node.remove("mesh")
                     }
-                    node.put("children", newChildren)
                 }
+
                 val newNodeIndex = bodyNodes.length()
+                headNodeIndexMap[i] = newNodeIndex
                 bodyNodes.put(node)
 
                 if (topLevelHeadIndices.isEmpty() || i in topLevelHeadIndices) {
                     headChildIndices.put(newNodeIndex)
+                }
+            }
+
+            // Remap children references in the newly added head nodes
+            for ((_, newIdx) in headNodeIndexMap) {
+                val node = bodyNodes.getJSONObject(newIdx)
+                if (node.has("children")) {
+                    val children = node.getJSONArray("children")
+                    val newChildren = JSONArray()
+                    for (c in 0 until children.length()) {
+                        val oldChildIdx = children.getInt(c)
+                        val newChildIdx = headNodeIndexMap[oldChildIdx]
+                        if (newChildIdx != null) {
+                            newChildren.put(newChildIdx)
+                        }
+                    }
+                    if (newChildren.length() > 0) {
+                        node.put("children", newChildren)
+                    } else {
+                        node.remove("children")
+                    }
                 }
             }
 
@@ -291,7 +362,8 @@ object GlbHeadMerger {
             bodyJson.put("textures", bodyTextures)
 
             val result = rebuildGlb(bodyJson, body.bin, head.bin)
-            Log.d(TAG, "Merged head into body: ${headMeshes.length()} meshes, ${headNodes.length()} nodes added to headPs")
+            val skippedMeshCount = headMeshes.length() - headMeshIndexMap.size
+            Log.d(TAG, "Merged head into body: ${headMeshIndexMap.size}/${headMeshes.length()} meshes, ${headNodeIndexMap.size}/${headNodes.length()} nodes added to headPs (skipped $skippedMeshCount non-head meshes)")
             return result
 
         } catch (e: Exception) {

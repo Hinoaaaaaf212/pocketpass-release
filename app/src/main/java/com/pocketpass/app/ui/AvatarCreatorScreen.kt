@@ -357,6 +357,15 @@ fun AvatarCreatorScreen(
 
                         // Hide the built-in save button — we use our own "Save & Continue"
                         webViewClient = object : WebViewClient() {
+                            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                                val host = request?.url?.host ?: return true
+                                if (host == "appassets.androidplatform.net" || host == "mii-unsecure.ariankordi.net") {
+                                    return false // allow
+                                }
+                                android.util.Log.w("AvatarCreator", "Blocked navigation to: ${request.url}")
+                                return true // block everything else
+                            }
+
                             override fun shouldInterceptRequest(
                                 view: WebView,
                                 request: WebResourceRequest
@@ -456,13 +465,14 @@ class PocketPassBridge(private val onHexReceived: (String) -> Unit) {
         android.util.Log.d("PocketPassBridge", "║       MII DATA RECEIVED FROM JS        ║")
         android.util.Log.d("PocketPassBridge", "╚════════════════════════════════════════╝")
         android.util.Log.d("PocketPassBridge", "Length: ${hexData.length} chars")
-        android.util.Log.d("PocketPassBridge", "Format: ${if (hexData.length == 128) "BASE64" else if (hexData.length == 192) "HEX" else "UNKNOWN/CORRUPT"}")
 
-        if (hexData.length < 50) {
-            android.util.Log.e("PocketPassBridge", "DATA TOO SHORT! This will be corrupted!")
-        } else {
-            android.util.Log.d("PocketPassBridge", "Data length looks good, saving...")
+        // Validate format: must be 50-512 chars of base64 or hex characters
+        if (hexData.length !in 50..512 || !hexData.matches(Regex("[A-Za-z0-9+/=]+"))) {
+            android.util.Log.e("PocketPassBridge", "Invalid Mii data: length=${hexData.length}")
+            return
         }
+
+        android.util.Log.d("PocketPassBridge", "Data validated, saving...")
 
         try {
             onHexReceived(hexData)

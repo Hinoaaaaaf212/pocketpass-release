@@ -117,7 +117,7 @@ fun Mii3DViewer(
                         it.playAnimation(0, loop = true)
                     }
                     // Apply head textures to the merged model
-                    MiiSceneAssembler.applyHeadTextures(engine, it, mergedResult?.headTextureDir, mergedResult?.headFileBase)
+                    MiiSceneAssembler.applyHeadTextures(engine, it, mergedResult?.headTextureDir, mergedResult?.headFileBase, mergedResult?.materialTextureMap ?: emptyMap())
                     // Boost head size post-load (avoids bounding-box issues with scaleToUnits)
                     MiiSceneAssembler.boostMergedHeadSize(it)
                 }

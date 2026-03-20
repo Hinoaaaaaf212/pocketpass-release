@@ -6,6 +6,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
+import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -17,6 +19,7 @@ import java.nio.ByteOrder
 object MiiModelLoader {
     private const val TAG = "MiiModelLoader"
     private const val HEAD_API_BASE = "https://mii-unsecure.ariankordi.net/miis/image.glb"
+    private const val MAX_GLB_SIZE = 5 * 1024 * 1024 // 5MB
 
     /**
      * Build the URL for fetching a head GLB from the Mii API.
@@ -24,6 +27,28 @@ object MiiModelLoader {
     fun buildHeadGlbUrl(avatarHex: String): String {
         val encoded = java.net.URLEncoder.encode(avatarHex, "UTF-8")
         return "$HEAD_API_BASE?data=$encoded&verifyCharInfo=0"
+    }
+
+    /**
+     * Download bytes from a URL with a size limit to prevent OOM from oversized responses.
+     */
+    private fun downloadWithSizeLimit(url: String): ByteArray {
+        val conn = URL(url).openConnection() as HttpURLConnection
+        conn.connectTimeout = 10_000
+        conn.readTimeout = 10_000
+        try {
+            val contentLength = conn.contentLength
+            if (contentLength > MAX_GLB_SIZE) {
+                throw IOException("GLB too large: $contentLength bytes (max $MAX_GLB_SIZE)")
+            }
+            val rawBytes = conn.inputStream.use { it.readBytes() }
+            if (rawBytes.size > MAX_GLB_SIZE) {
+                throw IOException("GLB exceeded max size: ${rawBytes.size} bytes")
+            }
+            return rawBytes
+        } finally {
+            conn.disconnect()
+        }
     }
 
     /**
@@ -53,10 +78,10 @@ object MiiModelLoader {
 
                 val url = buildHeadGlbUrl(avatarHex)
                 Log.d(TAG, "Downloading head GLB: $url")
-                val rawBytes = URL(url).readBytes()
-                val bytes = patchHeadGlb(rawBytes, cacheDir, fileBase)
-                cacheFile.writeBytes(bytes)
-                Log.d(TAG, "Head GLB cached: ${cacheFile.absolutePath} (${bytes.size} bytes)")
+                val rawBytes = downloadWithSizeLimit(url)
+                val patchResult = patchHeadGlb(rawBytes, cacheDir, fileBase)
+                cacheFile.writeBytes(patchResult.bytes)
+                Log.d(TAG, "Head GLB cached: ${cacheFile.absolutePath} (${patchResult.bytes.size} bytes)")
                 cacheFile.absolutePath
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to download head GLB", e)
@@ -76,11 +101,22 @@ object MiiModelLoader {
         val jsonLen = buf.getInt(12)
         if (buf.getInt(16) != 0x4E4F534A) return true
         val jsonStr = String(glbBytes, 20, jsonLen, Charsets.UTF_8)
-        // Re-patch if still has _COLOR, COLOR_0, or embedded images (bufferView in images)
-        return jsonStr.contains("\"_COLOR\"") ||
-               jsonStr.contains("\"COLOR_0\"") ||
-               jsonStr.contains("\"bufferView\"")
+        // Re-patch if still has _COLOR or COLOR_0
+        if (jsonStr.contains("\"_COLOR\"") || jsonStr.contains("\"COLOR_0\"")) return true
+        // Check if any image still has a bufferView (i.e. embedded, not extracted)
+        try {
+            val root = org.json.JSONObject(jsonStr)
+            val images = root.optJSONArray("images")
+            if (images != null) {
+                for (i in 0 until images.length()) {
+                    if (images.getJSONObject(i).has("bufferView")) return true
+                }
+            }
+        } catch (_: Exception) { return true }
+        return false
     }
+
+    data class PatchResult(val bytes: ByteArray, val materialTextureMap: Map<String, String>)
 
     /**
      * Patch a head GLB:
@@ -88,14 +124,16 @@ object MiiModelLoader {
      * 2. Extract embedded PNG textures to external files and rewrite image
      *    references as URIs, since Filament 1.52's ResourceLoader can't
      *    decode buffer-view-embedded images.
+     * 3. Build a material name → texture file name mapping by following
+     *    the glTF reference chain: material → baseColorTexture → texture → image → URI
      */
-    private fun patchHeadGlb(glbBytes: ByteArray, cacheDir: File, fileBase: String): ByteArray {
-        if (glbBytes.size < 20) return glbBytes
+    private fun patchHeadGlb(glbBytes: ByteArray, cacheDir: File, fileBase: String): PatchResult {
+        if (glbBytes.size < 20) return PatchResult(glbBytes, emptyMap())
         val buf = ByteBuffer.wrap(glbBytes).order(ByteOrder.LITTLE_ENDIAN)
 
-        if (buf.getInt(0) != 0x46546C67) return glbBytes
+        if (buf.getInt(0) != 0x46546C67) return PatchResult(glbBytes, emptyMap())
         val jsonChunkLength = buf.getInt(12)
-        if (buf.getInt(16) != 0x4E4F534A) return glbBytes
+        if (buf.getInt(16) != 0x4E4F534A) return PatchResult(glbBytes, emptyMap())
 
         val jsonBytes = ByteArray(jsonChunkLength)
         System.arraycopy(glbBytes, 20, jsonBytes, 0, jsonChunkLength)
@@ -149,6 +187,31 @@ object MiiModelLoader {
                 }
             }
 
+            // 3. Build material name → texture file name mapping
+            val materialTextureMap = mutableMapOf<String, String>()
+            val materials = root.optJSONArray("materials")
+            val textures = root.optJSONArray("textures")
+            if (materials != null && textures != null && images != null) {
+                for (m in 0 until materials.length()) {
+                    val material = materials.getJSONObject(m)
+                    val matName = material.optString("name", "")
+                    if (matName.isEmpty()) continue
+                    val pbr = material.optJSONObject("pbrMetallicRoughness") ?: continue
+                    val baseColorTex = pbr.optJSONObject("baseColorTexture") ?: continue
+                    val texIndex = baseColorTex.optInt("index", -1)
+                    if (texIndex < 0 || texIndex >= textures.length()) continue
+                    val texture = textures.getJSONObject(texIndex)
+                    val sourceIndex = texture.optInt("source", -1)
+                    if (sourceIndex < 0 || sourceIndex >= images.length()) continue
+                    val image = images.getJSONObject(sourceIndex)
+                    val uri = image.optString("uri", "")
+                    if (uri.isNotEmpty()) {
+                        materialTextureMap[matName] = uri
+                        Log.d(TAG, "Material mapping: $matName → $uri")
+                    }
+                }
+            }
+
             // Rebuild GLB with patched JSON
             val newJsonStr = root.toString()
             var newJsonBytes = newJsonStr.toByteArray(Charsets.UTF_8)
@@ -171,11 +234,11 @@ object MiiModelLoader {
             out.put(newJsonBytes)
             out.put(glbBytes, origBinChunkOffset, binChunkSize)
 
-            Log.d(TAG, "Patched head GLB: stripped _COLOR, extracted textures to external files")
-            return out.array()
+            Log.d(TAG, "Patched head GLB: stripped _COLOR, extracted textures to external files, ${materialTextureMap.size} material mappings")
+            return PatchResult(out.array(), materialTextureMap)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to patch head GLB", e)
-            return glbBytes
+            return PatchResult(glbBytes, emptyMap())
         }
     }
 
@@ -190,19 +253,27 @@ object MiiModelLoader {
                 val cacheDir = File(context.cacheDir, "mii_heads")
                 if (!cacheDir.exists()) cacheDir.mkdirs()
 
-                val fileBase = "head_${avatarHex.hashCode().toUInt()}"
+                val fileBase = "head_v2_${avatarHex.hashCode().toUInt()}"
                 val cacheFile = File(cacheDir, "$fileBase.glb")
 
                 if (cacheFile.exists() && cacheFile.length() > 0 && !needsRepatch(cacheFile)) {
-                    return@withContext HeadGlbResult(cacheFile.readBytes(), cacheDir, fileBase)
+                    // Verify all extracted texture files still exist
+                    val hasTextures = cacheDir.listFiles()?.any {
+                        it.name.startsWith(fileBase) && it.extension == "png"
+                    } ?: false
+                    if (hasTextures) {
+                        val cachedBytes = cacheFile.readBytes()
+                        val mapping = buildMaterialTextureMapFromGlb(cachedBytes)
+                        return@withContext HeadGlbResult(cachedBytes, cacheDir, fileBase, mapping)
+                    }
                 }
 
                 val url = buildHeadGlbUrl(avatarHex)
                 Log.d(TAG, "Downloading head GLB for merge: $url")
-                val rawBytes = URL(url).readBytes()
-                val bytes = patchHeadGlb(rawBytes, cacheDir, fileBase)
-                cacheFile.writeBytes(bytes)
-                HeadGlbResult(bytes, cacheDir, fileBase)
+                val rawBytes = downloadWithSizeLimit(url)
+                val patchResult = patchHeadGlb(rawBytes, cacheDir, fileBase)
+                cacheFile.writeBytes(patchResult.bytes)
+                HeadGlbResult(patchResult.bytes, cacheDir, fileBase, patchResult.materialTextureMap)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to download head GLB bytes", e)
                 null
@@ -210,7 +281,48 @@ object MiiModelLoader {
         }
     }
 
-    data class HeadGlbResult(val glbBytes: ByteArray, val textureDir: File, val fileBase: String)
+    /**
+     * Rebuild the material name → texture file name mapping from an already-patched GLB's JSON chunk.
+     * Used when loading from cache where the PatchResult was not saved.
+     */
+    fun buildMaterialTextureMapFromGlb(glbBytes: ByteArray): Map<String, String> {
+        if (glbBytes.size < 20) return emptyMap()
+        val buf = ByteBuffer.wrap(glbBytes).order(ByteOrder.LITTLE_ENDIAN)
+        if (buf.getInt(0) != 0x46546C67) return emptyMap()
+        val jsonLen = buf.getInt(12)
+        if (buf.getInt(16) != 0x4E4F534A) return emptyMap()
+        val jsonStr = String(glbBytes, 20, jsonLen, Charsets.UTF_8).trimEnd('\u0000', ' ')
+        return try {
+            val root = JSONObject(jsonStr)
+            val materials = root.optJSONArray("materials") ?: return emptyMap()
+            val textures = root.optJSONArray("textures") ?: return emptyMap()
+            val images = root.optJSONArray("images") ?: return emptyMap()
+            val map = mutableMapOf<String, String>()
+            for (m in 0 until materials.length()) {
+                val material = materials.getJSONObject(m)
+                val matName = material.optString("name", "")
+                if (matName.isEmpty()) continue
+                val pbr = material.optJSONObject("pbrMetallicRoughness") ?: continue
+                val baseColorTex = pbr.optJSONObject("baseColorTexture") ?: continue
+                val texIndex = baseColorTex.optInt("index", -1)
+                if (texIndex < 0 || texIndex >= textures.length()) continue
+                val texture = textures.getJSONObject(texIndex)
+                val sourceIndex = texture.optInt("source", -1)
+                if (sourceIndex < 0 || sourceIndex >= images.length()) continue
+                val image = images.getJSONObject(sourceIndex)
+                val uri = image.optString("uri", "")
+                if (uri.isNotEmpty()) map[matName] = uri
+            }
+            map
+        } catch (_: Exception) { emptyMap() }
+    }
+
+    data class HeadGlbResult(
+        val glbBytes: ByteArray,
+        val textureDir: File,
+        val fileBase: String,
+        val materialTextureMap: Map<String, String> = emptyMap()
+    )
 
     /**
      * Download a non-bundled hat GLB from a remote source.

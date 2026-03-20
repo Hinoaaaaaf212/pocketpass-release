@@ -3,6 +3,7 @@ package com.pocketpass.app.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -129,7 +130,7 @@ fun ProfileSetupScreen(
 
             OutlinedTextField(
                 value = hobbies,
-                onValueChange = { hobbies = com.pocketpass.app.ui.theme.formatHobbiesInput(it) },
+                onValueChange = { if (it.length <= 200) hobbies = com.pocketpass.app.ui.theme.formatHobbiesInput(it) },
                 label = { Text("Hobbies (Optional)") },
                 supportingText = { Text("Separate hobbies with spaces") },
                 shape = RoundedCornerShape(16.dp),
@@ -145,43 +146,55 @@ fun ProfileSetupScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Region Dropdown
-            Box {
-                OutlinedTextField(
-                    value = if (region.isNotBlank()) "${RegionFlags.getFlagForRegion(region)} $region" else "",
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("Region (Required)") },
-                    trailingIcon = {
-                        Icon(Icons.Filled.ArrowDropDown, "Dropdown")
-                    },
-                    shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { regionExpanded = !regionExpanded },
-                    colors = textFieldColors,
-                    enabled = false
-                )
-                androidx.compose.material3.DropdownMenu(
-                    expanded = regionExpanded,
+            // Region picker
+            OutlinedTextField(
+                value = if (region.isNotBlank()) "${RegionFlags.getFlagForRegion(region)} $region" else "",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Region (Required)") },
+                trailingIcon = {
+                    Icon(Icons.Filled.ArrowDropDown, "Dropdown")
+                },
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { regionExpanded = true },
+                colors = textFieldColors,
+                enabled = false
+            )
+
+            if (regionExpanded) {
+                androidx.compose.material3.AlertDialog(
                     onDismissRequest = { regionExpanded = false },
-                    modifier = Modifier.height(250.dp)
-                ) {
-                    LazyColumn {
-                        items(RegionFlags.supportedRegions, key = { it }) { regionOption ->
-                            DropdownMenuItem(
-                                text = {
-                                    Text("${RegionFlags.getFlagForRegion(regionOption)} $regionOption")
-                                },
-                                onClick = {
-                                    soundManager.playSelect()
-                                    region = regionOption
-                                    regionExpanded = false
+                    title = { Text("Select Region", fontWeight = FontWeight.Bold) },
+                    text = {
+                        LazyColumn(modifier = Modifier.height(350.dp)) {
+                            items(RegionFlags.supportedRegions, key = { it }) { regionOption ->
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            soundManager.playSelect()
+                                            region = regionOption
+                                            regionExpanded = false
+                                        }
+                                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "${RegionFlags.getFlagForRegion(regionOption)} $regionOption",
+                                        style = MaterialTheme.typography.bodyMedium
+                                    )
                                 }
-                            )
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        androidx.compose.material3.TextButton(onClick = { regionExpanded = false }) {
+                            Text("Cancel")
                         }
                     }
-                }
+                )
             }
 
             Spacer(modifier = Modifier.height(20.dp))

@@ -40,7 +40,7 @@ data class ExchangePayload(
             if (json.length > MAX_PAYLOAD_SIZE_BYTES) return null
             return try {
                 val payload = gson.fromJson(json, ExchangePayload::class.java) ?: return null
-                payload.validateAndSanitize()
+                payload.validateAndSanitize(gson)
             } catch (_: JsonSyntaxException) {
                 null
             } catch (_: Exception) {
@@ -48,7 +48,7 @@ data class ExchangePayload(
             }
         }
 
-        private fun ExchangePayload.validateAndSanitize(): ExchangePayload? {
+        private fun ExchangePayload.validateAndSanitize(gson: Gson): ExchangePayload? {
             if (userId.isBlank() || userName.isBlank()) return null
 
             // Validate userId is a valid UUID
@@ -59,13 +59,15 @@ data class ExchangePayload(
 
             // Validate age is empty or a reasonable number
             if (age.isNotEmpty()) {
-                val ageNum = age.toIntOrNull()
-                if (ageNum != null && (ageNum < 0 || ageNum > 150)) return null
+                val ageNum = age.toIntOrNull() ?: return null
+                if (ageNum < 0 || ageNum > 150) return null
             }
 
             // Validate games is empty or valid JSON array
             if (games.isNotEmpty()) {
-                if (!games.trimStart().startsWith("[") || !games.trimEnd().endsWith("]")) return null
+                try {
+                    gson.fromJson(games, com.google.gson.JsonArray::class.java)
+                } catch (_: Exception) { return null }
             }
 
             // Reject stale timestamps (older than 5 minutes)

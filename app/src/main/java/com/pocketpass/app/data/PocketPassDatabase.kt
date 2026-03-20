@@ -5,7 +5,7 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
-@Database(entities = [Encounter::class, CachedMessage::class, SpotPassItemEntity::class], version = 14, exportSchema = false)
+@Database(entities = [Encounter::class, CachedMessage::class, SpotPassItemEntity::class], version = 15, exportSchema = false)
 abstract class PocketPassDatabase : RoomDatabase() {
 
     abstract fun encounterDao(): EncounterDao

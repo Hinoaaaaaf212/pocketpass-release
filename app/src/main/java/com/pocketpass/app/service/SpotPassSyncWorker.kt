@@ -90,10 +90,10 @@ class SpotPassSyncWorker(
             manager.createNotificationChannel(
                 NotificationChannel(
                     CHANNEL_ID,
-                    "SpotPass Content",
+                    "WaveLink Content",
                     NotificationManager.IMPORTANCE_DEFAULT
                 ).apply {
-                    description = "New content delivered via SpotPass"
+                    description = "New content delivered via WaveLink"
                 }
             )
         }
@@ -109,7 +109,7 @@ class SpotPassSyncWorker(
 
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("SpotPass")
+            .setContentTitle("WaveLink")
             .setContentText("$count new item${if (count > 1) "s" else ""} arrived!")
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)

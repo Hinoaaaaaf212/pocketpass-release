@@ -79,9 +79,9 @@ fun AeroCard(
     val resolvedShape = shape ?: RoundedCornerShape(cornerRadius)
 
     val cardContent: @Composable ColumnScope.() -> Unit = {
-        Box {
-            Column(content = content)
-            // Glass highlight overlay — top 45% white gradient fade
+        Box(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.fillMaxWidth(), content = content)
+            // Glass highlight overlay — fixed-height white gradient fade
             Box(
                 modifier = Modifier
                     .matchParentSize()
@@ -92,7 +92,8 @@ fun AeroCard(
                                 0.35f to highlightMidColor,
                                 0.45f to Color.Transparent,
                                 1.0f to Color.Transparent
-                            )
+                            ),
+                            endY = 320f // fixed pixel height so gloss looks consistent on all card sizes
                         )
                     )
             )

@@ -209,7 +209,7 @@ fun Mii3DTestScreen(
                     Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = DarkText)
                 }
                 Text(
-                    text = "3D Pal Viewer",
+                    text = "3D Piip Viewer",
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
                     color = DarkText,

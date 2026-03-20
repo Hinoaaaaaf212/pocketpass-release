@@ -65,8 +65,8 @@ class Plaza3DMiiManager(
 
     companion object {
         const val MAX_MIIS = 20
-        const val GRID_Z_BACK = -3.0f
-        const val GRID_Z_FRONT = 1.0f
+        const val GRID_Z_BACK = 0.0f
+        const val GRID_Z_FRONT = 4.0f
         const val GRID_ROW_SPACING = 1.2f
         const val GRID_COL_SPACING = 1.4f
         const val GRID_STAGGER_OFFSET = 0.7f
@@ -281,7 +281,7 @@ class Plaza3DMiiManager(
         val state = Plaza3DMiiState(
             encounter = userEncounter,
             positionX = 0f,
-            positionZ = GRID_Z_FRONT,
+            positionZ = GRID_Z_FRONT - 2.0f,
             stateTimer = Float.MAX_VALUE,
             animState = PlazaAnimState.IDLE,
             isUser = true
@@ -350,7 +350,7 @@ class Plaza3DMiiManager(
                             )
 
                             if (node != null) {
-                                MiiSceneAssembler.applyHeadTextures(engine, node, result.headTextureDir, result.headFileBase)
+                                MiiSceneAssembler.applyHeadTextures(engine, node, result.headTextureDir, result.headFileBase, result.materialTextureMap)
                                 MiiSceneAssembler.boostMergedHeadSize(node)
 
                                 // All Miis face the camera (rotation 0)
@@ -400,17 +400,14 @@ class Plaza3DMiiManager(
 
             when (mii.animState) {
                 PlazaAnimState.IDLE -> {
-                    // Periodically re-kick idle animation (heartbeat every 1.5s)
-                    mii.animRefreshTimer -= clampedDt
-                    if (!mii.animStarted || mii.animRefreshTimer <= 0f) {
+                    // Start idle animation once — Filament loops it internally
+                    if (!mii.animStarted) {
                         val node = mii.modelNode
                         val idleIdx = mii.animIndexMap["IDLE"]
                         if (node != null && idleIdx != null && idleIdx < node.animationCount) {
-                            node.stopAnimation(idleIdx)
                             node.playAnimation(idleIdx, loop = true)
                             mii.animStarted = true
                         }
-                        mii.animRefreshTimer = 1.5f
                     }
                 }
                 PlazaAnimState.GREETING -> {

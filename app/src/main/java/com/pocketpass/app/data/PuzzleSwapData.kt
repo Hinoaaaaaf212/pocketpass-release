@@ -20,7 +20,7 @@ enum class PuzzleTheme(val displayName: String) {
     HANDHELD("Ayn Thor"),
     SPACE("Outer Space"),
     CASTLE("Royal Castle"),
-    SPOTPASS("SpotPass")
+    SPOTPASS("WaveLink")
 }
 
 /**

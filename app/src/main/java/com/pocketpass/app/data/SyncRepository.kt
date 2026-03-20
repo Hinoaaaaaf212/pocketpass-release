@@ -94,20 +94,21 @@ class SyncRepository(private val context: Context) {
             val remoteMap = remoteEncounters.associateBy { it.encounterId }
             val localMap = localEncounters.associateBy { it.encounterId }
 
-            // 3. Push local encounters not in remote
+            // 3. Push local encounters not in remote (batch upsert)
             val toUpload = localEncounters.filter { it.encounterId !in remoteMap }
-            for (encounter in toUpload) {
-                val supabaseEncounter = encounter.toSupabase(userId).encryptFields()
-                client.postgrest["encounters"].upsert(supabaseEncounter)
-                dao.markSynced(encounter.encounterId)
+            if (toUpload.isNotEmpty()) {
+                val batch = toUpload.map { it.toSupabase(userId).encryptFields() }
+                client.postgrest["encounters"].upsert(batch)
+                toUpload.forEach { dao.markSynced(it.encounterId) }
             }
 
-            // 4. Pull remote encounters not in local (excluding soft-deleted)
+            // 4. Pull remote encounters not in local (excluding soft-deleted, batch insert)
             val toDownload = remoteEncounters.filter {
                 it.encounterId !in localMap && it.deletedAt == null
             }
-            for (remote in toDownload) {
-                dao.insertEncounter(remote.decryptFields().toLocal())
+            if (toDownload.isNotEmpty()) {
+                val toInsert = toDownload.map { it.decryptFields().toLocal() }
+                dao.insertEncounters(toInsert)
             }
 
             // 5. Merge conflicts (same encounterId exists both places)
@@ -224,15 +225,23 @@ class SyncRepository(private val context: Context) {
 
     // ── Fetch Leaderboard ──
 
+    companion object {
+        private val VALID_SORT_COLUMNS = setOf(
+            "total_encounters", "unique_encounters", "unique_regions",
+            "puzzles_completed", "achievements_unlocked"
+        )
+    }
+
     suspend fun fetchLeaderboard(
         sortBy: String = "total_encounters",
         limit: Int = 50
     ): List<SupabaseLeaderboardEntry> = withContext(Dispatchers.IO) {
+        val safeSortBy = if (sortBy in VALID_SORT_COLUMNS) sortBy else "total_encounters"
         try {
             client.postgrest["leaderboards"]
                 .select {
                     filter { neq("user_name", "") }
-                    order(sortBy, Order.DESCENDING)
+                    order(safeSortBy, Order.DESCENDING)
                     limit(limit.toLong())
                 }
                 .decodeList<SupabaseLeaderboardEntry>()
@@ -278,7 +287,7 @@ class SyncRepository(private val context: Context) {
                 }
                 // Set the main avatar as active
                 if (profile.avatarHex.isNotBlank()) prefs.setActiveMii(profile.avatarHex)
-            } catch (_: Exception) { }
+            } catch (e: Exception) { Log.w(TAG, "Failed to restore saved Miis: ${e.message}") }
 
             prefs.saveGreeting(profile.greeting)
             prefs.saveMood(profile.mood)
@@ -295,14 +304,14 @@ class SyncRepository(private val context: Context) {
             try {
                 val progress = gson.fromJson(profile.puzzleProgress.toString(), PuzzleProgress::class.java)
                 if (progress != null) prefs.savePuzzleProgress(progress)
-            } catch (_: Exception) { }
+            } catch (e: Exception) { Log.w(TAG, "Failed to restore puzzle progress: ${e.message}") }
 
             // Restore selected games
             try {
                 val type = object : com.google.gson.reflect.TypeToken<List<IgdbGame>>() {}.type
                 val games: List<IgdbGame> = gson.fromJson(profile.selectedGames.toString(), type) ?: emptyList()
                 if (games.isNotEmpty()) prefs.saveSelectedGames(games)
-            } catch (_: Exception) { }
+            } catch (e: Exception) { Log.w(TAG, "Failed to restore selected games: ${e.message}") }
 
             // 3. Pull encounters from Supabase into local Room DB
             val db = PocketPassDatabase.getDatabase(context)
@@ -336,7 +345,7 @@ class SyncRepository(private val context: Context) {
                     }
                 }
                 Log.d(TAG, "Restored streak rewards from ${remoteStreaks.size} conversations")
-            } catch (_: Exception) { }
+            } catch (e: Exception) { Log.w(TAG, "Failed to restore streak rewards: ${e.message}") }
 
             Log.d(TAG, "Restore complete: profile + $restored encounters")
             Result.success(Unit)

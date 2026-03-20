@@ -527,7 +527,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "3D Pal Viewer",
+                            text = "3D Piip Viewer",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.SemiBold,
                             color = DarkText
@@ -561,7 +561,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     Column(modifier = Modifier.padding(16.dp)) {
                         var cacheCleared by remember { mutableStateOf(false) }
                         Text(
-                            text = "Pal Head Cache",
+                            text = "Piip Head Cache",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.SemiBold,
                             color = DarkText

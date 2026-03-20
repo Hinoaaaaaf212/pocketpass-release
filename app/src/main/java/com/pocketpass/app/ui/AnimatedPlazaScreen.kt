@@ -848,7 +848,7 @@ fun AnimatedPlazaCompanionScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Select a Pal with the D-Pad",
+                    text = "Select a Piip with the D-Pad",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = if (isDark) Color.White else DarkText

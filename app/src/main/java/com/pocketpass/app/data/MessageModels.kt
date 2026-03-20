@@ -45,7 +45,8 @@ data class BroadcastMessagePayload(
     indices = [
         Index("senderId"),
         Index("receiverId"),
-        Index(value = ["receiverId", "readAt"])
+        Index(value = ["receiverId", "readAt"]),
+        Index(value = ["senderId", "receiverId"])
     ]
 )
 data class CachedMessage(

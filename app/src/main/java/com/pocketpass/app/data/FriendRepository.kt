@@ -16,10 +16,21 @@ class FriendRepository {
     val currentUserId: String?
         get() = authRepo.currentUserId
 
+    companion object {
+        private val FRIEND_CODE_REGEX = Regex("^\\d{8}$")
+        private const val FRIEND_REQUEST_COOLDOWN_MS = 5_000L
+    }
+
+    @Volatile private var lastFriendRequestTime = 0L
+
     suspend fun lookupByFriendCode(code: String): SupabaseProfile? = withContext(Dispatchers.IO) {
+        if (!FRIEND_CODE_REGEX.matches(code.trim())) {
+            Log.w(TAG, "Invalid friend code format: ${code.take(20)}")
+            return@withContext null
+        }
         try {
             client.postgrest["profiles"].select {
-                filter { eq("friend_code", code) }
+                filter { eq("friend_code", code.trim()) }
             }.decodeList<SupabaseProfile>().firstOrNull()
         } catch (e: CancellationException) { throw e
         } catch (e: Exception) {
@@ -30,6 +41,9 @@ class FriendRepository {
 
     suspend fun sendFriendRequestByCode(code: String): Result<SupabaseProfile> = withContext(Dispatchers.IO) {
         val myId = authRepo.currentUserId ?: return@withContext Result.failure(Exception("Not logged in"))
+        if (!FRIEND_CODE_REGEX.matches(code.trim())) {
+            return@withContext Result.failure(Exception("Friend code must be 8 digits"))
+        }
         val profile = lookupByFriendCode(code)
             ?: return@withContext Result.failure(Exception("No user found with that friend code"))
         if (profile.id == myId) return@withContext Result.failure(Exception("That's your own friend code!"))
@@ -57,6 +71,11 @@ class FriendRepository {
         val myId = authRepo.currentUserId ?: return@withContext Result.failure(Exception("Not logged in"))
         if (toUserId == myId) return@withContext Result.failure(Exception("You can't add yourself as a friend"))
         if (toUserId.isBlank()) return@withContext Result.failure(Exception("This person doesn't have an account yet"))
+        val now = System.currentTimeMillis()
+        if (now - lastFriendRequestTime < FRIEND_REQUEST_COOLDOWN_MS) {
+            return@withContext Result.failure(Exception("Please wait a few seconds before sending another request"))
+        }
+        lastFriendRequestTime = now
         try {
             // Check for existing friendship in either direction
             val existing = getFriendshipWith(toUserId)
@@ -104,7 +123,7 @@ class FriendRepository {
             val msg = if (e.message?.contains("23503") == true || e.message?.contains("foreign key") == true) {
                 "This person doesn't have an account yet"
             } else {
-                e.message ?: "Failed to send friend request"
+                "Failed to send friend request"
             }
             Result.failure(Exception(msg))
         }

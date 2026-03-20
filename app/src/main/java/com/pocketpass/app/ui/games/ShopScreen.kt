@@ -322,7 +322,7 @@ private fun ShopCategoryList(
             ShopCategoryCard(
                 icon = "\uD83C\uDFA9",
                 title = "Hats",
-                description = "Accessorize your Pal with fun headwear",
+                description = "Accessorize your Piip with fun headwear",
                 itemCount = 0,
                 comingSoon = true,
                 onClick = { onSelectCategory(ShopCategory.HAT) }
@@ -333,7 +333,7 @@ private fun ShopCategoryList(
             ShopCategoryCard(
                 icon = "\uD83D\uDC54",
                 title = "Costumes",
-                description = "Dress up your Pal in unique outfits",
+                description = "Dress up your Piip in unique outfits",
                 itemCount = 0,
                 comingSoon = true,
                 onClick = { onSelectCategory(ShopCategory.COSTUME) }

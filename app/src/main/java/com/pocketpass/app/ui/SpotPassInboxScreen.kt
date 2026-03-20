@@ -122,7 +122,7 @@ fun SpotPassInboxScreen(
                             Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = DarkText)
                         }
                         Text(
-                            text = "SpotPass",
+                            text = "WaveLink",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold,
                             color = DarkText,
@@ -149,7 +149,7 @@ fun SpotPassInboxScreen(
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             Text(
-                                text = "No SpotPass content yet",
+                                text = "No WaveLink content yet",
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MediumText,
                                 fontWeight = FontWeight.Medium

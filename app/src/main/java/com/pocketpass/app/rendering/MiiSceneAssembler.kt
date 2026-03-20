@@ -161,7 +161,8 @@ object MiiSceneAssembler {
         val buffer: java.nio.ByteBuffer,
         val headTextureDir: java.io.File?,
         val headFileBase: String?,
-        val animIndexMap: Map<String, Int>
+        val animIndexMap: Map<String, Int>,
+        val materialTextureMap: Map<String, String> = emptyMap()
     )
 
     /**
@@ -211,6 +212,7 @@ object MiiSceneAssembler {
             // Merge head if avatar data is provided
             var textureDir: java.io.File? = null
             var headFileBase: String? = null
+            var materialTextureMap: Map<String, String> = emptyMap()
             if (!avatarHex.isNullOrBlank()) {
                 val headResult = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     MiiModelLoader.downloadHeadGlbBytes(context, avatarHex)
@@ -219,10 +221,11 @@ object MiiSceneAssembler {
                     mergedBuffer = GlbHeadMerger.mergeHeadIntoBody(mergedBuffer, headResult.glbBytes)
                     textureDir = headResult.textureDir
                     headFileBase = headResult.fileBase
+                    materialTextureMap = headResult.materialTextureMap
                 }
             }
 
-            PlazaMiiResult(mergedBuffer, textureDir, headFileBase, animIndexMap)
+            PlazaMiiResult(mergedBuffer, textureDir, headFileBase, animIndexMap, materialTextureMap)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to prepare plaza Mii buffer", e)
             null
@@ -263,7 +266,7 @@ object MiiSceneAssembler {
      *
      * @return A MergedMiiResult with the merged ByteBuffer and texture dir for post-load texture application
      */
-    data class MergedMiiResult(val buffer: java.nio.ByteBuffer, val headTextureDir: java.io.File?, val headFileBase: String? = null)
+    data class MergedMiiResult(val buffer: java.nio.ByteBuffer, val headTextureDir: java.io.File?, val headFileBase: String? = null, val materialTextureMap: Map<String, String> = emptyMap())
 
     suspend fun prepareMergedMiiBuffer(
         context: Context,
@@ -287,6 +290,7 @@ object MiiSceneAssembler {
             // Merge head if avatar data is provided
             var textureDir: java.io.File? = null
             var headFileBase: String? = null
+            var materialTextureMap: Map<String, String> = emptyMap()
             if (!avatarHex.isNullOrBlank()) {
                 val headResult = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                     MiiModelLoader.downloadHeadGlbBytes(context, avatarHex)
@@ -295,10 +299,11 @@ object MiiSceneAssembler {
                     mergedBuffer = GlbHeadMerger.mergeHeadIntoBody(mergedBuffer, headResult.glbBytes)
                     textureDir = headResult.textureDir
                     headFileBase = headResult.fileBase
+                    materialTextureMap = headResult.materialTextureMap
                 }
             }
 
-            MergedMiiResult(mergedBuffer, textureDir, headFileBase)
+            MergedMiiResult(mergedBuffer, textureDir, headFileBase, materialTextureMap)
         } catch (e: Exception) {
             Log.e(TAG, "Failed to prepare merged Mii buffer", e)
             null
@@ -408,67 +413,60 @@ object MiiSceneAssembler {
     }
 
     /**
-     * Apply head textures to a merged Mii model node.
-     * The head materials (XluMask, XluNoseLine) are now part of the merged model,
-     * so we find them among all renderables and apply extracted PNG textures.
+     * Apply head textures to a merged Mii model node using the material→texture mapping
+     * built during GLB patching. Only materials present in the mapping get textures applied;
+     * body materials (mii_bodyMt, mii_pantsMt, etc.) are skipped since they're not in the map.
+     *
+     * @param materialTextureMap Mapping from glTF material name to extracted texture file name,
+     *        built by [MiiModelLoader.patchHeadGlb] following the glTF reference chain.
      */
-    fun applyHeadTextures(engine: Engine, modelNode: ModelNode, textureDir: java.io.File?, headFileBase: String? = null) {
+    fun applyHeadTextures(
+        engine: Engine,
+        modelNode: ModelNode,
+        textureDir: java.io.File?,
+        headFileBase: String? = null,
+        materialTextureMap: Map<String, String> = emptyMap()
+    ) {
         if (textureDir == null) return
         val sampler = TextureSampler(
             TextureSampler.MinFilter.LINEAR_MIPMAP_LINEAR,
             TextureSampler.MagFilter.LINEAR,
             TextureSampler.WrapMode.MIRRORED_REPEAT
         )
-        // Cache the file list once instead of listing per-material
-        val files = textureDir.listFiles()
         for (renderable in modelNode.renderableNodes) {
             for (i in 0 until renderable.primitiveCount) {
                 val mat = renderable.getMaterialInstanceAt(i)
-                val isHeadMaterial = mat.name in listOf("Material_XluMask_0", "Material_XluNoseLine")
-                val texFile = when (mat.name) {
-                    "Material_XluMask_0" -> files?.firstOrNull {
-                        (headFileBase == null || it.name.startsWith(headFileBase)) &&
-                        it.name.contains("MaskTexture") && it.extension == "png"
-                    }
-                    "Material_XluNoseLine" -> files?.firstOrNull {
-                        (headFileBase == null || it.name.startsWith(headFileBase)) &&
-                        it.name.contains("Texture_0") && it.extension == "png"
-                    }
-                    else -> null
+
+                // Look up this material in the explicit mapping
+                val textureFileName = materialTextureMap[mat.name] ?: continue
+
+                val texFile = java.io.File(textureDir, textureFileName)
+                if (!texFile.exists()) {
+                    Log.w(TAG, "Texture file not found for ${mat.name}: ${texFile.name}, skipping")
+                    continue
                 }
-                if (texFile != null) {
-                    try {
-                        val bitmap = BitmapFactory.decodeFile(texFile.absolutePath, BitmapFactory.Options().apply {
-                            inPremultiplied = true
-                        })
-                        if (bitmap != null) {
-                            val texture = Texture.Builder()
-                                .width(bitmap.width)
-                                .height(bitmap.height)
-                                .sampler(Texture.Sampler.SAMPLER_2D)
-                                .format(Texture.InternalFormat.SRGB8_A8)
-                                .levels(0xff)
-                                .build(engine)
-                            TextureHelper.setBitmap(engine, texture, 0, bitmap)
-                            texture.generateMipmaps(engine)
-                            mat.setParameter("baseColorMap", texture, sampler)
-                            Log.d(TAG, "Applied head texture ${texFile.name} to ${mat.name}")
-                        } else if (isHeadMaterial) {
-                            // Bitmap decode failed — hide the mesh so it doesn't render as red
-                            try { mat.setParameter("baseColorFactor", 0f, 0f, 0f, 0f) } catch (_: Exception) {}
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to apply head texture to ${mat.name}", e)
-                        // Hide the broken material so it doesn't render as a red square
-                        if (isHeadMaterial) {
-                            try { mat.setParameter("baseColorFactor", 0f, 0f, 0f, 0f) } catch (_: Exception) {}
-                        }
+
+                try {
+                    val bitmap = BitmapFactory.decodeFile(texFile.absolutePath, BitmapFactory.Options().apply {
+                        inPremultiplied = true
+                    })
+                    if (bitmap != null) {
+                        val texture = Texture.Builder()
+                            .width(bitmap.width)
+                            .height(bitmap.height)
+                            .sampler(Texture.Sampler.SAMPLER_2D)
+                            .format(Texture.InternalFormat.SRGB8_A8)
+                            .levels(0xff)
+                            .build(engine)
+                        TextureHelper.setBitmap(engine, texture, 0, bitmap)
+                        texture.generateMipmaps(engine)
+                        mat.setParameter("baseColorMap", texture, sampler)
+                        Log.d(TAG, "Applied head texture ${texFile.name} to ${mat.name}")
+                    } else {
+                        Log.w(TAG, "Failed to decode bitmap for ${mat.name}: ${texFile.name}")
                     }
-                } else if (isHeadMaterial) {
-                    // No texture file found — make the material fully transparent
-                    // to prevent Filament's red fallback from showing as a red square
-                    try { mat.setParameter("baseColorFactor", 0f, 0f, 0f, 0f) } catch (_: Exception) {}
-                    Log.w(TAG, "No texture found for ${mat.name} (fileBase=$headFileBase), hiding material")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to apply head texture to ${mat.name}", e)
                 }
             }
         }
@@ -498,7 +496,8 @@ object MiiSceneAssembler {
             // manually from the extracted files alongside the GLB.
             if (engine != null) {
                 val fileBase = headFile.nameWithoutExtension
-                applyHeadTextures(engine, node, headFile.parentFile, fileBase)
+                val mapping = MiiModelLoader.buildMaterialTextureMapFromGlb(headFile.readBytes())
+                applyHeadTextures(engine, node, headFile.parentFile, fileBase, mapping)
             }
 
             Log.d(TAG, "Head node created from: $headFilePath (renderables: ${node.renderableNodes.size})")

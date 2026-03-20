@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -36,15 +37,31 @@ class MessageRepository(private val context: Context) {
     val incomingMessages: SharedFlow<CachedMessage> = _incomingMessages
 
     private var broadcastChannel: RealtimeChannel? = null
+    private var broadcastScope: CoroutineScope? = null
     private var pollingScope: CoroutineScope? = null
+    private val backgroundScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     val currentUserId: String?
         get() = authRepo.currentUserId
+
+    companion object {
+        private const val MAX_MESSAGE_LENGTH = 10_000
+        private const val MESSAGE_COOLDOWN_MS = 1_000L
+    }
+
+    @Volatile private var lastSendTime = 0L
 
     // ── Send Message ──
 
     suspend fun sendMessage(receiverId: String, content: String): Result<CachedMessage> = withContext(Dispatchers.IO) {
         val myId = authRepo.currentUserId ?: return@withContext Result.failure(Exception("Not logged in"))
+        if (content.isBlank()) return@withContext Result.failure(Exception("Message cannot be empty"))
+        if (content.length > MAX_MESSAGE_LENGTH) return@withContext Result.failure(Exception("Message is too long (max $MAX_MESSAGE_LENGTH characters)"))
+        val now = System.currentTimeMillis()
+        if (now - lastSendTime < MESSAGE_COOLDOWN_MS) {
+            return@withContext Result.failure(Exception("Sending too fast, please wait"))
+        }
+        lastSendTime = now
         try {
             // Get friend's public key for encryption
             val friendPubKey = getFriendPublicKey(receiverId)
@@ -66,7 +83,7 @@ class MessageRepository(private val context: Context) {
             messageDao.insertMessage(cached)
 
             // Broadcast to receiver (encrypted content)
-            CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+            backgroundScope.launch {
                 try {
                     val channel = client.channel("chat_$receiverId")
                     channel.subscribe(blockUntilSubscribed = true)
@@ -150,21 +167,23 @@ class MessageRepository(private val context: Context) {
                 if (msg.senderId == myId) msg.receiverId else msg.senderId
             }
 
-            // Build summaries
+            // Batch-fetch all friend profiles in one network call
             val friendRepo = FriendRepository()
+            val friendIds = grouped.keys.toList()
+            val profilesMap = friendRepo.getProfilesByIds(friendIds)
+
+            // Build summaries
             val summaries = grouped.mapNotNull { (friendId, messages) ->
                 val latest = messages.first() // Already sorted DESC
                 val unread = messages.count { it.receiverId == myId && it.readAt == null }
-                val profile = friendRepo.getRequesterProfile(friendId)
+                val profile = profilesMap[friendId]
 
                 // Decrypt the latest message content for display
                 val friendPubKey = profile?.publicKey ?: ""
                 val decryptedLatest = latest.decryptContent(friendPubKey, myId, friendId)
 
-                // Calculate streak from cached local messages
-                val cachedMessages = messages.map {
-                    it.decryptContent(friendPubKey, myId, friendId).toLocal()
-                }
+                // Calculate streak from cached local messages (no decryption needed — streak only uses createdAt/senderId)
+                val cachedMessages = messages.map { it.toLocal() }
                 val streakDays = calculateStreak(cachedMessages, myId, friendId)
 
                 ConversationSummary(
@@ -188,7 +207,7 @@ class MessageRepository(private val context: Context) {
             val claimedRewards = try {
                 prefs.claimedStreakRewardsFlow.first()
             } catch (_: Exception) { emptySet<String>() }
-            CoroutineScope(Dispatchers.IO + SupervisorJob()).launch {
+            backgroundScope.launch {
                 for (summary in summaries) {
                     StreakSync.pushStreak(myId, summary.friendId, summary.streakDays, claimedRewards)
                 }
@@ -248,17 +267,28 @@ class MessageRepository(private val context: Context) {
             // Subscribe to broadcast channel for instant message delivery
             broadcastChannel = client.channel("chat_$myId")
 
+            broadcastScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
             broadcastChannel!!
                 .broadcastFlow<BroadcastMessagePayload>("new_message")
                 .onEach { payload ->
-                    val friendId = payload.senderId
-                    val friendPubKey = getFriendPublicKey(friendId)
-                    val decrypted = payload.decryptContent(friendPubKey, myId, friendId)
-                    val local = decrypted.toLocal()
-                    messageDao.insertMessage(local)
-                    _incomingMessages.emit(local)
+                    try {
+                        val friendId = payload.senderId
+                        // Verify sender is an accepted friend
+                        val acceptedFriendIds = FriendRepository().getAcceptedFriendIds()
+                        if (friendId !in acceptedFriendIds) {
+                            Log.w(TAG, "Broadcast from non-friend, ignoring")
+                            return@onEach
+                        }
+                        val friendPubKey = getFriendPublicKey(friendId)
+                        val decrypted = payload.decryptContent(friendPubKey, myId, friendId)
+                        val local = decrypted.toLocal()
+                        messageDao.insertMessage(local)
+                        _incomingMessages.emit(local)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to process broadcast message: ${e.message}")
+                    }
                 }
-                .launchIn(CoroutineScope(Dispatchers.IO + SupervisorJob()))
+                .launchIn(broadcastScope!!)
 
             broadcastChannel!!.subscribe()
             Log.d(TAG, "Subscribed to broadcast channel chat_$myId")
@@ -270,7 +300,7 @@ class MessageRepository(private val context: Context) {
         pollingScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         pollingScope!!.launch {
             while (isActive) {
-                delay(15_000) // Poll every 15 seconds
+                delay(60_000) // Poll every 60 seconds (broadcast channel handles real-time delivery)
                 try {
                     pollNewMessages(myId)
                 } catch (e: Exception) {
@@ -320,9 +350,9 @@ class MessageRepository(private val context: Context) {
         } catch (e: Exception) {
             Log.w(TAG, "Failed to unsubscribe: ${e.message}")
         }
-        pollingScope?.let {
-            it.launch { }.cancel()
-        }
+        broadcastScope?.cancel()
+        broadcastScope = null
+        pollingScope?.cancel()
         pollingScope = null
     }
 

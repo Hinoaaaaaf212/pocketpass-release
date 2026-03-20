@@ -192,10 +192,14 @@ fun ProfileSettingsScreen(
 
                                 OutlinedTextField(
                                     value = customGreeting,
-                                    onValueChange = { customGreeting = it },
+                                    onValueChange = { if (it.length <= 200) customGreeting = it },
                                     label = { Text("Custom Greeting") },
                                     modifier = Modifier.fillMaxWidth(),
-                                    singleLine = true
+                                    singleLine = true,
+                                    colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                                        focusedTextColor = DarkText,
+                                        unfocusedTextColor = DarkText
+                                    )
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 AeroButton(
@@ -330,7 +334,7 @@ fun ProfileSettingsScreen(
 
                                 OutlinedTextField(
                                     value = hobbiesText,
-                                    onValueChange = { hobbiesText = com.pocketpass.app.ui.theme.formatHobbiesInput(it) },
+                                    onValueChange = { if (it.length <= 200) hobbiesText = com.pocketpass.app.ui.theme.formatHobbiesInput(it) },
                                     label = { Text("Hobbies (separate with spaces)") },
                                     modifier = Modifier.fillMaxWidth(),
                                     singleLine = true

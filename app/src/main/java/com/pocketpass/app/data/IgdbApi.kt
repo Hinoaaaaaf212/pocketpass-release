@@ -39,6 +39,8 @@ class IgdbApi(private val context: Context) {
 
     companion object {
         private const val TAG = "IgdbApi"
+        private const val MAX_QUERY_LENGTH = 100
+        private val SAFE_QUERY_REGEX = Regex("[a-zA-Z0-9 '\\-:.,!&+()]+")
         private val PROXY_URL: String by lazy {
             val supabaseUrl = NativeKeys.getSupabaseUrl().trimEnd('/')
             "$supabaseUrl/functions/v1/igdb-proxy"
@@ -47,9 +49,18 @@ class IgdbApi(private val context: Context) {
 
     private val gson = Gson()
 
+    /** Sanitize search query: keep only safe characters, enforce length limit. */
+    private fun sanitizeQuery(raw: String): String {
+        val trimmed = raw.trim().take(MAX_QUERY_LENGTH)
+        return SAFE_QUERY_REGEX.findAll(trimmed).joinToString("") { it.value }
+    }
+
     /** Search games by name, returns up to 10 results with cover art IDs. */
     suspend fun searchGames(query: String): List<IgdbGame> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
+
+        val sanitized = sanitizeQuery(query)
+        if (sanitized.isBlank()) return@withContext emptyList()
 
         try {
             val url = URL(PROXY_URL)
@@ -59,7 +70,7 @@ class IgdbApi(private val context: Context) {
             conn.setRequestProperty("Authorization", "Bearer ${NativeKeys.getSupabaseAnonKey()}")
             conn.doOutput = true
 
-            val requestBody = "search \"${query.replace("\"", "\\\"")}\"; fields id,name,cover.image_id; limit 10;"
+            val requestBody = "search \"${sanitized.replace("\"", "\\\"")}\"; fields id,name,cover.image_id; limit 10;"
             conn.outputStream.use { it.write(requestBody.toByteArray()) }
 
             val responseCode = conn.responseCode

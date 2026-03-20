@@ -1061,7 +1061,7 @@ private fun SettingsCreateMiiButton(
         )
         Spacer(modifier = Modifier.size(8.dp))
         Text(
-            text = if (canCreateNewMii) "Create New Pal" else "Max Pals Reached (3/3)",
+            text = if (canCreateNewMii) "Create New Piip" else "Max Piips Reached (3/3)",
             fontWeight = FontWeight.Bold
         )
     }
@@ -1069,7 +1069,7 @@ private fun SettingsCreateMiiButton(
     if (!canCreateNewMii) {
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Delete a Pal to create a new one",
+            text = "Delete a Piip to create a new one",
             style = MaterialTheme.typography.bodySmall,
             color = MediumText,
             textAlign = TextAlign.Center,
@@ -1097,13 +1097,13 @@ private fun SettingsCreditsSection() {
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(
-            text = "Pal Creator",
+            text = "Piip Creator",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = DarkText
         )
         Text(
-            text = "The Pal editor used in this app was made by the following people:",
+            text = "The Piip editor used in this app was made by the following people:",
             style = MaterialTheme.typography.bodySmall,
             color = MediumText
         )
@@ -1111,13 +1111,13 @@ private fun SettingsCreditsSection() {
         Spacer(modifier = Modifier.height(8.dp))
 
         CreditEntry("datkat21", "Creator and lead developer", imageRes = R.drawable.credit_datkat21)
-        CreditEntry("ariankordi", "Pal rendering API and contributions", imageRes = R.drawable.credit_ariankordi)
+        CreditEntry("ariankordi", "Piip rendering API and contributions", imageRes = R.drawable.credit_ariankordi)
         CreditEntry("Timiimiimii", "Contributions")
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
-            text = "Pal Plaza 3D Assets",
+            text = "Piip Plaza 3D Assets",
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
             color = DarkText

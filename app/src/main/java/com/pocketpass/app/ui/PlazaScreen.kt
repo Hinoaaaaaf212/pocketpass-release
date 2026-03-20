@@ -133,6 +133,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.rememberScrollState
 
+private val plazaGson = com.google.gson.Gson()
+
 /**
  * Nintendo-style checkered background pattern
  * Similar to the pattern seen in 3DS Miiverse and StreetPass Plaza.
@@ -478,7 +480,7 @@ fun PlazaScreen(
     val myHobbies = profileData.userHobbies ?: ""
     val myOrigin = profileData.userOrigin ?: "Unknown"
     val myGamesJson = remember(profileData.selectedGames) {
-        if (profileData.selectedGames.isNotEmpty()) com.google.gson.Gson().toJson(profileData.selectedGames) else ""
+        if (profileData.selectedGames.isNotEmpty()) plazaGson.toJson(profileData.selectedGames) else ""
     }
     val myGreeting = profileData.userGreeting
     val myMood = profileData.userMood
@@ -1427,7 +1429,7 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
                             val gamesList = remember(encounter.games) {
                                 try {
                                     val type = object : com.google.gson.reflect.TypeToken<List<com.pocketpass.app.data.IgdbGame>>() {}.type
-                                    com.google.gson.Gson().fromJson<List<com.pocketpass.app.data.IgdbGame>>(encounter.games, type) ?: emptyList()
+                                    plazaGson.fromJson<List<com.pocketpass.app.data.IgdbGame>>(encounter.games, type) ?: emptyList()
                                 } catch (e: Exception) {
                                     emptyList()
                                 }
@@ -1530,7 +1532,7 @@ fun DebugAddEncounterDialog(
                 item {
                     OutlinedTextField(
                         value = name,
-                        onValueChange = { name = it },
+                        onValueChange = { if (it.length <= 30) name = it },
                         label = { Text("Name *") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
@@ -1549,7 +1551,7 @@ fun DebugAddEncounterDialog(
                 item {
                     OutlinedTextField(
                         value = hobbies,
-                        onValueChange = { hobbies = it },
+                        onValueChange = { if (it.length <= 200) hobbies = it },
                         label = { Text("Hobbies") },
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("e.g., Gaming, Music") }
@@ -1558,7 +1560,7 @@ fun DebugAddEncounterDialog(
                 item {
                     OutlinedTextField(
                         value = greeting,
-                        onValueChange = { greeting = it },
+                        onValueChange = { if (it.length <= 200) greeting = it },
                         label = { Text("Greeting *") },
                         modifier = Modifier.fillMaxWidth(),
                         placeholder = { Text("Hello! Nice to meet you!") }
@@ -1567,7 +1569,7 @@ fun DebugAddEncounterDialog(
                 item {
                     OutlinedTextField(
                         value = origin,
-                        onValueChange = { origin = it },
+                        onValueChange = { if (it.length <= 100) origin = it },
                         label = { Text("Location/Origin") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
@@ -1578,13 +1580,13 @@ fun DebugAddEncounterDialog(
                     OutlinedTextField(
                         value = miiHex,
                         onValueChange = { miiHex = it },
-                        label = { Text("Pal Hex Data (optional)") },
+                        label = { Text("Piip Hex Data (optional)") },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("Leave blank for default Pal") },
+                        placeholder = { Text("Leave blank for default Piip") },
                         maxLines = 3,
                         supportingText = {
                             Text(
-                                text = "To use a custom Pal: Create one in the Pal Creator, then copy the hex from your saved Pals",
+                                text = "To use a custom Piip: Create one in the Piip Creator, then copy the hex from your saved Piips",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MediumText
                             )

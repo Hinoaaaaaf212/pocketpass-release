@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -33,6 +34,7 @@ class NotificationRepository {
     val unreadCount: StateFlow<Int> = _unreadCount
 
     private var broadcastChannel: RealtimeChannel? = null
+    private var broadcastScope: CoroutineScope? = null
     private var pollingScope: CoroutineScope? = null
 
     val currentUserId: String?
@@ -123,24 +125,31 @@ class NotificationRepository {
         try {
             broadcastChannel = client.channel("notif_$myId")
 
+            val validNotifTypes = setOf("friend_request", "friend_accepted", "new_message", "new_encounter")
+
+            broadcastScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
             broadcastChannel!!
                 .broadcastFlow<BroadcastNotificationPayload>("new_notification")
                 .onEach { payload ->
+                    if (payload.type !in validNotifTypes) {
+                        Log.w(TAG, "Unknown notification type: ${payload.type}")
+                        return@onEach
+                    }
                     // Convert broadcast payload to a SupabaseNotification for the UI
                     val notif = SupabaseNotification(
                         id = "",
                         userId = myId,
                         type = payload.type,
-                        title = payload.title,
-                        body = payload.body,
+                        title = payload.title.take(200),
+                        body = payload.body.take(500),
                         relatedUserId = payload.relatedUserId,
-                        relatedUserName = payload.relatedUserName,
-                        relatedUserAvatarHex = payload.relatedUserAvatarHex
+                        relatedUserName = payload.relatedUserName.take(100),
+                        relatedUserAvatarHex = payload.relatedUserAvatarHex.take(512)
                     )
                     _incomingNotifications.emit(notif)
                     _unreadCount.value += 1
                 }
-                .launchIn(CoroutineScope(Dispatchers.IO + SupervisorJob()))
+                .launchIn(broadcastScope!!)
 
             broadcastChannel!!.subscribe()
             Log.d(TAG, "Subscribed to notification broadcast channel notif_$myId")
@@ -157,7 +166,7 @@ class NotificationRepository {
             } catch (_: Exception) {}
 
             while (isActive) {
-                delay(15_000)
+                delay(60_000) // Poll every 60 seconds (broadcast channel handles real-time delivery)
                 try {
                     getUnreadCount()
                 } catch (_: Exception) {}
@@ -172,9 +181,9 @@ class NotificationRepository {
         } catch (e: Exception) {
             Log.w(TAG, "Failed to unsubscribe: ${e.message}")
         }
-        pollingScope?.let {
-            it.launch { }.cancel()
-        }
+        broadcastScope?.cancel()
+        broadcastScope = null
+        pollingScope?.cancel()
         pollingScope = null
     }
 }

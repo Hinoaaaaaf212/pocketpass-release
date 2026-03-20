@@ -139,6 +139,7 @@ class MainActivity : ComponentActivity() {
     private val joystickToDpad = JoystickToDpad()
     private val navigationState = NavigationState()
     private lateinit var soundManager: SoundManager
+    private var lastSyncTimestamp = 0L
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -249,15 +250,18 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
 
-                                    // Sync with Supabase on foreground if authenticated
-                                    // Use Activity lifecycleScope so sync survives navigation
-                                    this@MainActivity.lifecycleScope.launch(Dispatchers.IO) {
-                                        try {
-                                            val authRepo = AuthRepository()
-                                            if (authRepo.currentUserId != null) {
-                                                SyncRepository(this@MainActivity).fullSync()
-                                            }
-                                        } catch (_: Exception) { }
+                                    // Sync with Supabase on foreground if authenticated (throttle to once per 60s)
+                                    val now = System.currentTimeMillis()
+                                    if (now - lastSyncTimestamp >= 60_000L) {
+                                        lastSyncTimestamp = now
+                                        this@MainActivity.lifecycleScope.launch(Dispatchers.IO) {
+                                            try {
+                                                val authRepo = AuthRepository()
+                                                if (authRepo.currentUserId != null) {
+                                                    SyncRepository(this@MainActivity).fullSync()
+                                                }
+                                            } catch (_: Exception) { }
+                                        }
                                     }
                                 }
                                 else -> {}
