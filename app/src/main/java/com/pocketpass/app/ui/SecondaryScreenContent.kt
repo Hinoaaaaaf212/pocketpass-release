@@ -636,7 +636,7 @@ fun GamesHubSecondaryScreen() {
                 ) {
                     Column {
                         Text(
-                            text = "Play Coins",
+                            text = "Tokens",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.SemiBold,
                             color = DarkText

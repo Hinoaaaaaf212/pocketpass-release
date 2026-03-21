@@ -112,14 +112,29 @@ object BingoChallenges {
             usedTypes[challenge.type] = typeCount + 1
         }
 
-        // Pad with more region/hobby if needed
-        while (picked.size < 15) {
+        // Pad if needed — keep generating fresh pools until we have 15
+        var padAttempts = 0
+        while (picked.size < 15 && padAttempts < 5) {
+            padAttempts++
             val extra = buildChallengePool().shuffled().firstOrNull { c ->
                 val key = "${c.type}:${c.targetValue}:${c.requiredCount}"
                 key !in usedTargets
-            } ?: break
+            } ?: continue
             val key = "${extra.type}:${extra.targetValue}:${extra.requiredCount}"
             picked.add(extra)
+            usedTargets.add(key)
+        }
+        // Last resort: fill remaining slots with region challenges
+        val allRegions = RegionFlags.supportedRegions.shuffled().iterator()
+        while (picked.size < 15 && allRegions.hasNext()) {
+            val region = allRegions.next()
+            val key = "${BingoChallengeType.REGION}:$region:0"
+            if (key in usedTargets) continue
+            picked.add(BingoChallenge(
+                type = BingoChallengeType.REGION,
+                description = "Meet someone from $region",
+                targetValue = region
+            ))
             usedTargets.add(key)
         }
 
@@ -135,10 +150,8 @@ object BingoChallenges {
                 if (row == 1 && col == 1) {
                     cells.add(BingoCell(row, col, freeChallenge, completed = true))
                 } else {
-                    if (challengeIndex < picked.size) {
-                        cells.add(BingoCell(row, col, picked[challengeIndex]))
-                        challengeIndex++
-                    }
+                    cells.add(BingoCell(row, col, picked[challengeIndex]))
+                    challengeIndex++
                 }
             }
         }

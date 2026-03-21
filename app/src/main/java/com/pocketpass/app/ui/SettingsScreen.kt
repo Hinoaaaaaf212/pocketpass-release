@@ -201,12 +201,6 @@ fun SettingsScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = DarkText
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(
-                                text = "Use the bottom screen for settings",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MediumText
-                            )
                         }
                     }
                 }

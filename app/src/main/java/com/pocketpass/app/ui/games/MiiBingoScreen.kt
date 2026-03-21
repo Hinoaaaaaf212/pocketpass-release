@@ -693,12 +693,17 @@ private fun BingoGrid(card: BingoCard, onCellClick: (BingoCell) -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 for (col in 0..3) {
-                    val cell = card.getCell(row, col) ?: continue
-                    BingoCellView(
-                        cell = cell,
-                        modifier = Modifier.weight(1f),
-                        onClick = { onCellClick(cell) }
-                    )
+                    val cell = card.getCell(row, col)
+                    if (cell != null) {
+                        BingoCellView(
+                            cell = cell,
+                            modifier = Modifier.weight(1f),
+                            onClick = { onCellClick(cell) }
+                        )
+                    } else {
+                        // Fallback: empty spacer to keep grid layout intact
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
                 }
             }
         }
