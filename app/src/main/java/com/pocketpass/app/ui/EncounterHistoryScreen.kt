@@ -1,10 +1,5 @@
 package com.pocketpass.app.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -77,17 +72,7 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
     val friendRepo = remember { com.pocketpass.app.data.FriendRepository() }
     var selectedEncounter by remember { mutableStateOf<Encounter?>(null) }
 
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
-        ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Top Bar
             Row(
@@ -175,7 +160,6 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
                 }
             }
         }
-        } // AnimatedVisibility
 
         // Detail dialog
         selectedEncounter?.let { encounter ->

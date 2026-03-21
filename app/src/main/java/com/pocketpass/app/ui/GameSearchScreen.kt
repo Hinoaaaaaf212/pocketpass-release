@@ -85,17 +85,7 @@ fun GameSearchScreen(
     var isSearching by remember { mutableStateOf(false) }
     var searchJob by remember { mutableStateOf<Job?>(null) }
 
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
-        ) {
         Column(modifier = Modifier.fillMaxSize()) {
             AeroTopBar(
                 title = "Search Games",
@@ -427,6 +417,5 @@ fun GameSearchScreen(
                 item { Spacer(modifier = Modifier.height(16.dp)) }
             }
         }
-        } // AnimatedVisibility
     }
 }

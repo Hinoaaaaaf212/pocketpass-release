@@ -1,10 +1,5 @@
 package com.pocketpass.app.ui.games
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -97,17 +92,7 @@ fun PuzzleSwapScreen(
     var showTokenShop by remember { mutableStateOf(false) }
     var lastGrantedPiece by remember { mutableStateOf<String?>(null) }
 
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
-        ) {
         Column(modifier = Modifier.fillMaxSize()) {
                 // Top Bar
                 Row(
@@ -323,7 +308,6 @@ fun PuzzleSwapScreen(
                     }
                 }
             }
-        } // AnimatedVisibility
 
         // Shop dialog
         if (showTokenShop) {

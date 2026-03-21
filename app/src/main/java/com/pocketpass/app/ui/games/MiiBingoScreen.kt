@@ -1,10 +1,5 @@
 package com.pocketpass.app.ui.games
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -134,8 +129,6 @@ fun MiiBingoScreen(onBack: () -> Unit) {
     val encounters = LocalEncounters.current
 
     var selectedCell by remember { mutableStateOf<BingoCell?>(null) }
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
 
     // Event multiplier
     var activeEffects by remember { mutableStateOf<List<EventEffect>>(emptyList()) }
@@ -188,13 +181,6 @@ fun MiiBingoScreen(onBack: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
-        ) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -410,7 +396,6 @@ fun MiiBingoScreen(onBack: () -> Unit) {
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }
-        }
 
         // Cell dialog
         if (selectedCell != null) {

@@ -1,11 +1,6 @@
 package com.pocketpass.app.ui
 
 import android.graphics.BitmapFactory
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -37,7 +32,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -119,17 +113,7 @@ fun WorldTourMapScreen(onBack: () -> Unit, isDualScreen: Boolean = false) {
     var tooltipRegion by remember { mutableStateOf<String?>(null) }
     var tooltipOffset by remember { mutableStateOf(IntOffset.Zero) }
 
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = visible,
-            enter = scaleIn(
-                initialScale = 0.93f,
-                animationSpec = tween(400, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(350, easing = FastOutSlowInEasing))
-        ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Row(
                     modifier = Modifier
@@ -568,7 +552,6 @@ fun WorldTourMapScreen(onBack: () -> Unit, isDualScreen: Boolean = false) {
                     } // end if (!isDualScreen)
                 }
             }
-        }
     }
 }
 

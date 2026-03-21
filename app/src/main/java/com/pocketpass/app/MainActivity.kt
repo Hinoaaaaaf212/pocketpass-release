@@ -628,8 +628,8 @@ class MainActivity : ComponentActivity() {
 
                                     // All navigation screens with persistent nav bar
                                     val isCompactScreen = appDimensions.isCompact
-                                    val showTopNav = !nav.isOnSubScreen() && !isDualScreen && !isCompactScreen
-                                    val showBottomNav = !nav.isOnSubScreen() && !isDualScreen && isCompactScreen
+                                    val showTopNav = !isDualScreen && !isCompactScreen
+                                    val showBottomNav = !isDualScreen && isCompactScreen
                                     // Measure nav bar height so content can pad below it
                                     var topNavHeightDp by remember { mutableStateOf(0.dp) }
                                     val density = androidx.compose.ui.platform.LocalDensity.current
@@ -673,8 +673,18 @@ class MainActivity : ComponentActivity() {
                                                     val target = nav.currentMainScreen()
 
                                                     if (initial == target) {
-                                                        // Same tab — no transition
-                                                        EnterTransition.None togetherWith ExitTransition.None
+                                                        // Same tab — sub-screen push/pop
+                                                        // Forward = going deeper (main→sub or sub→deeper sub)
+                                                        val forward = nav.isOnSubScreen()
+                                                        val subEnter = slideInHorizontally(
+                                                            initialOffsetX = { w -> if (forward) w / 3 else -w / 3 },
+                                                            animationSpec = tween(300, easing = FastOutSlowInEasing)
+                                                        ) + fadeIn(tween(200))
+                                                        val subExit = slideOutHorizontally(
+                                                            targetOffsetX = { w -> if (forward) -w / 3 else w / 3 },
+                                                            animationSpec = tween(300, easing = FastOutSlowInEasing)
+                                                        ) + fadeOut(tween(200))
+                                                        subEnter togetherWith subExit using SizeTransform(clip = false)
                                                     } else {
                                                         val slideRight = target.ordinal > initial.ordinal
                                                         val enter = slideInHorizontally(

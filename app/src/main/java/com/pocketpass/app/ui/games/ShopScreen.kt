@@ -1,10 +1,5 @@
 package com.pocketpass.app.ui.games
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -103,9 +98,6 @@ fun ShopScreen(
     val shopPriceMultiplier = EventEffectManager.getShopPriceMultiplier(activeEffects)
     val hasDiscount = shopPriceMultiplier < 1f
 
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
     LaunchedEffect(purchaseResult) {
         if (purchaseResult != null) {
             kotlinx.coroutines.delay(2000)
@@ -114,13 +106,6 @@ fun ShopScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
-        ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top Bar
                 Row(
@@ -260,7 +245,6 @@ fun ShopScreen(
                     }
                 }
             }
-        }
     }
 
     // Purchase dialog

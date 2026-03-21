@@ -25,10 +25,8 @@
 -keep class com.google.gson.reflect.TypeToken { *; }
 -keep class * extends com.google.gson.reflect.TypeToken
 
-# Keep data classes used with Gson
--keep class com.pocketpass.app.data.IgdbGame { *; }
--keep class com.pocketpass.app.data.IgdbGameResponse { *; }
--keep class com.pocketpass.app.data.PuzzleProgress { *; }
+# Keep all data/enum classes in data package (Gson + kotlinx.serialization)
+-keep class com.pocketpass.app.data.** { *; }
 -keep class com.pocketpass.app.service.ExchangePayload { *; }
 
 # ── Supabase / Ktor / OkHttp ──
@@ -63,6 +61,10 @@
 
 # ── Compose ──
 -dontwarn androidx.compose.**
+
+# ── Screen sealed class (used as AnimatedContent targetState) ──
+-keep class com.pocketpass.app.util.Screen { *; }
+-keep class com.pocketpass.app.util.Screen$* { *; }
 
 # ── Kotlin ──
 -dontwarn kotlin.**

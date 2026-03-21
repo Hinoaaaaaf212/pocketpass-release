@@ -1,10 +1,5 @@
 package com.pocketpass.app.ui.games
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -92,9 +87,6 @@ fun LeaderboardScreen(
     var entries by remember { mutableStateOf<List<SupabaseLeaderboardEntry>>(emptyList()) }
     var isLoading by remember { mutableStateOf(true) }
 
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
     fun refresh() {
         scope.launch {
             isLoading = true
@@ -119,13 +111,6 @@ fun LeaderboardScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
-        ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top Bar
                 Row(
@@ -227,7 +212,6 @@ fun LeaderboardScreen(
                     }
                 }
             }
-        }
     }
 }
 
