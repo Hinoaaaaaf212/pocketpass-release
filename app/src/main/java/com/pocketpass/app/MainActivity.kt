@@ -68,9 +68,26 @@ import com.pocketpass.app.ui.StatisticsScreen
 import com.pocketpass.app.ui.WorldTourMapScreen
 import com.pocketpass.app.ui.WorldTourSecondaryScreen
 import com.pocketpass.app.ui.GameSearchScreen
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
+import com.pocketpass.app.data.PocketPassDatabase
+import com.pocketpass.app.data.crypto.decryptFields
+import com.pocketpass.app.ui.CheckeredBackground
+import com.pocketpass.app.ui.theme.BackgroundGradient
+import com.pocketpass.app.ui.theme.LocalEncounters
+import com.pocketpass.app.ui.theme.LocalUserPreferences
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -155,10 +172,20 @@ class MainActivity : ComponentActivity() {
             val isDarkMode by userPreferences.darkModeFlow.collectAsState(initial = false)
             PocketPassTheme(darkTheme = isDarkMode) {
                 val appDimensions = rememberAppDimensions()
+                // Shared encounters (one query for all screens)
+                val sharedDb = remember { PocketPassDatabase.getDatabase(this@MainActivity) }
+                val rawEncounters by sharedDb.encounterDao().getAllEncountersFlow()
+                    .collectAsState(initial = emptyList())
+                val sharedEncounters = remember(rawEncounters) {
+                    rawEncounters.map { it.decryptFields() }
+                }
+
                 CompositionLocalProvider(
                     LocalSoundManager provides soundManager,
                     LocalGamepadState provides gamepadState,
-                    LocalAppDimensions provides appDimensions
+                    LocalAppDimensions provides appDimensions,
+                    LocalEncounters provides sharedEncounters,
+                    LocalUserPreferences provides userPreferences
                 ) {
                 Surface(
                     modifier = Modifier
@@ -633,7 +660,37 @@ class MainActivity : ComponentActivity() {
                                             .fillMaxSize()
                                             .then(if (showTopNav) Modifier.padding(top = topNavHeightDp) else Modifier)
                                         ) {
-                                            when (nav.screen) {
+                                            // Background (doesn't animate)
+                                            CheckeredBackground(
+                                                modifier = Modifier.fillMaxSize(),
+                                                gradientColors = BackgroundGradient
+                                            )
+
+                                            AnimatedContent(
+                                                targetState = nav.screen,
+                                                transitionSpec = {
+                                                    val initial = nav.previousMainScreen
+                                                    val target = nav.currentMainScreen()
+
+                                                    if (initial == target) {
+                                                        // Same tab — no transition
+                                                        EnterTransition.None togetherWith ExitTransition.None
+                                                    } else {
+                                                        val slideRight = target.ordinal > initial.ordinal
+                                                        val enter = slideInHorizontally(
+                                                            initialOffsetX = { w -> if (slideRight) w / 4 else -w / 4 },
+                                                            animationSpec = tween(350, easing = FastOutSlowInEasing)
+                                                        ) + fadeIn(tween(250))
+                                                        val exit = slideOutHorizontally(
+                                                            targetOffsetX = { w -> if (slideRight) -w / 4 else w / 4 },
+                                                            animationSpec = tween(350, easing = FastOutSlowInEasing)
+                                                        ) + fadeOut(tween(250))
+                                                        enter togetherWith exit using SizeTransform(clip = false)
+                                                    }
+                                                },
+                                                label = "screen"
+                                            ) { targetScreen ->
+                                            when (targetScreen) {
                                                 Screen.Auth -> {
                                                     AuthScreen(
                                                         onBack = { nav.screen = Screen.Settings },
@@ -662,8 +719,7 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 }
                                                 Screen.AppSettings -> {
-                                                    val pending = nav.pendingUpdate
-                                                    nav.pendingUpdate = null
+                                                    val pending = remember { nav.pendingUpdate.also { nav.pendingUpdate = null } }
                                                     AppSettingsScreen(
                                                         onBack = { nav.screen = Screen.Settings },
                                                         onOpenMii3DTest = if (BuildConfig.DEBUG) { {
@@ -690,7 +746,7 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                 }
                                                 is Screen.Chat -> {
-                                                    val chat = nav.screen as Screen.Chat
+                                                    val chat = targetScreen as Screen.Chat
                                                     ChatScreen(
                                                         friendId = chat.friendId,
                                                         friendName = chat.friendName,
@@ -749,7 +805,7 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                 }
                                                 is Screen.PuzzleBoard -> {
-                                                    val board = nav.screen as Screen.PuzzleBoard
+                                                    val board = targetScreen as Screen.PuzzleBoard
                                                     PuzzleBoardScreen(
                                                         panelId = board.panelId,
                                                         onBack = { nav.screen = Screen.PuzzleSwap }
@@ -817,6 +873,7 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                 }
                                             }
+                                            } // AnimatedContent
                                         }
 
                                         // Bottom nav bar for compact/phone screens

@@ -1,10 +1,5 @@
 package com.pocketpass.app.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,12 +23,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -48,7 +40,6 @@ import com.pocketpass.app.data.UserPreferences
 import com.pocketpass.app.ui.games.TokenBalanceChip
 import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.aeroGloss
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.GreenText
@@ -69,22 +60,7 @@ fun ActivitiesScreen(
     val userPreferences = remember { UserPreferences(context) }
     val tokenBalance by userPreferences.tokenBalanceFlow.collectAsState(initial = 0)
 
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
-        ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top Bar
                 Row(
@@ -174,7 +150,6 @@ fun ActivitiesScreen(
                     item { Spacer(modifier = Modifier.height(16.dp)) }
                 }
             }
-        }
     }
 }
 

@@ -36,10 +36,8 @@ import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.Achievement
 import com.pocketpass.app.data.Achievements
 import com.pocketpass.app.data.Encounter
-import com.pocketpass.app.data.PocketPassDatabase
-import com.pocketpass.app.data.crypto.decryptFields
-import com.pocketpass.app.data.UserPreferences
-import com.pocketpass.app.ui.theme.BackgroundGradient
+import com.pocketpass.app.ui.theme.LocalEncounters
+import com.pocketpass.app.ui.theme.LocalUserPreferences
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
@@ -48,6 +46,9 @@ import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.ui.theme.AeroButton
 import com.pocketpass.app.ui.theme.SkyBlue
+import com.pocketpass.app.ui.theme.DangerRed
+import com.pocketpass.app.ui.theme.AvatarGradientTop
+import com.pocketpass.app.ui.theme.AvatarGradientBottom
 import com.pocketpass.app.data.AuthRepository
 import com.pocketpass.app.data.SyncRepository
 import com.pocketpass.app.util.RegionFlags
@@ -64,21 +65,13 @@ import java.text.DateFormat
 import java.util.Date
 import kotlinx.coroutines.launch
 
-// ── Plaza secondary screen: recent encounters summary ──
+// ── Plaza: recent encounters ──
 
 @Composable
 fun PlazaSecondaryScreen() {
-    val context = LocalContext.current
-    val db = remember { PocketPassDatabase.getDatabase(context) }
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val encounters = LocalEncounters.current
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -142,7 +135,7 @@ private fun SecondaryEncounterRow(encounter: Encounter) {
                 .clip(RoundedCornerShape(8.dp))
                 .background(
                     Brush.verticalGradient(
-                        listOf(Color(0xFFE3F2FD), Color(0xFFBBDEFB))
+                        listOf(AvatarGradientTop, AvatarGradientBottom)
                     )
                 ),
             contentAlignment = Alignment.Center
@@ -174,14 +167,11 @@ private fun SecondaryEncounterRow(encounter: Encounter) {
     }
 }
 
-// ── History secondary screen: stats overview ──
+// ── History: stats ──
 
 @Composable
 fun HistorySecondaryScreen() {
-    val context = LocalContext.current
-    val db = remember { PocketPassDatabase.getDatabase(context) }
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val encounters = LocalEncounters.current
 
     val totalEncounters = encounters.size
     val uniquePeople = remember(encounters) { encounters.map { it.otherUserName }.distinct().size }
@@ -191,11 +181,6 @@ fun HistorySecondaryScreen() {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -265,25 +250,17 @@ fun HistorySecondaryScreen() {
     }
 }
 
-// ── Friends secondary screen: friend details ──
+// ── Friends: details ──
 
 @Composable
 fun FriendsSecondaryScreen() {
-    val context = LocalContext.current
-    val db = remember { PocketPassDatabase.getDatabase(context) }
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val encounters = LocalEncounters.current
 
     val friendsByMeetCount = remember(encounters) {
         encounters.sortedByDescending { it.meetCount }.take(10)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -334,7 +311,7 @@ fun FriendsSecondaryScreen() {
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(
                                     Brush.verticalGradient(
-                                        listOf(Color(0xFFE3F2FD), Color(0xFFBBDEFB))
+                                        listOf(AvatarGradientTop, AvatarGradientBottom)
                                     )
                                 ),
                             contentAlignment = Alignment.Center
@@ -367,25 +344,17 @@ fun FriendsSecondaryScreen() {
     }
 }
 
-// ── Animated Plaza secondary screen: Mii list with count ──
+// ── Animated Plaza: Mii list ──
 
 @Composable
 fun AnimatedPlazaSecondaryScreen() {
-    val context = LocalContext.current
-    val db = remember { PocketPassDatabase.getDatabase(context) }
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val encounters = LocalEncounters.current
 
     val displayedMiis = remember(encounters) {
         encounters.sortedByDescending { it.timestamp }.take(30)
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -442,7 +411,7 @@ fun AnimatedPlazaSecondaryScreen() {
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(
                                     Brush.verticalGradient(
-                                        listOf(Color(0xFFE3F2FD), Color(0xFFBBDEFB))
+                                        listOf(AvatarGradientTop, AvatarGradientBottom)
                                     )
                                 ),
                             contentAlignment = Alignment.Center
@@ -486,16 +455,11 @@ fun AnimatedPlazaSecondaryScreen() {
     }
 }
 
-// ── Messages secondary screen: recent conversations ──
+// ── Messages: conversations ──
 
 @Composable
 fun MessagesSecondaryScreen() {
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -535,14 +499,11 @@ fun MessagesSecondaryScreen() {
     }
 }
 
-// ── Statistics secondary screen: achievements ──
+// ── Statistics: achievements ──
 
 @Composable
 fun StatisticsSecondaryScreen() {
-    val context = LocalContext.current
-    val db = remember { PocketPassDatabase.getDatabase(context) }
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val encounters = LocalEncounters.current
 
     val allAchievements = remember { Achievements.getAll() }
     val unlockedAchievements = remember(encounters) {
@@ -553,11 +514,6 @@ fun StatisticsSecondaryScreen() {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -641,23 +597,18 @@ private fun AchievementSecondaryRow(
     }
 }
 
-// ── Games Hub secondary screen: token balance & puzzle progress ──
+// ── Games Hub: tokens & puzzles ──
 
 @Composable
 fun GamesHubSecondaryScreen() {
     val context = LocalContext.current
-    val userPreferences = remember { UserPreferences(context) }
+    val userPreferences = LocalUserPreferences.current
     val tokenBalance by userPreferences.tokenBalanceFlow.collectAsState(initial = 0)
     val puzzleProgress by userPreferences.puzzleProgressFlow.collectAsState(
         initial = com.pocketpass.app.data.PuzzleProgress()
     )
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -749,7 +700,7 @@ fun GamesHubSecondaryScreen() {
     }
 }
 
-// ── Settings secondary screen (moved from SettingsScreen.kt) ──
+// ── Settings ──
 
 @Composable
 fun SettingsSecondaryScreenContent(
@@ -760,7 +711,7 @@ fun SettingsSecondaryScreenContent(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val userPreferences = remember { UserPreferences(context) }
+    val userPreferences = LocalUserPreferences.current
     val soundManager = com.pocketpass.app.util.LocalSoundManager.current
 
     val savedMiis by userPreferences.savedMiisFlow.collectAsState(initial = emptyList())
@@ -781,8 +732,7 @@ fun SettingsSecondaryScreenContent(
         if (isLoggedIn) {
             syncStatus = "syncing"
             try {
-                // Use NonCancellable so the network request finishes
-                // even if the user navigates away mid-sync
+                // NonCancellable — finish even if navigating away
                 kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                     syncRepo.fullSync()
                 }
@@ -794,11 +744,6 @@ fun SettingsSecondaryScreenContent(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -839,15 +784,6 @@ fun SettingsSecondaryScreenContent(
                         }
                     }
                     Spacer(modifier = Modifier.height(4.dp))
-                    AeroButton(
-                        onClick = { soundManager.playTap(); showSignOutConfirm = true },
-                        modifier = Modifier.fillMaxWidth(),
-                        cornerRadius = 12.dp,
-                        containerColor = Color(0xFFC62828),
-                        contentColor = Color.White
-                    ) {
-                        Text("Sign Out", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                    }
                 } else {
                     AeroButton(
                         onClick = { soundManager.playNavigate(); onOpenAuth() },
@@ -857,8 +793,6 @@ fun SettingsSecondaryScreenContent(
                         Text("Sign In to Sync", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                     }
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
 
                 AeroButton(
                     onClick = { soundManager.playNavigate(); onOpenProfileSettings() },
@@ -877,6 +811,19 @@ fun SettingsSecondaryScreenContent(
                     containerColor = if (com.pocketpass.app.ui.theme.LocalDarkMode.current) Color(0xFF4A4A4A) else Color(0xFF6B6B6B)
                 ) {
                     Text("App Settings", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                }
+
+                if (isLoggedIn) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    AeroButton(
+                        onClick = { soundManager.playTap(); showSignOutConfirm = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        cornerRadius = 12.dp,
+                        containerColor = DangerRed,
+                        contentColor = Color.White
+                    ) {
+                        Text("Sign Out", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
@@ -924,7 +871,7 @@ fun SettingsSecondaryScreenContent(
                             .clip(RoundedCornerShape(8.dp))
                             .background(
                                 Brush.verticalGradient(
-                                    listOf(Color(0xFFE3F2FD), Color(0xFFBBDEFB))
+                                    listOf(AvatarGradientTop, AvatarGradientBottom)
                                 )
                             ),
                         contentAlignment = Alignment.Center
@@ -972,7 +919,7 @@ fun SettingsSecondaryScreenContent(
                         showSignOutConfirm = false
                         coroutineScope.launch { authRepo.signOut() }
                     },
-                    containerColor = Color(0xFFC62828),
+                    containerColor = DangerRed,
                     contentColor = Color.White
                 ) {
                     Text("Sign Out", fontWeight = FontWeight.Bold)

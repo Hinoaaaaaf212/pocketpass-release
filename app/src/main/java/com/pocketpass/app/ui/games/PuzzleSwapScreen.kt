@@ -54,15 +54,14 @@ import com.pocketpass.app.data.PuzzleProgress
 import com.pocketpass.app.data.SyncRepository
 import com.pocketpass.app.data.TokenSystem
 import com.pocketpass.app.data.UserPreferences
-import com.pocketpass.app.ui.CheckeredBackground
 import com.pocketpass.app.ui.theme.AeroButton
 import com.pocketpass.app.ui.theme.AeroCard
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.ui.theme.TokenGold
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
 import kotlinx.coroutines.launch
@@ -83,10 +82,9 @@ fun PuzzleSwapScreen(
     val claimedSpotPass by spotPassRepo.claimedPanels.collectAsState(initial = emptyList())
     val panels = remember(claimedSpotPass) { PuzzlePanels.getAllIncludingSpotPass(claimedSpotPass) }
 
-    // Pre-load the Ayn Thor bitmap for the handheld puzzle
+    // Pre-load bitmaps
     loadHandheldBitmap(context)
 
-    // Pre-load SpotPass panel images
     LaunchedEffect(panels) {
         panels.forEach { panel ->
             val url = panel.imageUrl
@@ -103,11 +101,6 @@ fun PuzzleSwapScreen(
     LaunchedEffect(Unit) { visible = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         AnimatedVisibility(
             visible = visible,
             enter = slideInHorizontally(
@@ -154,7 +147,7 @@ fun PuzzleSwapScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Overall progress
+                    // Progress
                     item {
                         val totalPieces = panels.sumOf { it.totalPieces }
                         val totalCollected = panels.sumOf { progress.collectedCount(it.id) }
@@ -202,7 +195,7 @@ fun PuzzleSwapScreen(
                         }
                     }
 
-                    // Panel cards
+                    // Panels
                     items(panels, key = { it.id }) { panel ->
                         val collected = progress.collectedCount(panel.id)
                         val isComplete = progress.isPanelComplete(panel)
@@ -223,7 +216,7 @@ fun PuzzleSwapScreen(
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Mini puzzle preview
+                                // Preview
                                 Box(
                                     modifier = Modifier
                                         .size(72.dp)
@@ -236,7 +229,7 @@ fun PuzzleSwapScreen(
                                     ) {
                                         drawFullPuzzle(panel.theme, panel.gridSize, panel.colorHex, panel.id)
                                     }
-                                    // Overlay for incomplete
+                                    // Incomplete overlay
                                     if (!isComplete) {
                                         Box(
                                             modifier = Modifier
@@ -305,7 +298,7 @@ fun PuzzleSwapScreen(
                         }
                     }
 
-                    // Token shop button
+                    // Shop button
                     item {
                         Spacer(modifier = Modifier.height(4.dp))
                         AeroButton(
@@ -317,7 +310,7 @@ fun PuzzleSwapScreen(
                                     shape = RoundedCornerShape(12.dp),
                                     onSelect = { soundManager.playSelect(); showTokenShop = true }
                                 ),
-                            containerColor = Color(0xFFFFC107),
+                            containerColor = TokenGold,
                             contentColor = DarkText,
                             cornerRadius = 12.dp
                         ) {
@@ -332,7 +325,7 @@ fun PuzzleSwapScreen(
             }
         } // AnimatedVisibility
 
-        // Token Shop Dialog
+        // Shop dialog
         if (showTokenShop) {
             TokenShopDialog(
                 tokenBalance = tokenBalance,
@@ -349,7 +342,7 @@ fun PuzzleSwapScreen(
                         lastGrantedPiece = "${piece.panelId}: (${piece.row},${piece.col})"
                         soundManager.playSuccess()
 
-                        // Sync leaderboard so puzzles_completed updates immediately
+                        // Sync leaderboard
                         launch { try { SyncRepository(context).syncLeaderboard() } catch (_: Exception) {} }
                     }
                 }
@@ -462,7 +455,7 @@ private fun TokenShopDialog(
                         onClick = { onPurchase() },
                         modifier = Modifier.weight(1f),
                         enabled = canPurchase,
-                        containerColor = Color(0xFFFFC107),
+                        containerColor = TokenGold,
                         contentColor = DarkText
                     ) {
                         Text(

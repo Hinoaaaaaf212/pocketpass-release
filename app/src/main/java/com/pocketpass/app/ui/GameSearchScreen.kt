@@ -51,10 +51,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.IgdbApi
 import com.pocketpass.app.data.IgdbGame
-import com.pocketpass.app.data.UserPreferences
+import com.pocketpass.app.ui.theme.LocalUserPreferences
 import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.AeroTopBar
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.LocalAppDimensions
 import com.pocketpass.app.ui.theme.MediumText
@@ -75,7 +74,7 @@ fun GameSearchScreen(
     val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val userPreferences = remember { UserPreferences(context) }
+    val userPreferences = LocalUserPreferences.current
     val igdbApi = remember { IgdbApi(context) }
     val dims = LocalAppDimensions.current
     val isDark = LocalDarkMode.current
@@ -90,11 +89,6 @@ fun GameSearchScreen(
     LaunchedEffect(Unit) { visible = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         AnimatedVisibility(
             visible = visible,
             enter = slideInHorizontally(

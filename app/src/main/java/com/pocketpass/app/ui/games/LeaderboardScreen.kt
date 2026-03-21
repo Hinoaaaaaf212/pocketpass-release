@@ -53,11 +53,9 @@ import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.AuthRepository
 import com.pocketpass.app.data.SupabaseLeaderboardEntry
 import com.pocketpass.app.data.SyncRepository
-import com.pocketpass.app.ui.CheckeredBackground
 import com.pocketpass.app.ui.MiiAvatarViewer
 import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.LocalDarkMode
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.MediumText
@@ -121,11 +119,6 @@ fun LeaderboardScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         AnimatedVisibility(
             visible = visible,
             enter = slideInHorizontally(

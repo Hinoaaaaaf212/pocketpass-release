@@ -148,6 +148,9 @@ class NavigationState {
 
     enum class MainScreen { PLAZA, MESSAGES, FRIENDS, PLAZA_OVERVIEW, STATISTICS, ACTIVITIES, SETTINGS }
 
+    // Slide direction tracking
+    var previousMainScreen by mutableStateOf(MainScreen.PLAZA)
+
     private val mainScreenOrder = MainScreen.entries
 
     private val mainScreenSet = setOf(
@@ -182,6 +185,7 @@ class NavigationState {
     }
 
     fun navigateToMainScreen(target: MainScreen) {
+        previousMainScreen = currentMainScreen()
         screen = when (target) {
             MainScreen.PLAZA -> Screen.Plaza
             MainScreen.MESSAGES -> Screen.Messages
@@ -194,6 +198,7 @@ class NavigationState {
     }
 
     fun handleBack(): Boolean {
+        previousMainScreen = currentMainScreen()
         val parent = when (screen) {
             is Screen.PuzzleBoard -> Screen.PuzzleSwap
             Screen.Bingo -> Screen.Games

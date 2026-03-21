@@ -45,7 +45,6 @@ import com.pocketpass.app.rendering.MiiModelCache
 import com.pocketpass.app.rendering.MiiSceneAssembler
 import com.pocketpass.app.rendering.MiiStudioDecoder
 import com.pocketpass.app.ui.theme.AeroCard
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
@@ -184,11 +183,6 @@ fun Mii3DTestScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         Column(modifier = Modifier.fillMaxSize()) {
             // Top Bar
             Row(

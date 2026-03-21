@@ -18,6 +18,8 @@ import androidx.lifecycle.setViewTreeLifecycleOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import androidx.compose.runtime.CompositionLocalProvider
 import com.pocketpass.app.ui.theme.LocalDarkMode
+import com.pocketpass.app.ui.theme.LocalEncounters
+import com.pocketpass.app.ui.theme.LocalUserPreferences
 import com.pocketpass.app.ui.theme.PocketPassTheme
 import com.pocketpass.app.util.LocalGamepadState
 import com.pocketpass.app.util.LocalSoundManager
@@ -51,10 +53,11 @@ fun DualScreenPresentation(
     val activity = context as ComponentActivity
     val lifecycleOwner = LocalLifecycleOwner.current
     val isDark = LocalDarkMode.current
-    // Capture CompositionLocal values from the parent composition
-    // so they can be provided in the secondary display's separate composition tree
+    // Pass locals to secondary display
     val soundManager = LocalSoundManager.current
     val gamepadState = LocalGamepadState.current
+    val encounters = LocalEncounters.current
+    val userPreferences = LocalUserPreferences.current
 
     DisposableEffect(secondaryDisplay) {
         val composeView = ComposeView(activity).apply {
@@ -64,7 +67,9 @@ fun DualScreenPresentation(
                 PocketPassTheme(darkTheme = isDark) {
                     CompositionLocalProvider(
                         LocalSoundManager provides soundManager,
-                        LocalGamepadState provides gamepadState
+                        LocalGamepadState provides gamepadState,
+                        LocalEncounters provides encounters,
+                        LocalUserPreferences provides userPreferences
                     ) {
                         content()
                     }

@@ -61,16 +61,15 @@ import com.pocketpass.app.data.ShopItem
 import com.pocketpass.app.data.ShopItems
 import com.pocketpass.app.data.SpotPassRepository
 import com.pocketpass.app.data.UserPreferences
-import com.pocketpass.app.ui.CheckeredBackground
 import com.pocketpass.app.ui.theme.AeroButton
 import com.pocketpass.app.ui.theme.AeroCard
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.ErrorText
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.ui.theme.TokenGold
 import com.pocketpass.app.data.EventEffect
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
@@ -94,7 +93,7 @@ fun ShopScreen(
     var selectedItem by remember { mutableStateOf<ShopItem?>(null) }
     var purchaseResult by remember { mutableStateOf<String?>(null) }
 
-    // Active event effects for shop discount
+    // Shop discount effect
     var activeEffects by remember { mutableStateOf<List<EventEffect>>(emptyList()) }
     LaunchedEffect(Unit) {
         activeEffects = withContext(Dispatchers.IO) {
@@ -115,11 +114,6 @@ fun ShopScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         AnimatedVisibility(
             visible = visible,
             enter = slideInHorizontally(
@@ -178,7 +172,7 @@ fun ShopScreen(
                     TokenBalanceChip(balance = tokenBalance)
                 }
 
-                // Purchase result feedback
+                // Purchase feedback
                 purchaseResult?.let { msg ->
                     Box(
                         modifier = Modifier
@@ -195,7 +189,7 @@ fun ShopScreen(
 
                 when (selectedCategory) {
                     null -> {
-                        // Category selection
+                        // Categories
                         ShopCategoryList(
                             onSelectCategory = { category ->
                                 soundManager.playNavigate()
@@ -204,7 +198,7 @@ fun ShopScreen(
                         )
                     }
                     ShopCategory.CARD_BORDER -> {
-                        // Card borders grid
+                        // Grid
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(2),
                             modifier = Modifier
@@ -238,7 +232,7 @@ fun ShopScreen(
                         }
                     }
                     ShopCategory.HAT, ShopCategory.COSTUME -> {
-                        // Coming soon placeholder
+                        // Coming soon
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
@@ -372,7 +366,7 @@ private fun ShopCategoryCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Category icon with gradient preview or plain background
+            // Category icon
             Box(
                 modifier = Modifier
                     .size(64.dp)
@@ -448,7 +442,7 @@ private fun ShopItemCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Gradient preview swatch
+            // Preview swatch
             val colors = item.previewColors?.map { Color(it.toInt()) } ?: listOf(Color.Gray, Color.LightGray)
             Box(
                 modifier = Modifier
@@ -545,7 +539,7 @@ private fun ShopItemCard(
                             text = "${item.price}",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFFFFC107)
+                            color = TokenGold
                         )
                     }
                 }
@@ -599,7 +593,7 @@ private fun ShopItemDialog(
                             color = Color(0xFF4CAF50)
                         )
                     } else {
-                        Text("\uD83E\uDE99 ${item.price}", fontWeight = FontWeight.Bold, color = Color(0xFFFFC107))
+                        Text("\uD83E\uDE99 ${item.price}", fontWeight = FontWeight.Bold, color = TokenGold)
                     }
                 }
                 if (!canAfford) {

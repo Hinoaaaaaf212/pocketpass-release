@@ -75,9 +75,8 @@ import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.AuthRepository
 import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.FriendRepository
-import com.pocketpass.app.data.PocketPassDatabase
-import com.pocketpass.app.data.crypto.decryptFields
-import com.pocketpass.app.data.UserPreferences
+import com.pocketpass.app.ui.theme.LocalEncounters
+import com.pocketpass.app.ui.theme.LocalUserPreferences
 import com.pocketpass.app.rendering.Plaza3DMiiManager
 import com.pocketpass.app.rendering.PlazaEnvironmentLoader
 import com.pocketpass.app.ui.theme.AeroButton
@@ -88,6 +87,9 @@ import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.LocalDarkMode
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.ui.theme.WarningOrange
+import com.pocketpass.app.ui.theme.AvatarGradientTop
+import com.pocketpass.app.ui.theme.AvatarGradientBottom
 import com.pocketpass.app.util.LocalGamepadState
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.RegionFlags
@@ -116,11 +118,9 @@ fun AnimatedPlazaScreen(
     val isDark = LocalDarkMode.current
     val coroutineScope = rememberCoroutineScope()
 
-    val db = remember { PocketPassDatabase.getDatabase(context) }
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val encounters = LocalEncounters.current
 
-    val userPreferences = remember { UserPreferences(context) }
+    val userPreferences = LocalUserPreferences.current
     val userName by userPreferences.userNameFlow.collectAsState(initial = null)
     val userAvatarHex by userPreferences.avatarHexFlow.collectAsState(initial = null)
     val userCostume by userPreferences.selectedCostumeFlow.collectAsState(initial = null)
@@ -141,12 +141,12 @@ fun AnimatedPlazaScreen(
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
 
-    // Scene dimensions for background
+    // Scene dimensions
     var sceneWidthPx by remember { mutableFloatStateOf(1080f) }
     var sceneHeightPx by remember { mutableFloatStateOf(1920f) }
 
 
-    // 3D scene engine — use shared engine from MainActivity to avoid recreating on tab switches
+    // Shared engine (avoid recreating on tab switch)
     val engine = sharedEngine ?: rememberEngine()
     val modelLoader = sharedModelLoader ?: rememberModelLoader(engine)
     val miiManager = remember {
@@ -156,17 +156,17 @@ fun AnimatedPlazaScreen(
         PlazaEnvironmentLoader(context, modelLoader, coroutineScope)
     }
 
-    // Combined node list: environment nodes + Mii nodes
+    // All nodes
     val combinedNodes by remember {
         derivedStateOf { environmentLoader.nodes + miiManager.nodes }
     }
 
-    // Load 3D environment models
+    // Load environment
     LaunchedEffect(Unit) {
         environmentLoader.loadEnvironment()
     }
 
-    // Clean up 3D resources when leaving the screen
+    // Cleanup
     DisposableEffect(miiManager, environmentLoader) {
         onDispose {
             miiManager.clear()
@@ -174,20 +174,22 @@ fun AnimatedPlazaScreen(
         }
     }
 
-    // Sync encounters with 3D manager
-    LaunchedEffect(encounters) {
-        val subset = if (encounters.size > MAX_MIIS) encounters.shuffled().take(MAX_MIIS) else encounters
-        miiManager.syncEncounters(subset, userAvatarHex)
+    // Sync encounters
+    val miiSubset = remember(encounters) {
+        if (encounters.size > MAX_MIIS) encounters.shuffled(kotlin.random.Random(encounters.size)).take(MAX_MIIS) else encounters
+    }
+    LaunchedEffect(miiSubset) {
+        miiManager.syncEncounters(miiSubset, userAvatarHex)
     }
 
-    // Add user's own Mii
+    // Add self
     LaunchedEffect(userAvatarHex, userCostume) {
         if (!userAvatarHex.isNullOrBlank()) {
             miiManager.addUserMii(userAvatarHex!!, userCostume)
         }
     }
 
-    // Lifecycle awareness — pause game loop when app is backgrounded or screen not visible
+    // Pause when backgrounded
     val lifecycleOwner = LocalLifecycleOwner.current
     var isResumed by remember { mutableStateOf(false) }
 
@@ -199,7 +201,7 @@ fun AnimatedPlazaScreen(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // Game loop — only runs when screen is visible and resumed
+    // Game loop
     LaunchedEffect(isResumed) {
         if (!isResumed) return@LaunchedEffect
         var lastTime = 0L
@@ -217,7 +219,7 @@ fun AnimatedPlazaScreen(
     val cursorIndex by miiManager.selectedIndex
     val density = LocalDensity.current
 
-    // Helper to handle Mii selection (both tap and gamepad)
+    // Mii selection handler
     fun selectMii(encounter: Encounter) {
         soundManager.playSelect()
         miiManager.onMiiTapped(encounter)
@@ -230,7 +232,7 @@ fun AnimatedPlazaScreen(
         }
     }
 
-    // Scene focus requester for d-pad input
+    // D-pad focus
     val sceneFocusRequester = remember { FocusRequester() }
 
     // ── UI ──
@@ -273,7 +275,7 @@ fun AnimatedPlazaScreen(
                     Spacer(modifier = Modifier.width(48.dp))
                 }
 
-                // Scene + labels area with d-pad navigation
+                // Scene area
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -321,12 +323,12 @@ fun AnimatedPlazaScreen(
                         }
                         .focusable()
                 ) {
-                    // Request focus on the scene so d-pad works
+                    // Grab focus for d-pad
                     LaunchedEffect(Unit) {
                         sceneFocusRequester.requestFocus()
                     }
 
-                    // 3D SceneView (opaque, renders its own sky background)
+                    // 3D SceneView
                     Plaza3DScene(
                         encounters = encounters.take(MAX_MIIS),
                         userAvatarHex = userAvatarHex,
@@ -342,7 +344,7 @@ fun AnimatedPlazaScreen(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Empty state overlay
+                    // Empty state
                     if (encounters.isEmpty()) {
                         Column(
                             modifier = Modifier
@@ -368,7 +370,7 @@ fun AnimatedPlazaScreen(
                         }
                     }
 
-                    // Selector square overlay for gamepad cursor
+                    // Gamepad cursor
                     if (cursorIndex >= 0) {
                         val nonUserMiis = miiManager.getNonUserMiiStates()
                         if (cursorIndex < nonUserMiis.size) {
@@ -377,7 +379,7 @@ fun AnimatedPlazaScreen(
                             val (screenX, screenY) = projectWorldToScreen(
                                 mii.positionX, Plaza3DMiiManager.MII_CENTER_Y, mii.positionZ, aspectRatio
                             )
-                            // Convert normalized screen coords to pixel offset
+                            // Normalized → pixels
                             val selectorSizeDp = 64.dp
                             val selectorSizePx = with(density) { selectorSizeDp.toPx() }
                             val offsetX = (screenX * sceneWidthPx - selectorSizePx / 2f).toInt()
@@ -392,7 +394,7 @@ fun AnimatedPlazaScreen(
                         }
                     }
 
-                    // Tap-to-select: map screen tap to normalized coords → nearest Mii via 2D projection
+                    // Tap → nearest Mii
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -419,7 +421,7 @@ fun AnimatedPlazaScreen(
             } // end Column
         } // end AnimatedVisibility
 
-        // ── Interaction Dialog (only on non-dual-screen; dual-screen shows detail on companion) ──
+        // ── Interaction dialog ──
         if (!isDualScreen && selectedEncounter != null && !showProfileDetail) {
             LaunchedEffect(selectedEncounter?.otherUserId) {
                 friendshipStatus = "checking"
@@ -458,8 +460,8 @@ fun AnimatedPlazaScreen(
                                 .background(
                                     Brush.verticalGradient(
                                         listOf(
-                                            if (isDark) Color(0xFF1A2A3A) else Color(0xFFE3F2FD),
-                                            if (isDark) Color(0xFF1A3A3A) else Color(0xFFBBDEFB)
+                                            if (isDark) Color(0xFF1A2A3A) else AvatarGradientTop,
+                                            if (isDark) Color(0xFF1A3A3A) else AvatarGradientBottom
                                         )
                                     )
                                 ),
@@ -566,7 +568,7 @@ fun AnimatedPlazaScreen(
                             modifier = Modifier.fillMaxWidth(),
                             cornerRadius = 12.dp,
                             enabled = if (!isLoggedIn) true else friendButtonEnabled,
-                            containerColor = if (!isLoggedIn) Color(0xFFFF9800) else PocketPassGreen
+                            containerColor = if (!isLoggedIn) WarningOrange else PocketPassGreen
                         ) {
                             Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
@@ -593,7 +595,7 @@ fun AnimatedPlazaScreen(
             )
         }
 
-        // ── Profile Detail Dialog ──
+        // ── Profile detail ──
         if (!isDualScreen && selectedEncounter != null && showProfileDetail) {
             AlertDialog(
                 onDismissRequest = { showProfileDetail = false },
@@ -607,8 +609,8 @@ fun AnimatedPlazaScreen(
                                 .background(
                                     Brush.verticalGradient(
                                         listOf(
-                                            if (isDark) Color(0xFF1A2A3A) else Color(0xFFE3F2FD),
-                                            if (isDark) Color(0xFF1A3A3A) else Color(0xFFBBDEFB)
+                                            if (isDark) Color(0xFF1A2A3A) else AvatarGradientTop,
+                                            if (isDark) Color(0xFF1A3A3A) else AvatarGradientBottom
                                         )
                                     )
                                 ),
@@ -676,20 +678,14 @@ private fun ProfileDetailRow(label: String, value: String) {
     }
 }
 
-/**
- * Companion screen for the dual-screen plaza (shown on the top screen of Ayn Thor).
- * Shows selected Mii's greeting card and profile info, or a visitor list when nothing is selected.
- */
+/** Dual-screen companion — greeting card + visitor list. */
 @Composable
 fun AnimatedPlazaCompanionScreen(
     selectedEncounter: Encounter?,
     onBack: () -> Unit
 ) {
     val isDark = LocalDarkMode.current
-    val context = LocalContext.current
-    val db = remember { PocketPassDatabase.getDatabase(context) }
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val encounters = LocalEncounters.current
 
     Column(modifier = Modifier.fillMaxSize()) {
         // Top bar
@@ -717,7 +713,7 @@ fun AnimatedPlazaCompanionScreen(
         }
 
         if (selectedEncounter != null) {
-            // ── Selected Mii greeting card ──
+            // ── Selected Mii ──
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -740,8 +736,8 @@ fun AnimatedPlazaCompanionScreen(
                         .background(
                             Brush.verticalGradient(
                                 listOf(
-                                    if (isDark) Color(0xFF1A2A3A) else Color(0xFFE3F2FD),
-                                    if (isDark) Color(0xFF1A3A3A) else Color(0xFFBBDEFB)
+                                    if (isDark) Color(0xFF1A2A3A) else AvatarGradientTop,
+                                    if (isDark) Color(0xFF1A3A3A) else AvatarGradientBottom
                                 )
                             )
                         ),
@@ -832,7 +828,7 @@ fun AnimatedPlazaCompanionScreen(
                 }
             }
         } else {
-            // ── No Mii selected — show visitor list ──
+            // ── No selection — visitor list ──
             Column(
                 modifier = Modifier
                     .fillMaxSize()

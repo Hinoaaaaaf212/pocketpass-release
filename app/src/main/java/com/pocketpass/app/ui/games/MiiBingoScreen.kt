@@ -65,19 +65,19 @@ import com.pocketpass.app.data.BingoChallenges
 import com.pocketpass.app.data.BingoProgress
 import com.pocketpass.app.data.EventEffect
 import com.pocketpass.app.data.EventEffectManager
-import com.pocketpass.app.data.PocketPassDatabase
-import com.pocketpass.app.data.crypto.decryptFields
 import com.pocketpass.app.data.SpotPassRepository
 import com.pocketpass.app.data.TokenSystem
 import com.pocketpass.app.data.UserPreferences
-import com.pocketpass.app.ui.CheckeredBackground
 import com.pocketpass.app.ui.theme.AeroButton
+import com.pocketpass.app.ui.theme.LocalEncounters
 import com.pocketpass.app.ui.theme.AeroCard
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
+import com.pocketpass.app.ui.theme.LocalDarkMode
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.ui.theme.TokenGold
+import com.pocketpass.app.ui.theme.WarningOrange
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
 import kotlinx.coroutines.Dispatchers
@@ -128,18 +128,16 @@ fun MiiBingoScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val userPreferences = remember { UserPreferences(context) }
     val coroutineScope = rememberCoroutineScope()
-    val db = remember { PocketPassDatabase.getDatabase(context) }
 
     val tokenBalance by userPreferences.tokenBalanceFlow.collectAsState(initial = 0)
     val bingoProgress by userPreferences.bingoProgressFlow.collectAsState(initial = BingoProgress())
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val encounters = LocalEncounters.current
 
     var selectedCell by remember { mutableStateOf<BingoCell?>(null) }
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
 
-    // Active event effects for token multiplier
+    // Event multiplier
     var activeEffects by remember { mutableStateOf<List<EventEffect>>(emptyList()) }
     LaunchedEffect(Unit) {
         activeEffects = withContext(Dispatchers.IO) {
@@ -148,7 +146,7 @@ fun MiiBingoScreen(onBack: () -> Unit) {
     }
     val tokenMultiplier = EventEffectManager.getTokenMultiplier(activeEffects)
 
-    // Auto-evaluate card when encounters change
+    // Re-evaluate on new encounters
     LaunchedEffect(encounters, bingoProgress.currentCard) {
         val card = bingoProgress.currentCard ?: return@LaunchedEffect
         if (card.isFullyComplete() && card.fullCardClaimed) return@LaunchedEffect
@@ -168,7 +166,7 @@ fun MiiBingoScreen(onBack: () -> Unit) {
             tokensToAward += TokenSystem.BINGO_FULL_CARD_REWARD
         }
 
-        // Apply active event token multiplier
+        // Apply multiplier
         tokensToAward *= tokenMultiplier
 
         if (evaluated != card || freshLines.isNotEmpty() || claimFull) {
@@ -190,11 +188,6 @@ fun MiiBingoScreen(onBack: () -> Unit) {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         AnimatedVisibility(
             visible = visible,
             enter = slideInHorizontally(
@@ -291,7 +284,7 @@ fun MiiBingoScreen(onBack: () -> Unit) {
                                         text = "$linesCompleted",
                                         style = MaterialTheme.typography.headlineSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (linesCompleted > 0) Color(0xFFFFC107) else MediumText
+                                        color = if (linesCompleted > 0) TokenGold else MediumText
                                     )
                                     Text(
                                         text = "lines",
@@ -317,12 +310,13 @@ fun MiiBingoScreen(onBack: () -> Unit) {
                             Spacer(modifier = Modifier.height(12.dp))
 
                             // Progress bar
+                            val isDarkProgress = LocalDarkMode.current
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .height(6.dp)
                                     .clip(RoundedCornerShape(3.dp))
-                                    .background(Color(0xFFE8E8E8))
+                                    .background(if (isDarkProgress) Color(0xFF404040) else Color(0xFFE8E8E8))
                             ) {
                                 Box(
                                     modifier = Modifier
@@ -341,7 +335,7 @@ fun MiiBingoScreen(onBack: () -> Unit) {
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // BINGO header row
+                    // Header
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -369,7 +363,7 @@ fun MiiBingoScreen(onBack: () -> Unit) {
                         }
                     }
 
-                    // 4x4 Grid
+                    // Grid
                     BingoGrid(
                         card = card,
                         onCellClick = { cell -> selectedCell = cell; soundManager.playSelect() }
@@ -377,12 +371,12 @@ fun MiiBingoScreen(onBack: () -> Unit) {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Rewards info
+                    // Rewards
                     RewardsInfoCard(tokenMultiplier = tokenMultiplier)
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // New Card button when fully complete
+                    // New card button
                     if (card.isFullyComplete() && card.fullCardClaimed) {
                         AeroButton(
                             onClick = {
@@ -418,7 +412,7 @@ fun MiiBingoScreen(onBack: () -> Unit) {
             }
         }
 
-        // Cell detail dialog
+        // Cell dialog
         if (selectedCell != null) {
             CellDetailDialog(
                 cell = selectedCell!!,
@@ -476,7 +470,7 @@ private fun EmptyBingoPrompt(onGenerate: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Decorative bingo icon
+        // Icon
         Box(
             modifier = Modifier
                 .size(80.dp)
@@ -562,7 +556,7 @@ private fun RewardHintRow(label: String, reward: String) {
                 text = reward,
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFFFC107)
+                color = TokenGold
             )
         }
     }
@@ -602,7 +596,7 @@ private fun RewardsInfoCard(tokenMultiplier: Int) {
                         text = "${TokenSystem.BINGO_LINE_REWARD * tokenMultiplier}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFFC107)
+                        color = TokenGold
                     )
                 }
             }
@@ -611,7 +605,7 @@ private fun RewardsInfoCard(tokenMultiplier: Int) {
                 modifier = Modifier
                     .width(1.dp)
                     .height(28.dp)
-                    .background(Color(0xFFE0E0E0))
+                    .background(if (LocalDarkMode.current) Color(0xFF444444) else Color(0xFFE0E0E0))
             )
 
             // Full card reward
@@ -631,7 +625,7 @@ private fun RewardsInfoCard(tokenMultiplier: Int) {
                         text = "${TokenSystem.BINGO_FULL_CARD_REWARD * tokenMultiplier}",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFFFC107)
+                        color = TokenGold
                     )
                 }
             }
@@ -640,7 +634,7 @@ private fun RewardsInfoCard(tokenMultiplier: Int) {
                 modifier = Modifier
                     .width(1.dp)
                     .height(28.dp)
-                    .background(Color(0xFFE0E0E0))
+                    .background(if (LocalDarkMode.current) Color(0xFF444444) else Color(0xFFE0E0E0))
             )
 
             // Reroll cost
@@ -665,19 +659,19 @@ private fun RewardsInfoCard(tokenMultiplier: Int) {
                 }
             }
 
-            // Multiplier badge if active
+            // Multiplier badge
             if (tokenMultiplier > 1) {
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
-                        .background(Color(0xFFFFF3E0))
+                        .background(if (LocalDarkMode.current) Color(0xFF3D2E00) else Color(0xFFFFF3E0))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Text(
                         text = "x$tokenMultiplier",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Color(0xFFFF9800)
+                        color = WarningOrange
                     )
                 }
             }
@@ -720,14 +714,15 @@ private fun BingoCellView(
     val isFree = cell.challenge.type == BingoChallengeType.FREE
     val typeColor = challengeTypeColor(cell.challenge.type)
 
+    val isDark = LocalDarkMode.current
     val bgColor = when {
         isFree && cell.completed -> FreeColor.copy(alpha = 0.15f)
         cell.completed -> CompletedColor.copy(alpha = 0.12f)
-        else -> Color.White
+        else -> if (isDark) Color(0xFF2A2A2A) else Color.White
     }
     val borderColor = when {
         cell.completed -> CompletedColor.copy(alpha = 0.5f)
-        else -> Color(0xFFE8E8E8)
+        else -> if (isDark) Color(0xFF444444) else Color(0xFFE8E8E8)
     }
 
     AeroCard(
@@ -744,7 +739,7 @@ private fun BingoCellView(
             contentAlignment = Alignment.Center
         ) {
             if (isFree) {
-                // Free space — star with label
+                // Free space
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         imageVector = Icons.Filled.Star,
@@ -761,9 +756,8 @@ private fun BingoCellView(
                     )
                 }
             } else if (cell.completed) {
-                // Completed — checkmark stamp over faded label
+                // Completed
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    // Faded text underneath
                     Text(
                         text = cellShortLabel(cell),
                         style = MaterialTheme.typography.labelSmall,
@@ -774,7 +768,7 @@ private fun BingoCellView(
                         fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 2.dp)
                     )
-                    // Checkmark circle on top
+                    // Checkmark
                     Box(
                         modifier = Modifier
                             .size(28.dp)
@@ -791,13 +785,12 @@ private fun BingoCellView(
                     }
                 }
             } else {
-                // Incomplete — colored type dot + label
+                // Incomplete
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                     modifier = Modifier.padding(3.dp)
                 ) {
-                    // Type color dot
                     Box(
                         modifier = Modifier
                             .size(8.dp)
@@ -853,7 +846,7 @@ private fun CellDetailDialog(
             modifier = Modifier.fillMaxWidth(),
             cornerRadius = 24.dp,
             elevation = 8.dp,
-            containerColor = Color.White
+            containerColor = OffWhite
         ) {
             Column(
                 modifier = Modifier
@@ -891,7 +884,7 @@ private fun CellDetailDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Challenge type badge
+                // Type badge
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -924,7 +917,7 @@ private fun CellDetailDialog(
                         .clip(RoundedCornerShape(12.dp))
                         .background(
                             if (cell.completed) CompletedColor.copy(alpha = 0.1f)
-                            else Color(0xFFF5F5F5)
+                            else if (LocalDarkMode.current) Color(0xFF3A3A3A) else Color(0xFFF5F5F5)
                         )
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
@@ -955,7 +948,7 @@ private fun CellDetailDialog(
                             onClick = { onReroll() },
                             modifier = Modifier.weight(1f),
                             enabled = canReroll,
-                            containerColor = Color(0xFFFFC107),
+                            containerColor = TokenGold,
                             contentColor = DarkText,
                             cornerRadius = 12.dp
                         ) {

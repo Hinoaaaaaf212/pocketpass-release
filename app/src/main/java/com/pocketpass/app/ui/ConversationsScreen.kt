@@ -1,10 +1,5 @@
 package com.pocketpass.app.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -50,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.ConversationSummary
 import com.pocketpass.app.data.MessageRepository
 import com.pocketpass.app.data.getCurrentTier
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
@@ -83,22 +77,7 @@ fun ConversationsScreen(
         isLoading = false
     }
 
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
-        ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 // Top Bar
                 Row(
@@ -180,7 +159,6 @@ fun ConversationsScreen(
                     }
                 }
             }
-        }
     }
 }
 

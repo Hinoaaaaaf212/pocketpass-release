@@ -2,11 +2,6 @@ package com.pocketpass.app.ui
 
 import android.hardware.display.DisplayManager
 import android.view.Display
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -19,6 +14,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -60,7 +56,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.UserPreferences
-import com.pocketpass.app.ui.theme.BackgroundGradient
+import com.pocketpass.app.ui.theme.LocalUserPreferences
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.LocalAppDimensions
 import com.pocketpass.app.ui.theme.MediumText
@@ -71,7 +67,11 @@ import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.ErrorText
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.ui.theme.PocketPassGreenDark
 import com.pocketpass.app.ui.theme.SkyBlue
+import com.pocketpass.app.ui.theme.DangerRed
+import com.pocketpass.app.ui.theme.AvatarGradientTop
+import com.pocketpass.app.ui.theme.AvatarGradientBottom
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
 import androidx.compose.foundation.shape.CircleShape
@@ -95,7 +95,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val userPreferences = remember { UserPreferences(context) }
+    val userPreferences = LocalUserPreferences.current
     val soundManager = LocalSoundManager.current
 
     val savedMiis by userPreferences.savedMiisFlow.collectAsState(initial = emptyList())
@@ -112,8 +112,8 @@ fun SettingsScreen(
     val maxMiis = 3
     val canCreateNewMii = miiCount < maxMiis
 
-    // Detect secondary display (Ayn Thor bottom screen)
-    // Presentation is now managed centrally in MainActivity
+    // Dual-screen detection
+    // Managed in MainActivity
     val displayManager = remember {
         context.getSystemService(android.content.Context.DISPLAY_SERVICE) as? DisplayManager
     }
@@ -123,22 +123,7 @@ fun SettingsScreen(
     val dualScreenEnabled by userPreferences.dualScreenModeFlow.collectAsState(initial = true)
     val isDualScreen = secondaryDisplay != null && dualScreenEnabled
 
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
-        ) {
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
@@ -170,7 +155,7 @@ fun SettingsScreen(
             }
 
             if (isDualScreen) {
-                // ── Dual-screen: Primary (top) screen shows profile card only ──
+                // ── Dual-screen layout ──
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -178,7 +163,7 @@ fun SettingsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    // Large Mii avatar preview
+                    // Avatar preview
                     val settingsDims = LocalAppDimensions.current
                     if (!activeMiiHex.isNullOrBlank()) {
                         Box(
@@ -188,8 +173,8 @@ fun SettingsScreen(
                                 .background(
                                     Brush.verticalGradient(
                                         colors = listOf(
-                                            Color(0xFFE3F2FD),
-                                            Color(0xFFBBDEFB)
+                                            AvatarGradientTop,
+                                            AvatarGradientBottom
                                         )
                                     )
                                 ),
@@ -226,7 +211,7 @@ fun SettingsScreen(
                     }
                 }
             } else {
-                // ── Single-screen: Everything in one LazyColumn (normal devices) ──
+                // ── Single-screen layout ──
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -280,11 +265,10 @@ fun SettingsScreen(
                 }
             }
         }
-        } // AnimatedVisibility
     }
 }
 
-// ── Shared composable sections used by both single-screen and dual-screen layouts ──
+// ── Shared sections ──
 
 @Composable
 private fun SettingsProfileCard(
@@ -300,16 +284,16 @@ private fun SettingsProfileCard(
     val coroutineScope = rememberCoroutineScope()
     val context = LocalContext.current
     val syncRepo = remember { SyncRepository(context) }
+    val userPreferences = LocalUserPreferences.current
     var syncStatus by remember { mutableStateOf("idle") } // idle, syncing, synced, failed
     var showSignOutConfirm by remember { mutableStateOf(false) }
 
-    // Run sync when logged in and screen opens
+    // Auto-sync on open
     LaunchedEffect(isLoggedIn) {
         if (isLoggedIn) {
             syncStatus = "syncing"
             try {
-                // Use NonCancellable so the network request finishes
-                // even if the user navigates away mid-sync
+                // NonCancellable — finish even if user navigates away
                 kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) {
                     syncRepo.fullSync()
                 }
@@ -392,20 +376,7 @@ private fun SettingsProfileCard(
                     }
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                AeroButton(
-                    onClick = {
-                        soundManager.playTap()
-                        showSignOutConfirm = true
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    containerColor = Color(0xFFC62828),
-                    contentColor = OffWhite
-                ) {
-                    Text("Sign Out", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                }
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
 
             AeroButton(
                 onClick = { soundManager.playNavigate(); onOpenProfileSettings() },
@@ -425,6 +396,21 @@ private fun SettingsProfileCard(
             ) {
                 Text("App Settings", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
             }
+
+            if (isLoggedIn) {
+                Spacer(modifier = Modifier.height(8.dp))
+                AeroButton(
+                    onClick = {
+                        soundManager.playTap()
+                        showSignOutConfirm = true
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    containerColor = DangerRed,
+                    contentColor = OffWhite
+                ) {
+                    Text("Sign Out", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                }
+            }
         }
     }
 
@@ -440,14 +426,13 @@ private fun SettingsProfileCard(
                         coroutineScope.launch {
                             authRepo.signOut()
                             // Clear all local data
-                            val userPreferences = UserPreferences(context)
                             userPreferences.clearAll()
                             val db = PocketPassDatabase.getDatabase(context)
                             db.clearAllTables()
                             onSignOut()
                         }
                     },
-                    containerColor = Color(0xFFC62828),
+                    containerColor = DangerRed,
                     contentColor = OffWhite
                 ) {
                     Text("Sign Out", fontWeight = FontWeight.Bold)
@@ -477,7 +462,7 @@ private fun SettingsCustomizationContent(
     onOpenGameSearch: () -> Unit = {}
 ) {
     Column {
-        // Customization header
+        // Customization
         Text(
             text = "Card Customization",
             style = MaterialTheme.typography.titleMedium,
@@ -487,7 +472,7 @@ private fun SettingsCustomizationContent(
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Greeting Section
+        // Greeting
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -577,7 +562,7 @@ private fun SettingsCustomizationContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Mood Selector
+        // Mood
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -647,7 +632,7 @@ private fun SettingsCustomizationContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // About Me Section
+        // About Me
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -726,7 +711,7 @@ private fun SettingsCustomizationContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Card Style Selector — shows owned themes from shop
+        // Card styles (owned only)
         val ownedItems by userPreferences.ownedShopItemsFlow.collectAsState(initial = emptySet())
         val ownedThemes = ShopItems.cardThemes.filter { it.id in ownedItems }
 
@@ -953,6 +938,7 @@ private fun SettingsMiiRow(
                     else -> OffWhite
                 }
             )
+            .defaultMinSize(minHeight = 100.dp)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
@@ -970,8 +956,8 @@ private fun SettingsMiiRow(
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                Color(0xFFE3F2FD),
-                                Color(0xFFBBDEFB)
+                                AvatarGradientTop,
+                                AvatarGradientBottom
                             )
                         )
                     ),
@@ -1016,11 +1002,6 @@ private fun SettingsMiiRow(
                         style = MaterialTheme.typography.bodySmall,
                         color = MediumText
                     )
-                    Text(
-                        text = "Data: ${miiHex.length} chars",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = LightText
-                    )
                 }
             }
         }
@@ -1048,7 +1029,7 @@ private fun SettingsCreateMiiButton(
             .height(56.dp),
         enabled = canCreateNewMii,
         containerColor = if (canCreateNewMii) {
-            if (com.pocketpass.app.ui.theme.LocalDarkMode.current) Color(0xFF4A4A4A) else Color(0xFF6B6B6B)
+            PocketPassGreenDark
         } else {
             if (com.pocketpass.app.ui.theme.LocalDarkMode.current) Color(0xFF3A3A3A) else Color(0xFFAAAAAA)
         },

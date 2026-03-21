@@ -64,7 +64,6 @@ import com.pocketpass.app.data.getCurrentTier
 import com.pocketpass.app.data.hasSentMessageToday
 import com.pocketpass.app.ui.theme.AeroCard
 import com.pocketpass.app.ui.theme.aeroGloss
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.LightText
 import com.pocketpass.app.ui.theme.LocalAppDimensions
@@ -180,11 +179,6 @@ fun ChatScreen(
     LaunchedEffect(Unit) { visible = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         AnimatedVisibility(
             visible = visible,
             enter = slideInHorizontally(

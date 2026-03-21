@@ -44,16 +44,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.PocketPassDatabase
-import com.pocketpass.app.data.crypto.decryptFields
 import com.pocketpass.app.data.SyncRepository
 import com.pocketpass.app.ui.theme.AeroCard
-import com.pocketpass.app.ui.theme.BackgroundGradient
+import com.pocketpass.app.ui.theme.AvatarGradientTop
+import com.pocketpass.app.ui.theme.AvatarGradientBottom
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.LocalAppDimensions
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.ErrorText
 import com.pocketpass.app.ui.theme.GreenText
+import com.pocketpass.app.ui.theme.LocalEncounters
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
 import com.pocketpass.app.util.RegionFlags
@@ -68,8 +69,7 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
     val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val encounters = LocalEncounters.current
     val coroutineScope = rememberCoroutineScope()
 
     val authRepo = remember { com.pocketpass.app.data.AuthRepository() }
@@ -81,11 +81,6 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) { visible = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         AnimatedVisibility(
             visible = visible,
             enter = slideInHorizontally(
@@ -182,7 +177,7 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
         }
         } // AnimatedVisibility
 
-        // Detail Dialog (for friend requests)
+        // Detail dialog
         selectedEncounter?.let { encounter ->
             FriendDetailDialog(
                 encounter = encounter,
@@ -219,7 +214,7 @@ fun EncounterHistoryCard(encounter: Encounter, onClick: () -> Unit = {}, onDelet
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Mii thumbnail
+            // Thumbnail
             Box(
                 modifier = Modifier
                     .size(LocalAppDimensions.current.avatarSmall)
@@ -227,8 +222,8 @@ fun EncounterHistoryCard(encounter: Encounter, onClick: () -> Unit = {}, onDelet
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(
-                                androidx.compose.ui.graphics.Color(0xFFE3F2FD),
-                                androidx.compose.ui.graphics.Color(0xFFBBDEFB)
+                                AvatarGradientTop,
+                                AvatarGradientBottom
                             )
                         )
                     ),

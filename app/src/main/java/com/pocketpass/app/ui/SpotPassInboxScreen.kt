@@ -50,16 +50,16 @@ import com.pocketpass.app.data.EventEffect
 import com.pocketpass.app.data.EventEffectType
 import com.pocketpass.app.data.SpotPassItemEntity
 import com.pocketpass.app.data.SpotPassRepository
-import com.pocketpass.app.data.UserPreferences
+import com.pocketpass.app.ui.theme.LocalUserPreferences
 import com.pocketpass.app.data.parseEventEffect
 import com.pocketpass.app.ui.theme.AeroButton
 import com.pocketpass.app.ui.theme.AeroCard
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.ui.theme.TokenGold
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
 import kotlinx.coroutines.launch
@@ -73,12 +73,12 @@ fun SpotPassInboxScreen(
     val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val repo = remember { SpotPassRepository(context) }
-    val userPreferences = remember { UserPreferences(context) }
+    val userPreferences = LocalUserPreferences.current
     val coroutineScope = rememberCoroutineScope()
 
     val items by repo.allItems.collectAsState(initial = emptyList())
 
-    // Mark all items as read when screen opens
+    // Mark read on open
     LaunchedEffect(Unit) {
         repo.markAllAsRead()
         userPreferences.clearSpotPassUnread()
@@ -88,11 +88,6 @@ fun SpotPassInboxScreen(
     LaunchedEffect(Unit) { visible = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         AnimatedVisibility(
             visible = visible,
             enter = slideInHorizontally(
@@ -202,7 +197,7 @@ private fun SpotPassItemCard(
     val isEvent = item.type == "event"
     val isExpired = isEvent && item.expiresAt != null && item.expiresAt < System.currentTimeMillis()
 
-    // Mark as read when displayed
+    // Mark read
     LaunchedEffect(item.id) {
         if (!item.isRead) onRead()
     }
@@ -281,16 +276,16 @@ private fun SpotPassItemCard(
                     )
                 }
 
-                // Event effect badge
+                // Effect badge
                 val effect = remember(item.eventEffect) { parseEventEffect(item.eventEffect) }
                 if (effect != null) {
                     Spacer(modifier = Modifier.height(6.dp))
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        // Effect label pill
+                        // Effect pill
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(Color(0xFFFFC107).copy(alpha = 0.2f))
+                                .background(TokenGold.copy(alpha = 0.2f))
                                 .padding(horizontal = 8.dp, vertical = 3.dp)
                         ) {
                             Text(
@@ -300,7 +295,7 @@ private fun SpotPassItemCard(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        // Active / Upcoming / Expired status
+                        // Status
                         val now = System.currentTimeMillis()
                         val status = when {
                             item.publishedAt > now -> "Upcoming"
@@ -328,7 +323,7 @@ private fun SpotPassItemCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Relative timestamp
+                    // Timestamp
                     Text(
                         text = formatSpotPassTime(item.publishedAt),
                         style = MaterialTheme.typography.labelSmall,
@@ -397,7 +392,7 @@ private fun formatSpotPassTime(epochMs: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - epochMs
 
-    // Future timestamp (e.g. expires_at)
+    // Future
     if (diff < 0) {
         val ahead = -diff
         val minutes = ahead / 60_000
@@ -415,7 +410,7 @@ private fun formatSpotPassTime(epochMs: Long): String {
         }
     }
 
-    // Past timestamp (e.g. published_at)
+    // Past
     val minutes = diff / 60_000
     val hours = diff / 3_600_000
     val days = diff / 86_400_000

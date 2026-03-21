@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.NotificationRepository
 import com.pocketpass.app.data.SupabaseNotification
 import com.pocketpass.app.ui.theme.AeroCard
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.LocalDarkMode
 import com.pocketpass.app.ui.theme.MediumText
@@ -92,11 +91,6 @@ fun NotificationsScreen(
     LaunchedEffect(Unit) { visible = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         AnimatedVisibility(
             visible = visible,
             enter = slideInHorizontally(

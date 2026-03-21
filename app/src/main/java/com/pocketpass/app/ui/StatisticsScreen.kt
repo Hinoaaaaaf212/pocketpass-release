@@ -1,10 +1,5 @@
 package com.pocketpass.app.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,36 +22,29 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pocketpass.app.data.Achievement
 import com.pocketpass.app.data.AchievementCategory
 import com.pocketpass.app.data.Achievements
-import com.pocketpass.app.data.PocketPassDatabase
-import com.pocketpass.app.data.crypto.decryptFields
 import com.pocketpass.app.ui.theme.AchievementIcon
 import com.pocketpass.app.ui.theme.AchievementIconView
 import com.pocketpass.app.ui.theme.AeroButton
 import com.pocketpass.app.ui.theme.AeroCard
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.LocalDarkMode
+import com.pocketpass.app.ui.theme.LocalEncounters
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
+import com.pocketpass.app.util.RegionFlags
 import com.pocketpass.app.util.WorldMapRegions
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.focus.FocusRequester
@@ -66,17 +54,15 @@ import java.util.Date
 @Composable
 fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
     val soundManager = LocalSoundManager.current
-    val context = LocalContext.current
-    val db = remember { PocketPassDatabase.getDatabase(context) }
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val encounters = LocalEncounters.current
 
-    // Calculate statistics (memoized to avoid recomputation during animations)
+    // Stats (memoized)
     val totalEncounters = encounters.size
     val uniqueLocations = remember(encounters) { encounters.map { it.origin }.distinct().size }
     val uniquePeople = remember(encounters) { encounters.map { it.otherUserName }.distinct().size }
     val locationCounts = remember(encounters) {
-        encounters.groupingBy { it.origin }.eachCount()
+        encounters.filter { it.origin.isNotBlank() }
+            .groupingBy { it.origin }.eachCount()
             .entries.sortedByDescending { it.value }
     }
 
@@ -85,22 +71,7 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
     val allAchievements = remember { Achievements.getAll() }
     val unlockedCount = remember(encounters) { allAchievements.count { it.isUnlocked(encounters) } }
 
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
-        ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Top Bar
             Row(
@@ -135,7 +106,7 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Overview Stats
+                // Overview
                 item {
                     AeroCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -236,7 +207,7 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
                                             horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
                                             Text(
-                                                text = "${index + 1}. ${entry.key}",
+                                                text = "${index + 1}. ${RegionFlags.getFlagForRegion(entry.key)} ${entry.key}",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 fontWeight = FontWeight.Medium,
                                                 color = DarkText
@@ -254,8 +225,8 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
                                                 .fillMaxWidth()
                                                 .height(6.dp)
                                                 .clip(RoundedCornerShape(3.dp)),
-                                            color = PocketPassGreen,
-                                            trackColor = androidx.compose.ui.graphics.Color(0xFFE0E0E0)
+                                            color = if (LocalDarkMode.current) GreenText else PocketPassGreen,
+                                            trackColor = if (LocalDarkMode.current) androidx.compose.ui.graphics.Color(0xFF404040) else androidx.compose.ui.graphics.Color(0xFFE0E0E0)
                                         )
                                     }
                                 }
@@ -296,8 +267,8 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
                                     .fillMaxWidth()
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
-                                color = PocketPassGreen,
-                                trackColor = androidx.compose.ui.graphics.Color(0xFFE0E0E0)
+                                color = if (LocalDarkMode.current) GreenText else PocketPassGreen,
+                                trackColor = if (LocalDarkMode.current) androidx.compose.ui.graphics.Color(0xFF404040) else androidx.compose.ui.graphics.Color(0xFFE0E0E0)
                             )
                             Spacer(modifier = Modifier.height(12.dp))
                             AeroButton(
@@ -342,8 +313,8 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
                                     .fillMaxWidth()
                                     .height(8.dp)
                                     .clip(RoundedCornerShape(4.dp)),
-                                color = PocketPassGreen,
-                                trackColor = androidx.compose.ui.graphics.Color(0xFFE0E0E0)
+                                color = if (LocalDarkMode.current) GreenText else PocketPassGreen,
+                                trackColor = if (LocalDarkMode.current) androidx.compose.ui.graphics.Color(0xFF404040) else androidx.compose.ui.graphics.Color(0xFFE0E0E0)
                             )
                         }
                     }
@@ -402,7 +373,6 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
                 }
             }
         }
-        } // AnimatedVisibility
     }
 }
 
@@ -431,7 +401,7 @@ fun StatRow(label: String, value: String, icon: String) {
             text = value,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
-            color = DarkText
+            color = GreenText
         )
     }
 }
@@ -452,7 +422,7 @@ fun AchievementBadge(
                 when {
                     unlocked -> PocketPassGreen.copy(alpha = 0.15f)
                     isDark -> androidx.compose.ui.graphics.Color(0xFF2A2A2A)
-                    else -> androidx.compose.ui.graphics.Color(0xFFF5F5F5)
+                    else -> androidx.compose.ui.graphics.Color(0xFFF0F0F0)
                 }
             )
             .padding(14.dp)
@@ -499,7 +469,7 @@ fun AchievementBadge(
             }
         }
 
-        // Progress bar for locked achievements
+        // Locked progress
         if (!unlocked && total > 0) {
             Spacer(modifier = Modifier.height(8.dp))
             Row(

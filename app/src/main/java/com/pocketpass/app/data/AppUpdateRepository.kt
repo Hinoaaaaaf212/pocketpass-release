@@ -63,23 +63,16 @@ class AppUpdateRepository(private val context: Context) {
 
             if (downloadUrl == null) return@withContext null
 
-            // Parse version from tag: "v1.5" -> versionCode derived from name
+            // Compare by version name since versionCode doesn't match tag scheme
             val versionName = tagName.removePrefix("v")
-            val parts = versionName.split(".")
-            val remoteVersionCode = if (parts.size >= 2) {
-                parts[0].toIntOrNull()?.let { major ->
-                    parts[1].toIntOrNull()?.let { minor ->
-                        major * 10 + minor
-                    }
-                }
-            } else null
+            val currentVersionName = getCurrentVersionName()
 
-            if (remoteVersionCode == null || remoteVersionCode <= getCurrentVersionCode()) {
+            if (versionName == currentVersionName || !isNewerVersion(versionName, currentVersionName)) {
                 return@withContext null
             }
 
             AppVersion(
-                versionCode = remoteVersionCode,
+                versionCode = getCurrentVersionCode() + 1,
                 versionName = versionName,
                 downloadUrl = downloadUrl,
                 changelog = body
@@ -88,6 +81,18 @@ class AppUpdateRepository(private val context: Context) {
             Log.e(TAG, "Check for update failed", e)
             null
         }
+    }
+
+    private fun isNewerVersion(remote: String, current: String): Boolean {
+        val remoteParts = remote.split(".").mapNotNull { it.toIntOrNull() }
+        val currentParts = current.split(".").mapNotNull { it.toIntOrNull() }
+        for (i in 0 until maxOf(remoteParts.size, currentParts.size)) {
+            val r = remoteParts.getOrElse(i) { 0 }
+            val c = currentParts.getOrElse(i) { 0 }
+            if (r > c) return true
+            if (r < c) return false
+        }
+        return false
     }
 
     fun getApkFile(): File {

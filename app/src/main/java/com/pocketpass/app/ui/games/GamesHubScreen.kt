@@ -1,10 +1,5 @@
 package com.pocketpass.app.ui.games
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -28,12 +23,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,13 +37,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.pocketpass.app.R
 import com.pocketpass.app.data.UserPreferences
-import com.pocketpass.app.ui.CheckeredBackground
 import com.pocketpass.app.ui.theme.AeroCard
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
+import com.pocketpass.app.ui.theme.TokenGold
 import com.pocketpass.app.util.LocalSoundManager
 import com.pocketpass.app.util.gamepadFocusable
 
@@ -66,22 +57,7 @@ fun GamesHubScreen(
     val userPreferences = remember { UserPreferences(context) }
     val tokenBalance by userPreferences.tokenBalanceFlow.collectAsState(initial = 0)
 
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
-        ) {
         Column(modifier = Modifier.fillMaxSize()) {
                 // Top Bar
                 Row(
@@ -112,7 +88,7 @@ fun GamesHubScreen(
                         )
                     }
 
-                    // Token balance chip
+                    // Token balance
                     TokenBalanceChip(balance = tokenBalance)
                 }
 
@@ -122,7 +98,7 @@ fun GamesHubScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Puzzle Swap game card
+                    // Puzzle Swap
                     item {
                         GameCard(
                             iconRes = R.drawable.ic_puzzle_swap,
@@ -133,7 +109,7 @@ fun GamesHubScreen(
                         )
                     }
 
-                    // Mii Bingo card
+                    // Mii Bingo
                     item {
                         GameCard(
                             iconRes = R.drawable.ic_bingo,
@@ -147,7 +123,6 @@ fun GamesHubScreen(
                     item { Spacer(modifier = Modifier.height(16.dp)) }
                 }
             }
-        } // AnimatedVisibility
     }
 }
 
@@ -156,7 +131,7 @@ fun TokenBalanceChip(balance: Int, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFFFFC107))
+            .background(TokenGold)
             .padding(horizontal = 14.dp, vertical = 6.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {

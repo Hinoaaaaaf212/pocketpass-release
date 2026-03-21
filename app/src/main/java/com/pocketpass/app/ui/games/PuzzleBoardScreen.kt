@@ -51,9 +51,7 @@ import com.pocketpass.app.data.PieceRarity
 import com.pocketpass.app.data.PuzzlePanels
 import com.pocketpass.app.data.PuzzleProgress
 import com.pocketpass.app.data.UserPreferences
-import com.pocketpass.app.ui.CheckeredBackground
 import com.pocketpass.app.ui.theme.AeroCard
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.ErrorText
 import com.pocketpass.app.ui.theme.MediumText
@@ -103,11 +101,6 @@ fun PuzzleBoardScreen(
     LaunchedEffect(Unit) { visible = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         AnimatedVisibility(
             visible = visible,
             enter = slideInHorizontally(

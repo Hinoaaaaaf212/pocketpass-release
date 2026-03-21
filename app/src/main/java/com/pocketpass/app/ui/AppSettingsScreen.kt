@@ -56,11 +56,10 @@ import com.pocketpass.app.data.AppVersion
 import com.pocketpass.app.data.AuthRepository
 import com.pocketpass.app.data.DownloadProgress
 import com.pocketpass.app.data.SyncRepository
-import com.pocketpass.app.data.UserPreferences
+import com.pocketpass.app.ui.theme.LocalUserPreferences
 import com.pocketpass.app.service.ProximityService
 import com.pocketpass.app.ui.theme.AeroButton
 import com.pocketpass.app.ui.theme.AeroCard
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.ErrorText
 import com.pocketpass.app.util.LocalSoundManager
@@ -70,6 +69,10 @@ import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.ui.theme.SkyBlue
+import com.pocketpass.app.ui.theme.DangerRed
+import com.pocketpass.app.ui.theme.WarningOrange
+import com.pocketpass.app.ui.theme.SwitchUncheckedTrack
+import com.pocketpass.app.ui.theme.SwitchUncheckedBorder
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.input.key.KeyEventType
@@ -83,7 +86,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
     val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
-    val userPreferences = remember { UserPreferences(context) }
+    val userPreferences = LocalUserPreferences.current
 
     val musicVolume by userPreferences.musicVolumeFlow.collectAsState(initial = 0.3f)
     val proximityEnabled by userPreferences.proximityEnabledFlow.collectAsState(initial = true)
@@ -94,11 +97,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
     LaunchedEffect(Unit) { visible = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         AnimatedVisibility(
             visible = visible,
             enter = slideInHorizontally(
@@ -136,7 +134,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
 
             val scrollState = rememberScrollState()
 
-            // Auto-scroll to bottom when auto-starting update
+            // Auto-scroll on update
             LaunchedEffect(autoStartUpdate) {
                 if (autoStartUpdate != null) {
                     scrollState.animateScrollTo(scrollState.maxValue)
@@ -182,8 +180,8 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                         checkedThumbColor = Color.White,
                                         checkedTrackColor = PocketPassGreen,
                                         uncheckedThumbColor = Color.White,
-                                        uncheckedTrackColor = Color(0xFFB0B0B0),
-                                        uncheckedBorderColor = Color(0xFF999999)
+                                        uncheckedTrackColor = SwitchUncheckedTrack,
+                                        uncheckedBorderColor = SwitchUncheckedBorder
                                     )
                                 )
                             }
@@ -196,7 +194,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                 color = MediumText
                             )
 
-                            // Warning when service can't work due to missing permissions
+                            // Missing permissions warning
                             if (proximityEnabled && serviceStatus == "missing permissions") {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Box(
@@ -218,7 +216,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     }
                 }
 
-                // Dual Screen Mode (only visible on Ayn Thor)
+                // Dual screen (Ayn Thor only)
                 if (AynThorDevice.isAynThor()) {
                     val dualScreenEnabled by userPreferences.dualScreenModeFlow.collectAsState(initial = true)
 
@@ -249,8 +247,8 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                         checkedThumbColor = Color.White,
                                         checkedTrackColor = PocketPassGreen,
                                         uncheckedThumbColor = Color.White,
-                                        uncheckedTrackColor = Color(0xFFB0B0B0),
-                                        uncheckedBorderColor = Color(0xFF999999)
+                                        uncheckedTrackColor = SwitchUncheckedTrack,
+                                        uncheckedBorderColor = SwitchUncheckedBorder
                                     )
                                 )
                             }
@@ -298,8 +296,8 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                         checkedThumbColor = Color.White,
                                         checkedTrackColor = PocketPassGreen,
                                         uncheckedThumbColor = Color.White,
-                                        uncheckedTrackColor = Color(0xFFB0B0B0),
-                                        uncheckedBorderColor = Color(0xFF999999)
+                                        uncheckedTrackColor = SwitchUncheckedTrack,
+                                        uncheckedBorderColor = SwitchUncheckedBorder
                                     )
                                 )
                             }
@@ -342,8 +340,8 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                     checkedThumbColor = Color.White,
                                     checkedTrackColor = PocketPassGreen,
                                     uncheckedThumbColor = Color.White,
-                                    uncheckedTrackColor = Color(0xFFB0B0B0),
-                                    uncheckedBorderColor = Color(0xFF999999)
+                                    uncheckedTrackColor = SwitchUncheckedTrack,
+                                    uncheckedBorderColor = SwitchUncheckedBorder
                                 )
                             )
                         }
@@ -413,8 +411,8 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                     checkedThumbColor = Color.White,
                                     checkedTrackColor = PocketPassGreen,
                                     uncheckedThumbColor = Color.White,
-                                    uncheckedTrackColor = Color(0xFFB0B0B0),
-                                    uncheckedBorderColor = Color(0xFF999999)
+                                    uncheckedTrackColor = SwitchUncheckedTrack,
+                                    uncheckedBorderColor = SwitchUncheckedBorder
                                 )
                             )
                         }
@@ -521,7 +519,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     }
                 }
 
-                // 3D Mii Test (debug only)
+                // 3D test (debug)
                 if (BuildConfig.DEBUG) AeroCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -554,7 +552,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     }
                 }
 
-                // Clear Mii Head Cache (debug only)
+                // Clear head cache (debug)
                 if (BuildConfig.DEBUG) AeroCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -603,7 +601,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
 
                     LaunchedEffect(Unit) {
                         if (autoStartUpdate != null) {
-                            // Auto-start download from update popup
+                            // Auto-start download
                             downloadId = updateRepo.downloadApk(autoStartUpdate)
                             updateState = UpdateCardState.Downloading(0f)
                         } else {
@@ -616,7 +614,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                         }
                     }
 
-                    // Poll download progress
+                    // Poll progress
                     LaunchedEffect(downloadId) {
                         if (downloadId < 0) return@LaunchedEffect
                         while (true) {
@@ -815,7 +813,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                 }
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            containerColor = Color(0xFFFF9800)
+                            containerColor = WarningOrange
                         ) {
                             Text(
                                 "Clear All Miis",
@@ -847,7 +845,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                 text = deleteTitle,
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color(0xFFC62828)
+                                color = DangerRed
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
@@ -864,7 +862,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                         showDeleteConfirm = true
                                     },
                                     modifier = Modifier.fillMaxWidth(),
-                                    containerColor = Color(0xFFC62828)
+                                    containerColor = DangerRed
                                 ) {
                                     Text(
                                         deleteTitle,
@@ -876,7 +874,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                     text = "Are you sure? This is permanent.",
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFFC62828)
+                                    color = DangerRed
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Row(
@@ -908,7 +906,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                                         userPreferences.clearAll()
                                                         val db = com.pocketpass.app.data.PocketPassDatabase.getDatabase(context)
                                                         db.clearAllTables()
-                                                        // Restart activity to reset all in-memory state
+                                                        // Restart to reset state
                                                         val activity = context as? android.app.Activity
                                                         activity?.recreate()
                                                     }
@@ -920,7 +918,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                         },
                                         enabled = !isDeleting,
                                         modifier = Modifier.weight(1f),
-                                        containerColor = Color(0xFFC62828)
+                                        containerColor = DangerRed
                                     ) {
                                         if (isDeleting) {
                                             CircularProgressIndicator(
@@ -938,7 +936,7 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                     Text(
                                         text = error,
                                         style = MaterialTheme.typography.bodySmall,
-                                        color = Color(0xFFC62828)
+                                        color = DangerRed
                                     )
                                 }
                             }

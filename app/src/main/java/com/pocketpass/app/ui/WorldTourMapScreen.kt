@@ -59,13 +59,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
-import com.pocketpass.app.data.PocketPassDatabase
-import com.pocketpass.app.data.UserPreferences
-import com.pocketpass.app.data.crypto.decryptFields
+import com.pocketpass.app.ui.theme.LocalEncounters
+import com.pocketpass.app.ui.theme.LocalUserPreferences
 import com.pocketpass.app.data.WorldTourMilestone
 import com.pocketpass.app.ui.theme.AeroButton
 import com.pocketpass.app.ui.theme.AeroCard
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.GreenText
 import com.pocketpass.app.ui.theme.LocalDarkMode
@@ -85,11 +83,8 @@ fun WorldTourMapScreen(onBack: () -> Unit, isDualScreen: Boolean = false) {
     val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val db = remember { PocketPassDatabase.getDatabase(context) }
-    val prefs = remember { UserPreferences(context) }
-
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val prefs = LocalUserPreferences.current
+    val encounters = LocalEncounters.current
     val claimedMilestones by prefs.claimedWorldTourMilestonesFlow.collectAsState(initial = emptySet())
 
     val visitedRegions = remember(encounters) {
@@ -128,11 +123,6 @@ fun WorldTourMapScreen(onBack: () -> Unit, isDualScreen: Boolean = false) {
     LaunchedEffect(Unit) { visible = true }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         AnimatedVisibility(
             visible = visible,
             enter = scaleIn(
@@ -586,14 +576,10 @@ fun WorldTourMapScreen(onBack: () -> Unit, isDualScreen: Boolean = false) {
 
 @Composable
 fun WorldTourSecondaryScreen() {
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val soundManager = LocalSoundManager.current
-    val db = remember { PocketPassDatabase.getDatabase(context) }
-    val prefs = remember { UserPreferences(context) }
-
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val prefs = LocalUserPreferences.current
+    val encounters = LocalEncounters.current
     val claimedMilestones by prefs.claimedWorldTourMilestonesFlow.collectAsState(initial = emptySet())
 
     val visitedRegions = remember(encounters) {
@@ -618,11 +604,6 @@ fun WorldTourSecondaryScreen() {
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()

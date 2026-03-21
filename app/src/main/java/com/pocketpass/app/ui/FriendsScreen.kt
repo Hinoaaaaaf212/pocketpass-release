@@ -1,10 +1,5 @@
 package com.pocketpass.app.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
@@ -67,11 +62,9 @@ import com.pocketpass.app.data.AuthRepository
 import com.pocketpass.app.data.Encounter
 import com.pocketpass.app.data.FriendRepository
 import com.pocketpass.app.data.PocketPassDatabase
-import com.pocketpass.app.data.crypto.decryptFields
 import com.pocketpass.app.data.SyncRepository
 import com.pocketpass.app.data.SupabaseFriendship
 import com.pocketpass.app.data.SupabaseProfile
-import com.pocketpass.app.ui.theme.BackgroundGradient
 import com.pocketpass.app.ui.theme.DarkText
 import com.pocketpass.app.ui.theme.LocalAppDimensions
 import com.pocketpass.app.ui.theme.LocalDarkMode
@@ -79,6 +72,7 @@ import com.pocketpass.app.ui.theme.MediumText
 import com.pocketpass.app.ui.theme.OffWhite
 import com.pocketpass.app.ui.theme.ErrorText
 import com.pocketpass.app.ui.theme.GreenText
+import com.pocketpass.app.ui.theme.LocalEncounters
 import com.pocketpass.app.ui.theme.PocketPassGreen
 import com.pocketpass.app.ui.theme.AeroButton
 import com.pocketpass.app.ui.theme.AeroCard
@@ -100,8 +94,7 @@ fun FriendsScreen(
     val soundManager = LocalSoundManager.current
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
-    val rawEncounters by db.encounterDao().getAllEncountersFlow().collectAsState(initial = emptyList())
-    val encounters = remember(rawEncounters) { rawEncounters.map { it.decryptFields() } }
+    val encounters = LocalEncounters.current
     val coroutineScope = rememberCoroutineScope()
 
     val authRepo = remember { AuthRepository() }
@@ -160,9 +153,6 @@ fun FriendsScreen(
         }
     }
 
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { visible = true }
-
     // Load friend data on every screen entry + when refreshKey changes
     LaunchedEffect(isLoggedIn, refreshKey) {
         if (isLoggedIn) {
@@ -171,18 +161,6 @@ fun FriendsScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        CheckeredBackground(
-            modifier = Modifier.fillMaxSize(),
-            gradientColors = BackgroundGradient
-        )
-
-        AnimatedVisibility(
-            visible = visible,
-            enter = slideInHorizontally(
-                initialOffsetX = { fullWidth -> fullWidth },
-                animationSpec = tween(durationMillis = 450, easing = FastOutSlowInEasing)
-            ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
-        ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Top Bar
             Row(
@@ -348,7 +326,6 @@ fun FriendsScreen(
                 }
             }
         }
-        } // AnimatedVisibility
 
         // Detail Dialog
         selectedEncounter?.let { encounter ->
