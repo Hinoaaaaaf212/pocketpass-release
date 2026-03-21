@@ -15,6 +15,9 @@ build/
 local.properties
 .claude/
 
+# Supabase (service keys, infra config, scripts)
+supabase/
+
 # Generated files
 *.apk
 *.ap_
