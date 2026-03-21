@@ -1,13 +1,13 @@
 # PocketPass
 
-A StreetPass-inspired social app for Android. Meet people nearby over Bluetooth, collect Miis, play mini-games, and build your plaza — just like the 3DS, but on your phone.
+A StreetPass-inspired social app for Android. Meet people nearby over Bluetooth, collect Miis, play mini-games, and build your plaza -just like the 3DS, but on your phone.
 
 Built for both phones and dual-screen devices (Ayn Thor).
 
 ## Features
 
 **Nearby Encounters**
-- BLE-based proximity detection — meet people without exchanging info
+- BLE-based proximity detection -meet people without exchanging info
 - Encrypted handshake ensures data stays private
 - Encounter history with meet counts and timestamps
 
@@ -17,9 +17,9 @@ Built for both phones and dual-screen devices (Ayn Thor).
 - 3D animated plaza with walking Miis (Filament/SceneView)
 
 **Mini-Games**
-- **Puzzle Swap** — collect pieces from encounters, complete themed panels
-- **Piip Bingo** — bingo card with encounter-based challenges
-- **Shop** — spend tokens on card borders, hats, and costumes
+- **Puzzle Swap** -collect pieces from encounters, complete themed panels
+- **Piip Bingo** -bingo card with encounter-based challenges
+- **Shop** -spend tokens on card borders, hats, and costumes
 
 **WaveLink (SpotPass)**
 - Server-pushed content: new puzzle panels, timed events, special greetings
@@ -39,13 +39,13 @@ Built for both phones and dual-screen devices (Ayn Thor).
 
 ## Dual-Screen Support
 
-On dual-screen devices like the Ayn Thor, PocketPass uses both displays — the top screen shows the main content while the bottom screen shows contextual info, nav controls, and the 3D plaza companion view.
+On dual-screen devices like the Ayn Thor, PocketPass uses both displays -the top screen shows the main content while the bottom screen shows contextual info, nav controls, and the 3D plaza companion view.
 
 ## Installation
 
 1. Download the latest APK from the [Releases](https://github.com/Hinoaaaaaf212/pocketpass-release/releases) page
 2. Enable "Install from unknown sources" for your browser
-3. Install and open — the app will guide you through permissions and profile setup
+3. Install and open -the app will guide you through permissions and profile setup
 
 ## Building from Source
 
@@ -54,7 +54,7 @@ git clone https://github.com/Hinoaaaaaf212/pocketpass-release.git
 cd pocketpass-release
 ```
 
-Requires Android Studio with AGP 9.1+ and Kotlin 2.2+. Native keys are injected at build time via Gradle — you'll need to configure your own Supabase instance and update the key generation in `build.gradle.kts`.
+Requires Android Studio with AGP 9.1+ and Kotlin 2.2+. Native keys are injected at build time via Gradle -you'll need to configure your own Supabase instance and update the key generation in `build.gradle.kts`.
 
 ## Stack
 
@@ -68,8 +68,8 @@ Requires Android Studio with AGP 9.1+ and Kotlin 2.2+. Native keys are injected 
 
 ## Credits
 
-- **datkat21** — Mii creator and lead developer
-- **ariankordi** — Mii rendering API
+- **datkat21** -Mii creator and lead developer
+- **ariankordi** -Mii rendering API
 
 ## License
 
