@@ -73,4 +73,4 @@ Requires Android Studio with AGP 9.1+ and Kotlin 2.2+. Native keys are injected 
 
 ## License
 
-This project is not open source. The source code is provided for transparency and educational purposes. Redistribution or commercial use is not permitted.
+This project is licensed under [CC BY-NC-ND 4.0](https://creativecommons.org/licenses/by-nc-nd/4.0/). You may view and study the source code, but commercial use, redistribution, and derivative works require permission.
