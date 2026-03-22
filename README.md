@@ -1,8 +1,8 @@
 # PocketPass
 
-A StreetPass-inspired social app for Android. Meet people nearby over Bluetooth, collect Miis, play mini-games, and build your plaza, just like the 3DS but on your phone.
+A StreetPass-inspired social app for Android. Meet people nearby over Bluetooth, collect Mii inspired avatars called Piips, play mini-games, and build your plaza, just like how it was on the 3DS but on your phone!
 
-Built for both phones and dual-screen devices (Ayn Thor).
+Built for both phones and dual-screen devices (Ayn Thor), with more dual screen devices getting support soon.
 
 ## Features
 
@@ -12,9 +12,9 @@ Built for both phones and dual-screen devices (Ayn Thor).
 - Encounter history with meet counts and timestamps
 
 **Plaza**
-- Profile cards with Mii avatars, greetings, moods, and hobbies
+- Profile cards with Mii inspired avatars called Piips, greetings, moods, and hobbies
 - Swipeable card view for browsing encounters
-- 3D animated plaza with walking Miis (Filament/SceneView)
+- 3D animated plaza with walking Miis
 
 **Mini-Games**
 - **Puzzle Swap**: collect pieces from encounters, complete themed panels
@@ -24,7 +24,7 @@ Built for both phones and dual-screen devices (Ayn Thor).
 **WaveLink (SpotPass)**
 - Server-pushed content: new puzzle panels, timed events, special greetings
 - Event effects: token multipliers, drop rate boosts, shop discounts
-- Background sync with notification LED
+- New events sync in the background and you get notified with your joystick LEDs! (AYN Thor only)
 
 **Social**
 - Friends list with chat messaging and streak tracking
@@ -33,7 +33,7 @@ Built for both phones and dual-screen devices (Ayn Thor).
 
 **Customization**
 - Mii creator (WebView-based editor)
-- 178 hats and 15 costumes from 3DS assets
+- Hat options for your Mii
 - Card border themes from the shop
 - Dark mode with Aero glass UI
 
@@ -60,7 +60,6 @@ Requires Android Studio with AGP 9.1+ and Kotlin 2.2+. Native keys are injected 
 
 - Kotlin / Jetpack Compose
 - Supabase (auth, database, storage, realtime)
-- BLE via Nearby Connections API
 - SceneView 2.2.1 (Filament) for 3D rendering
 - Room for local persistence
 - DataStore for preferences
