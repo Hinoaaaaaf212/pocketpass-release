@@ -73,7 +73,6 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Top Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -106,7 +105,6 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Overview
                 item {
                     AeroCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -130,7 +128,6 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
                     }
                 }
 
-                // Timeline
                 if (firstEncounter != null && latestEncounter != null) {
                     item {
                         AeroCard(
@@ -182,7 +179,6 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
                     }
                 }
 
-                // Top Locations
                 if (locationCounts.isNotEmpty()) {
                     item {
                         AeroCard(
@@ -235,7 +231,6 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
                     }
                 }
 
-                // World Tour
                 item {
                     val visitedRegions = remember(encounters) {
                         encounters.map { it.origin }.filter { it.isNotBlank() }.distinct()
@@ -281,7 +276,6 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
                     }
                 }
 
-                // Achievements
                 item {
                     AeroCard(
                         modifier = Modifier.fillMaxWidth(),
@@ -320,7 +314,6 @@ fun StatisticsScreen(onBack: () -> Unit, onOpenWorldTourMap: () -> Unit = {}) {
                     }
                 }
 
-                // Achievement Categories
                 AchievementCategory.values().forEach { category ->
                     val categoryAchievements = allAchievements.filter { it.category == category }
 
@@ -431,7 +424,6 @@ fun AchievementBadge(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Icon badge
             Box(
                 modifier = Modifier
                     .size(48.dp)
@@ -453,7 +445,6 @@ fun AchievementBadge(
             }
             Spacer(modifier = Modifier.size(12.dp))
 
-            // Info
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = if (unlocked) achievement.title else "???",
@@ -469,7 +460,6 @@ fun AchievementBadge(
             }
         }
 
-        // Locked progress
         if (!unlocked && total > 0) {
             Spacer(modifier = Modifier.height(8.dp))
             Row(

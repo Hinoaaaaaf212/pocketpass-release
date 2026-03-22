@@ -107,7 +107,6 @@ fun ShopScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -157,7 +156,6 @@ fun ShopScreen(
                     TokenBalanceChip(balance = tokenBalance)
                 }
 
-                // Purchase feedback
                 purchaseResult?.let { msg ->
                     Box(
                         modifier = Modifier
@@ -174,7 +172,6 @@ fun ShopScreen(
 
                 when (selectedCategory) {
                     null -> {
-                        // Categories
                         ShopCategoryList(
                             onSelectCategory = { category ->
                                 soundManager.playNavigate()
@@ -183,7 +180,6 @@ fun ShopScreen(
                         )
                     }
                     ShopCategory.CARD_BORDER -> {
-                        // Grid
                         LazyVerticalGrid(
                             columns = GridCells.Fixed(2),
                             modifier = Modifier
@@ -217,7 +213,6 @@ fun ShopScreen(
                         }
                     }
                     ShopCategory.HAT, ShopCategory.COSTUME -> {
-                        // Coming soon
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
@@ -247,7 +242,6 @@ fun ShopScreen(
             }
     }
 
-    // Purchase dialog
     selectedItem?.let { item ->
         val discountedPrice = (item.price * shopPriceMultiplier).toInt().coerceAtLeast(1)
         ShopItemDialog(
@@ -350,7 +344,6 @@ private fun ShopCategoryCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Category icon
             Box(
                 modifier = Modifier
                     .size(64.dp)
@@ -426,7 +419,6 @@ private fun ShopItemCard(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // Preview swatch
             val colors = item.previewColors?.map { Color(it.toInt()) } ?: listOf(Color.Gray, Color.LightGray)
             Box(
                 modifier = Modifier

@@ -90,7 +90,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Top Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -119,7 +118,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
 
             val scrollState = rememberScrollState()
 
-            // Auto-scroll on update
             LaunchedEffect(autoStartUpdate) {
                 if (autoStartUpdate != null) {
                     scrollState.animateScrollTo(scrollState.maxValue)
@@ -134,7 +132,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Nearby Encounters
                 run {
                     val serviceStatus by ProximityService.serviceStatus.collectAsState()
 
@@ -179,7 +176,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                 color = MediumText
                             )
 
-                            // Missing permissions warning
                             if (proximityEnabled && serviceStatus == "missing permissions") {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Box(
@@ -250,7 +246,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     }
                 }
 
-                // Dark Mode
                 run {
                     val darkModeEnabled by userPreferences.darkModeFlow.collectAsState(initial = false)
 
@@ -297,7 +292,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     }
                 }
 
-                // Sound Effects
                 AeroCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -368,7 +362,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     }
                 }
 
-                // Plaza Music
                 AeroCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -439,7 +432,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     }
                 }
 
-                // Cloud Sync
                 run {
                     val authRepo = remember { AuthRepository() }
                     val isLoggedIn by authRepo.isLoggedIn.collectAsState(initial = false)
@@ -504,7 +496,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     }
                 }
 
-                // 3D test (debug)
                 if (BuildConfig.DEBUG) AeroCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -537,7 +528,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     }
                 }
 
-                // Clear head cache (debug)
                 if (BuildConfig.DEBUG) AeroCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -577,7 +567,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     }
                 }
 
-                // App Updates
                 run {
                     val updateRepo = remember { AppUpdateRepository(context) }
                     var updateState by remember { mutableStateOf<UpdateCardState>(UpdateCardState.Checking) }
@@ -586,7 +575,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
 
                     LaunchedEffect(Unit) {
                         if (autoStartUpdate != null) {
-                            // Auto-start download
                             downloadId = updateRepo.downloadApk(autoStartUpdate)
                             updateState = UpdateCardState.Downloading(0f)
                         } else {
@@ -599,7 +587,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                         }
                     }
 
-                    // Poll progress
                     LaunchedEffect(downloadId) {
                         if (downloadId < 0) return@LaunchedEffect
                         while (true) {
@@ -772,7 +759,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     }
                 }
 
-                // Clear All Miis
                 AeroCard(
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -808,7 +794,6 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                     }
                 }
 
-                // Delete Account / Delete Data
                 run {
                 val deleteAuthRepo = remember { AuthRepository() }
                 val isLoggedInForDelete by deleteAuthRepo.isLoggedIn.collectAsState(initial = false)
@@ -887,11 +872,9 @@ fun AppSettingsScreen(onBack: () -> Unit, onOpenMii3DTest: () -> Unit = {}, auto
                                                         }
                                                     }
                                                     if (deleteError == null) {
-                                                        // Wipe all local data
                                                         userPreferences.clearAll()
                                                         val db = com.pocketpass.app.data.PocketPassDatabase.getDatabase(context)
                                                         db.clearAllTables()
-                                                        // Restart to reset state
                                                         val activity = context as? android.app.Activity
                                                         activity?.recreate()
                                                     }

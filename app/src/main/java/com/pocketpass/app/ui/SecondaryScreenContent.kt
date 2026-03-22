@@ -721,7 +721,6 @@ fun SettingsSecondaryScreenContent(
     val maxMiis = 3
     val canCreateNewMii = miiCount < maxMiis
 
-    // Auth state
     val authRepo = remember { AuthRepository() }
     val isLoggedIn by authRepo.isLoggedIn.collectAsState(initial = false)
     val syncRepo = remember { SyncRepository(context) }
@@ -750,7 +749,6 @@ fun SettingsSecondaryScreenContent(
                 .padding(horizontal = 16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Auth section
             item {
                 Spacer(modifier = Modifier.height(12.dp))
 

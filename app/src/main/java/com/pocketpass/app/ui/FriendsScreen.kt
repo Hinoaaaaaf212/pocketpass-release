@@ -104,10 +104,8 @@ fun FriendsScreen(
     var selectedEncounter by remember { mutableStateOf<Encounter?>(null) }
     var showFriendCodeDialog by remember { mutableStateOf(false) }
 
-    // Friend IDs for badge display
     var acceptedFriendIds by remember { mutableStateOf<Set<String>>(emptySet()) }
 
-    // Pending incoming requests
     var pendingRequests by remember { mutableStateOf<List<SupabaseFriendship>>(emptyList()) }
     var pendingProfiles by remember { mutableStateOf<Map<String, SupabaseProfile>>(emptyMap()) }
 
@@ -118,7 +116,6 @@ fun FriendsScreen(
     suspend fun refreshFriendData() = withContext(Dispatchers.IO) {
         acceptedFriendIds = friendRepo.getAcceptedFriendIds()
         pendingRequests = friendRepo.getPendingRequests()
-        // Load profiles for pending request senders
         val profiles = mutableMapOf<String, SupabaseProfile>()
         for (req in pendingRequests) {
             friendRepo.getRequesterProfile(req.requesterId)?.let {
@@ -162,7 +159,6 @@ fun FriendsScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Top Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -197,7 +193,6 @@ fun FriendsScreen(
                     )
                 }
                 Spacer(modifier = Modifier.weight(1f))
-                // Add Friend button
                 if (isLoggedIn) {
                     val addFocus = remember { FocusRequester() }
                     AeroButton(
@@ -236,7 +231,6 @@ fun FriendsScreen(
                 }
             }
 
-            // Pending Friend Requests Banner
             if (isLoggedIn && pendingRequests.isNotEmpty()) {
                 PendingRequestsBanner(
                     requests = pendingRequests,
@@ -257,7 +251,6 @@ fun FriendsScreen(
             }
 
             if (!isLoggedIn) {
-                // Not logged in
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -280,7 +273,6 @@ fun FriendsScreen(
                     )
                 }
             } else if (confirmedFriends.isEmpty()) {
-                // Logged in but no confirmed friends
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -303,7 +295,6 @@ fun FriendsScreen(
                     )
                 }
             } else {
-                // Grid of confirmed friends
                 val friendDims = LocalAppDimensions.current
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 150.dp),
@@ -327,7 +318,6 @@ fun FriendsScreen(
             }
         }
 
-        // Detail Dialog
         selectedEncounter?.let { encounter ->
             FriendDetailDialog(
                 encounter = encounter,
@@ -352,7 +342,6 @@ fun FriendsScreen(
             )
         }
 
-        // Friend Code Dialog
         if (showFriendCodeDialog) {
             FriendCodeDialog(
                 friendRepo = friendRepo,
@@ -384,7 +373,6 @@ private fun FriendCodeDialog(
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var isError by remember { mutableStateOf(false) }
 
-    // Load my friend code
     LaunchedEffect(Unit) {
         withContext(Dispatchers.IO) {
             myFriendCode = friendRepo.getMyFriendCode()
@@ -413,7 +401,6 @@ private fun FriendCodeDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // My friend code display
                 Text(
                     text = "Your Friend Code",
                     style = MaterialTheme.typography.labelMedium,
@@ -454,7 +441,6 @@ private fun FriendCodeDialog(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                // Divider
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -464,7 +450,6 @@ private fun FriendCodeDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Enter a friend's code
                 Text(
                     text = "Add a Friend",
                     style = MaterialTheme.typography.labelMedium,
@@ -488,7 +473,6 @@ private fun FriendCodeDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Status message
                 statusMessage?.let { msg ->
                     Text(
                         text = msg,
@@ -500,7 +484,6 @@ private fun FriendCodeDialog(
                     Spacer(modifier = Modifier.height(8.dp))
                 }
 
-                // Send request button
                 AeroButton(
                     onClick = {
                         if (codeInput.length != 8) {
@@ -549,7 +532,6 @@ private fun FriendCodeDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Close button
                 OutlinedButton(
                     onClick = onDismiss,
                     modifier = Modifier.fillMaxWidth(),
@@ -594,7 +576,6 @@ private fun PendingRequestsBanner(
 
         for (request in requests) {
             val profile = profiles[request.requesterId]
-            // Try to find matching encounter for avatar
             val matchingEncounter = encounters.find { it.otherUserId == request.requesterId }
             val displayName = profile?.userName ?: matchingEncounter?.otherUserName ?: "Unknown"
             val avatarHex = profile?.avatarHex ?: matchingEncounter?.otherUserAvatarHex ?: ""
@@ -611,7 +592,6 @@ private fun PendingRequestsBanner(
                         .padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Avatar
                     Box(
                         modifier = Modifier
                             .size(48.dp)
@@ -630,7 +610,6 @@ private fun PendingRequestsBanner(
 
                     Spacer(modifier = Modifier.width(12.dp))
 
-                    // Name
                     Text(
                         text = displayName,
                         style = MaterialTheme.typography.bodyLarge,
@@ -641,7 +620,6 @@ private fun PendingRequestsBanner(
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    // Accept button
                     Button(
                         onClick = {
                             soundManager.playSuccess()
@@ -683,7 +661,6 @@ private fun PendingRequestsBanner(
 
                     Spacer(modifier = Modifier.width(6.dp))
 
-                    // Decline button
                     OutlinedButton(
                         onClick = {
                             soundManager.playDelete()
@@ -739,7 +716,6 @@ fun FriendCard(
                     .padding(if (dims.isCompact) 8.dp else 12.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Mii avatar
                 Box(
                     modifier = Modifier
                         .size(dims.avatarMedium)
@@ -756,7 +732,6 @@ fun FriendCard(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Name
                 Text(
                     text = encounter.otherUserName,
                     style = MaterialTheme.typography.titleMedium,
@@ -766,7 +741,6 @@ fun FriendCard(
                     overflow = TextOverflow.Ellipsis
                 )
 
-                // Location with flag
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.Center
@@ -785,7 +759,6 @@ fun FriendCard(
                     )
                 }
 
-                // Meet count
                 if (encounter.meetCount > 1) {
                     Text(
                         text = "Met ${encounter.meetCount}x",
@@ -796,7 +769,6 @@ fun FriendCard(
                 }
             }
 
-            // Friend badge
             if (isFriend) {
                 Box(
                     modifier = Modifier
@@ -836,7 +808,6 @@ fun FriendDetailDialog(
     val context = LocalContext.current
     val db = remember { PocketPassDatabase.getDatabase(context) }
 
-    // Friendship state
     var friendship by remember { mutableStateOf<SupabaseFriendship?>(null) }
     var friendshipLoading by remember { mutableStateOf(false) }
     var friendshipChecked by remember { mutableStateOf(false) }
@@ -844,7 +815,6 @@ fun FriendDetailDialog(
     val canShowFriendButton = isLoggedIn && encounter.otherUserId.isNotEmpty()
     val myUserId = friendRepo.currentUserId
 
-    // Check friendship status on open
     LaunchedEffect(encounter.otherUserId) {
         if (canShowFriendButton) {
             friendshipLoading = true
@@ -875,7 +845,6 @@ fun FriendDetailDialog(
                     ),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Large Mii
                 Box(
                     modifier = Modifier
                         .size(detailDims.avatarLarge)
@@ -892,7 +861,6 @@ fun FriendDetailDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Name
                 Text(
                     text = encounter.otherUserName,
                     style = MaterialTheme.typography.headlineMedium,
@@ -902,7 +870,6 @@ fun FriendDetailDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Greeting
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -924,7 +891,6 @@ fun FriendDetailDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Details
                 if (encounter.age.isNotBlank()) {
                     DetailRow(icon = "🎂", label = "Age", value = encounter.age)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -975,7 +941,6 @@ fun FriendDetailDialog(
                                 strokeWidth = 2.dp
                             )
                         }
-                        // Accepted
                         fs != null && fs.status == "accepted" -> {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1034,7 +999,6 @@ fun FriendDetailDialog(
                                 }
                             }
                         }
-                        // I sent a pending request
                         fs != null && fs.status == "pending" && fs.requesterId == myUserId -> {
                             AeroButton(
                                 onClick = { },
@@ -1047,7 +1011,6 @@ fun FriendDetailDialog(
                                 Text("Request Sent", fontWeight = FontWeight.Bold)
                             }
                         }
-                        // They sent me a pending request
                         fs != null && fs.status == "pending" && fs.addresseeId == myUserId -> {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -1092,7 +1055,6 @@ fun FriendDetailDialog(
                                 }
                             }
                         }
-                        // No friendship exists
                         else -> {
                             AeroButton(
                                 onClick = {
@@ -1119,7 +1081,6 @@ fun FriendDetailDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Delete / Close buttons
                 // Hide "Delete" when already friends — the "Remove" button above handles full cleanup
                 val isFriend = friendship?.status == "accepted"
                 Row(

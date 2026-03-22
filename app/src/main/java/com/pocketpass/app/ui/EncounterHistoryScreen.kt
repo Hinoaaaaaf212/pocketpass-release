@@ -74,7 +74,6 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Top Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -102,7 +101,6 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
             }
 
             if (encounters.isEmpty()) {
-                // Empty state
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -124,7 +122,6 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
                     )
                 }
             } else {
-                // Encounter list
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
@@ -161,7 +158,6 @@ fun EncounterHistoryScreen(onBack: () -> Unit) {
             }
         }
 
-        // Detail dialog
         selectedEncounter?.let { encounter ->
             FriendDetailDialog(
                 encounter = encounter,
@@ -198,7 +194,6 @@ fun EncounterHistoryCard(encounter: Encounter, onClick: () -> Unit = {}, onDelet
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Thumbnail
             Box(
                 modifier = Modifier
                     .size(LocalAppDimensions.current.avatarSmall)
@@ -218,7 +213,6 @@ fun EncounterHistoryCard(encounter: Encounter, onClick: () -> Unit = {}, onDelet
 
             Spacer(modifier = Modifier.width(16.dp))
 
-            // Info
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = encounter.otherUserName,
@@ -272,7 +266,6 @@ fun EncounterHistoryCard(encounter: Encounter, onClick: () -> Unit = {}, onDelet
                 )
             }
 
-            // Delete button
             IconButton(
                 onClick = { soundManager.playDelete(); onDelete() },
                 modifier = Modifier.gamepadFocusable(

@@ -150,7 +150,6 @@ fun CheckeredBackground(
     val gradientBrush = remember(gradientColors) { Brush.verticalGradient(colors = gradientColors) }
 
     Box(modifier = modifier) {
-        // Gradient
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -295,7 +294,6 @@ fun MiiverseNavButton(
                 }
             }
         }
-        // Selection indicator
         if (isSelected) {
             Box(
                 modifier = Modifier
@@ -344,7 +342,6 @@ fun PlazaNavBar(
             .clip(navShape)
             .background(navGlassColor)
             .drawBehind {
-                // Top edge highlight
                 drawRect(
                     color = if (isDark) androidx.compose.ui.graphics.Color.White.copy(alpha = 0.08f)
                     else androidx.compose.ui.graphics.Color.White.copy(alpha = 0.80f),
@@ -352,7 +349,6 @@ fun PlazaNavBar(
                 )
             }
     ) {
-        // Buttons
         Row(
             modifier = Modifier
                 .fillMaxWidth(),
@@ -411,7 +407,6 @@ fun PlazaNavBar(
                 modifier = Modifier.weight(1f)
             )
         }
-        // Glass shine overlay
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -471,7 +466,6 @@ fun PlazaScreen(
     val db = remember { PocketPassDatabase.getDatabase(context) }
     val coroutineScope = rememberCoroutineScope()
 
-    // Profile data
     val profileData by userPreferences.profileDataFlow.collectAsState(
         initial = com.pocketpass.app.data.UserPreferences.ProfileData()
     )
@@ -487,12 +481,10 @@ fun PlazaScreen(
     val myMood = profileData.userMood
     val myCardStyle = profileData.cardStyle
 
-    // Debug
     var showDebugDialog by remember { mutableStateOf(false) }
     var showNearbyScanner by remember { mutableStateOf(false) }
     var isAddingEncounter by remember { mutableStateOf(false) }
 
-    // New encounter popup
     var showNewEncounterAnimation by remember { mutableStateOf(false) }
     var newEncounter by remember { mutableStateOf<Encounter?>(null) }
 
@@ -537,9 +529,7 @@ fun PlazaScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Profile card + encounter pager
         Box(modifier = Modifier.fillMaxSize()) {
-                // Build self-encounter for profile card
                 val myEncounter = remember(myHex, myName, myGreeting, myOrigin, myAge, myHobbies, myGamesJson) {
                     if (!myHex.isNullOrBlank()) {
                         Encounter(
@@ -557,7 +547,6 @@ fun PlazaScreen(
                 }
 
                 if (myEncounter == null) {
-                    // No profile
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -577,7 +566,6 @@ fun PlazaScreen(
                         )
                     }
                 } else {
-                    // Profile first, then encounters
                     val allCards = remember(myEncounter, encounters) {
                         listOf(myEncounter) + encounters
                     }
@@ -585,7 +573,6 @@ fun PlazaScreen(
                     val pagerState = rememberPagerState(pageCount = { allCards.size })
 
                     Column(modifier = Modifier.fillMaxSize()) {
-                        // Event banner
                         if (activeEventEffects.isNotEmpty()) {
                             val specialGreeting = com.pocketpass.app.data.EventEffectManager.getSpecialGreeting(activeEventEffects)
                             val bannerTransition = rememberInfiniteTransition(label = "event_banner")
@@ -600,7 +587,6 @@ fun PlazaScreen(
                             )
 
                             if (specialGreeting != null) {
-                                // Special greeting banner
                                 val greetingColorHex = com.pocketpass.app.data.EventEffectManager.getSpecialGreetingColor(activeEventEffects)
                                 val greetingBgHex = com.pocketpass.app.data.EventEffectManager.getSpecialGreetingBgColor(activeEventEffects)
                                 val textColor = remember(greetingColorHex) {
@@ -645,7 +631,6 @@ fun PlazaScreen(
                                     )
                                 }
                             } else {
-                                // Effect badges
                                 val bannerText = activeEventEffects.joinToString(" | ") { effect ->
                                     when (effect.type) {
                                         com.pocketpass.app.data.EventEffectType.TOKEN_MULTIPLIER -> "x${effect.value.toInt()} Tokens"
@@ -716,7 +701,6 @@ fun PlazaScreen(
                             }
                         }
 
-                        // Page indicator
                         if (allCards.size > 1 && pagerState.currentPage > 0) {
                             Row(
                                 modifier = Modifier
@@ -762,7 +746,6 @@ fun PlazaScreen(
                         .clickable { soundManager.playTap(); onOpenSpotPass() },
                     contentAlignment = Alignment.Center
                 ) {
-                    // Glow
                     Box(
                         modifier = Modifier
                             .size(14.dp)
@@ -771,7 +754,6 @@ fun PlazaScreen(
                                 androidx.compose.ui.graphics.Color(0xFF00E676).copy(alpha = ledAlpha * 0.4f)
                             )
                     )
-                    // Dot
                     Box(
                         modifier = Modifier
                             .size(8.dp)
@@ -809,7 +791,6 @@ fun PlazaScreen(
                 }
             }
 
-            // Dialogs
             if (showNearbyScanner) {
                 NearbyDebugDialog(onDismiss = { showNearbyScanner = false })
             }
@@ -862,7 +843,6 @@ fun PlazaScreen(
             }
         }
 
-        // Loading overlay
         if (isAddingEncounter) {
             Box(
                 modifier = Modifier
@@ -905,7 +885,6 @@ fun NewEncounterAnimation(
     val offsetY = remember { Animatable(100f) }
     val rotation = remember { Animatable(-10f) }
 
-    // Text pulse
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val textScale by infiniteTransition.animateFloat(
         initialValue = 1f,
@@ -1013,7 +992,6 @@ fun NewEncounterAnimation(
                     compositingStrategy = androidx.compose.ui.graphics.CompositingStrategy.Offscreen
                 }
         ) {
-            // Header
             Text(
                 text = "✨ New Friend! ✨",
                 style = MaterialTheme.typography.headlineLarge,
@@ -1027,7 +1005,6 @@ fun NewEncounterAnimation(
                     }
             )
 
-            // Encounter card
             AeroCard(
                 modifier = Modifier
                     .padding(24.dp)
@@ -1042,7 +1019,6 @@ fun NewEncounterAnimation(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Avatar
                     val dims = LocalAppDimensions.current
                     Box(
                         modifier = Modifier
@@ -1086,7 +1062,6 @@ fun NewEncounterAnimation(
                 }
             }
 
-            // Hint text
             androidx.compose.animation.AnimatedVisibility(
                 visible = alpha.value > 0.8f,
                 enter = fadeIn(
@@ -1147,7 +1122,6 @@ fun ConfettiEffect(@Suppress("UNUSED_PARAMETER") visible: Boolean = true) {
             label = "fall$index"
         )
 
-        // Horizontal sway
         val sway by infiniteTransition.animateFloat(
             initialValue = -horizontalSway,
             targetValue = horizontalSway,
@@ -1175,7 +1149,6 @@ fun ConfettiEffect(@Suppress("UNUSED_PARAMETER") visible: Boolean = true) {
 
 @Composable
 fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = "classic", isSelf: Boolean = false) {
-    // Border from card style
     val borderBrush = run {
         val shopItem = com.pocketpass.app.data.ShopItems.findById(cardStyle)
         if (shopItem?.previewColors != null) {
@@ -1193,7 +1166,6 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Card surface
         androidx.compose.material3.Surface(
             shape = RoundedCornerShape(16.dp),
             shadowElevation = 8.dp,
@@ -1215,7 +1187,6 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
                         .fillMaxWidth()
                         .then(if (isCompactCard) Modifier.verticalScroll(cardScrollState) else Modifier)
                 ) {
-                    // Header
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1236,7 +1207,6 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
                             )
                         }
 
-                        // Mood icon
                         if (mood.isNotBlank()) {
                             val moodType = try {
                                 MoodType.valueOf(mood)
@@ -1250,14 +1220,12 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
 
                     Spacer(modifier = Modifier.height(if (LocalAppDimensions.current.isCompact) 8.dp else 16.dp))
 
-                    // Avatar + info row
                     val dims = LocalAppDimensions.current
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(if (dims.isCompact) 8.dp else 16.dp),
                         verticalAlignment = Alignment.Top
                     ) {
-                        // Avatar (left side)
                         Box(
                             modifier = Modifier
                                 .size(dims.avatarLarge + 20.dp)
@@ -1275,12 +1243,10 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
                             MiiAvatarViewer(hexData = encounter.otherUserAvatarHex)
                         }
 
-                        // Info
                         Column(
                             modifier = Modifier.weight(1f),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Greeting bubble
                             val isDark = com.pocketpass.app.ui.theme.LocalDarkMode.current
                             val greetingBorderColor = run {
                                 val themeItem = com.pocketpass.app.data.ShopItems.findById(cardStyle)
@@ -1307,7 +1273,6 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
                                         }
                                     )
                                     .drawBehind {
-                                        // Left accent border
                                         drawRoundRect(
                                             color = greetingBorderColor,
                                             size = Size(3.dp.toPx(), size.height),
@@ -1325,7 +1290,6 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
                                 )
                             }
 
-                            // When
                             if (!isSelf) {
                                 val encounterCal = Calendar.getInstance().apply {
                                     timeInMillis = encounter.timestamp
@@ -1356,7 +1320,6 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
                                 }
                             }
 
-                            // Age
                             if (encounter.age.isNotBlank()) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
@@ -1372,7 +1335,6 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
                                 }
                             }
 
-                            // Location
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = RegionFlags.getFlagForRegion(encounter.origin),
@@ -1386,7 +1348,6 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
                                 )
                             }
 
-                            // Hobbies
                             if (encounter.hobbies.isNotBlank()) {
                                 Row(verticalAlignment = Alignment.Top) {
                                     com.pocketpass.app.ui.theme.HobbiesIcon(
@@ -1397,7 +1358,6 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
                                 }
                             }
 
-                            // Meets
                             if (!isSelf && encounter.meetCount > 1) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
@@ -1415,7 +1375,6 @@ fun PlazaCard(encounter: Encounter, mood: String = "HAPPY", cardStyle: String = 
                             }
                         }
 
-                        // Games
                         if (encounter.games.isNotBlank()) {
                             val gamesList = remember(encounter.games) {
                                 try {
@@ -1727,15 +1686,12 @@ fun DebugAddEncounterDialog(
 fun MiiAvatarViewer(hexData: String) {
     val context = LocalContext.current
 
-    // Debug log
     LaunchedEffect(hexData) {
         android.util.Log.d("MiiAvatarViewer", "Hex data: ${hexData.take(50)}... (length: ${hexData.length})")
     }
 
-    // Connectivity check
     var isConnected by remember { mutableStateOf(true) }
 
-    // Async check
     LaunchedEffect(Unit) {
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
@@ -1755,7 +1711,6 @@ fun MiiAvatarViewer(hexData: String) {
         }
     }
 
-    // No data fallback
     if (hexData.isBlank()) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1782,7 +1737,6 @@ fun MiiAvatarViewer(hexData: String) {
         url
     }
 
-    // Cached request
     val imageRequest = remember(renderUrl) {
         coil.request.ImageRequest.Builder(context)
             .data(renderUrl)
@@ -1864,7 +1818,6 @@ fun NearbyDebugDialog(onDismiss: () -> Unit) {
     val serviceStatus by com.pocketpass.app.service.ProximityService.serviceStatus.collectAsState()
     val isScanning = serviceStatus != "stopped"
 
-    // Scan pulse
     val infiniteTransition = rememberInfiniteTransition(label = "scan")
     val scanPulse by infiniteTransition.animateFloat(
         initialValue = 0.4f,

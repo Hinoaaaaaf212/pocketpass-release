@@ -98,7 +98,6 @@ fun PuzzleBoardScreen(
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
             ) {
-                // Top Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -131,7 +130,6 @@ fun PuzzleBoardScreen(
                     }
                 }
 
-                // Puzzle Grid
                 AeroCard(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -176,7 +174,6 @@ fun PuzzleBoardScreen(
                                         )
                                     }
 
-                                    // Grid border
                                     drawRect(
                                         Color.White.copy(alpha = 0.8f),
                                         Offset(cx, cy),
@@ -191,7 +188,6 @@ fun PuzzleBoardScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Piece Legend
                 AeroCard(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -210,7 +206,6 @@ fun PuzzleBoardScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            // Common
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
                                     modifier = Modifier
@@ -227,7 +222,6 @@ fun PuzzleBoardScreen(
                                 )
                             }
 
-                            // Rare
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
                                     modifier = Modifier
@@ -261,7 +255,6 @@ fun PuzzleBoardScreen(
                     }
                 }
 
-                // Completion message
                 if (isComplete) {
                     Spacer(modifier = Modifier.height(16.dp))
                     AeroCard(

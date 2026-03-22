@@ -112,8 +112,6 @@ fun SettingsScreen(
     val maxMiis = 3
     val canCreateNewMii = miiCount < maxMiis
 
-    // Dual-screen detection
-    // Managed in MainActivity
     val displayManager = remember {
         context.getSystemService(android.content.Context.DISPLAY_SERVICE) as? DisplayManager
     }
@@ -127,7 +125,6 @@ fun SettingsScreen(
         Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            // Top Bar
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -163,7 +160,6 @@ fun SettingsScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    // Avatar preview
                     val settingsDims = LocalAppDimensions.current
                     if (!activeMiiHex.isNullOrBlank()) {
                         Box(
@@ -185,7 +181,6 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                     }
 
-                    // Profile card
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -282,7 +277,6 @@ private fun SettingsProfileCard(
     var syncStatus by remember { mutableStateOf("idle") } // idle, syncing, synced, failed
     var showSignOutConfirm by remember { mutableStateOf(false) }
 
-    // Auto-sync on open
     LaunchedEffect(isLoggedIn) {
         if (isLoggedIn) {
             syncStatus = "syncing"
@@ -315,7 +309,6 @@ private fun SettingsProfileCard(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Auth status
             if (isLoggedIn) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -419,7 +412,6 @@ private fun SettingsProfileCard(
                         showSignOutConfirm = false
                         coroutineScope.launch {
                             authRepo.signOut()
-                            // Clear all local data
                             userPreferences.clearAll()
                             val db = PocketPassDatabase.getDatabase(context)
                             db.clearAllTables()
@@ -456,7 +448,6 @@ private fun SettingsCustomizationContent(
     onOpenGameSearch: () -> Unit = {}
 ) {
     Column {
-        // Customization
         Text(
             text = "Card Customization",
             style = MaterialTheme.typography.titleMedium,
@@ -466,7 +457,6 @@ private fun SettingsCustomizationContent(
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Greeting
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -556,7 +546,6 @@ private fun SettingsCustomizationContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Mood
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -626,7 +615,6 @@ private fun SettingsCustomizationContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // About Me
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -705,7 +693,6 @@ private fun SettingsCustomizationContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Card styles (owned only)
         val ownedItems by userPreferences.ownedShopItemsFlow.collectAsState(initial = emptySet())
         val ownedThemes = ShopItems.cardThemes.filter { it.id in ownedItems }
 

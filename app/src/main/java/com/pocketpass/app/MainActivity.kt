@@ -304,13 +304,9 @@ class MainActivity : ComponentActivity() {
                         .fillMaxSize()
                         .background(Brush.verticalGradient(colors = BackgroundGradient))
                     ) {
-                        // ── Screen content ──
                         if (dataStoreReady) {
-                            // Show auth if:
-                            // - Not authenticated, OR
-                            // - Stale session after sign-out (authenticated but no avatar in DataStore)
-                            //   Gated by !setupAuthDone so fresh sign-ups (avatar not yet created) go to Mii maker instead
-                            // Note: uses avatarHex only — userName can be pulled by background sync and defeat this check
+                            // Auth required if not signed in, or signed out but stale session (no avatar)
+                            // Uses avatarHex only since userName can appear via background sync
                             val needsAuth = !isAuthenticated ||
                                 (!nav.setupAuthDone && avatarHex == null)
 
@@ -325,9 +321,7 @@ class MainActivity : ComponentActivity() {
                                 needsAuth -> {
                                     AuthScreen(
                                         setupMode = true,
-                                        onBack = {
-                                            // No-op: account is required (Skip removed)
-                                        },
+                                        onBack = { },
                                         onAuthSuccess = { restored ->
                                             nav.setupAuthDone = true
                                             nav.signInRestored = restored
@@ -424,7 +418,6 @@ class MainActivity : ComponentActivity() {
                                                 Column(
                                                     modifier = Modifier.fillMaxWidth()
                                                 ) {
-                                                    // Green header bar
                                                     Box(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
@@ -452,7 +445,6 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     }
 
-                                                    // Content
                                                     Column(
                                                         modifier = Modifier
                                                             .fillMaxWidth()
@@ -485,7 +477,6 @@ class MainActivity : ComponentActivity() {
                                                             Spacer(modifier = Modifier.height(16.dp))
                                                         }
 
-                                                        // Buttons
                                                         Row(
                                                             modifier = Modifier.fillMaxWidth(),
                                                             horizontalArrangement = Arrangement.End
@@ -526,7 +517,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
 
-                                    // Dual screen support (Ayn Thor bottom screen)
                                     val secondaryDisplay = rememberSecondaryDisplay()
                                     val dualScreenEnabled by userPreferences.dualScreenModeFlow.collectAsState(initial = true)
                                     val isDualScreen = secondaryDisplay != null && dualScreenEnabled
@@ -535,32 +525,27 @@ class MainActivity : ComponentActivity() {
                                     // Shared state for dual-screen plaza: selected Mii flows from bottom (3D) to top (companion)
                                     var plazaSelectedEncounter by remember { mutableStateOf<com.pocketpass.app.data.Encounter?>(null) }
 
-                                    // Unread counts for nav bar badges
                                     var unreadNotifCount by remember { mutableStateOf(0) }
                                     var unreadMsgCount by remember { mutableStateOf(0) }
                                     val notifRepo = remember { NotificationRepository() }
                                     val msgRepo = remember { MessageRepository(this@MainActivity) }
 
-                                    // Subscribe to realtime + poll unread counts
                                     LaunchedEffect(Unit) {
                                         val authRepo = AuthRepository()
                                         if (authRepo.currentUserId != null) {
-                                            // Start realtime subscriptions
                                             withContext(Dispatchers.IO) {
-                                                try { msgRepo.subscribeToRealtime() } catch (_: Exception) {}
-                                                try { notifRepo.subscribeToRealtime() } catch (_: Exception) {}
+                                                try { msgRepo.subscribeToRealtime() } catch (_: Exception) { }
+                                                try { notifRepo.subscribeToRealtime() } catch (_: Exception) { }
                                             }
                                         }
                                     }
 
-                                    // Observe notification unread count
                                     LaunchedEffect(Unit) {
                                         notifRepo.unreadCount.collect { count ->
                                             unreadNotifCount = count
                                         }
                                     }
 
-                                    // Observe message unread count
                                     LaunchedEffect(Unit) {
                                         msgRepo.getUnreadCountFlow().collect { count ->
                                             unreadMsgCount = count
@@ -573,7 +558,6 @@ class MainActivity : ComponentActivity() {
                                                 .fillMaxSize()
                                                 .background(Brush.verticalGradient(colors = BackgroundGradient))
                                             ) {
-                                                // Nav bar on bottom screen (Thor)
                                                 if (!nav.isOnSubScreen()) {
                                                     PlazaNavBar(
                                                         currentScreen = nav.currentMainScreen(),
@@ -586,7 +570,6 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                 }
 
-                                                // Tab-specific secondary content
                                                 Box(modifier = Modifier.weight(1f)) {
                                                     when (nav.screen) {
                                                         Screen.Settings -> SettingsSecondaryScreenContent(
@@ -626,7 +609,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
 
-                                    // All navigation screens with persistent nav bar
                                     val isCompactScreen = appDimensions.isCompact
                                     val showTopNav = !isDualScreen && !isCompactScreen
                                     val showBottomNav = !isDualScreen && isCompactScreen
@@ -635,7 +617,6 @@ class MainActivity : ComponentActivity() {
                                     val density = androidx.compose.ui.platform.LocalDensity.current
 
                                     Box(modifier = Modifier.fillMaxSize()) {
-                                        // Top nav bar overlays content so rounded corners show through
                                         if (showTopNav) {
                                             Box(modifier = Modifier
                                                 .zIndex(1f)
@@ -886,7 +867,6 @@ class MainActivity : ComponentActivity() {
                                             } // AnimatedContent
                                         }
 
-                                        // Bottom nav bar for compact/phone screens
                                         if (showBottomNav) {
                                             Box(modifier = Modifier
                                                 .align(Alignment.BottomCenter)

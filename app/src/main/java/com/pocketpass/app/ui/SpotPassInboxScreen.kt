@@ -81,7 +81,6 @@ fun SpotPassInboxScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -196,7 +195,6 @@ private fun SpotPassItemCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.Top
         ) {
-            // Type icon
             Box(
                 modifier = Modifier
                     .size(44.dp)
@@ -279,7 +277,6 @@ private fun SpotPassItemCard(
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                        // Status
                         val now = System.currentTimeMillis()
                         val status = when {
                             item.publishedAt > now -> "Upcoming"
@@ -307,7 +304,6 @@ private fun SpotPassItemCard(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Timestamp
                     Text(
                         text = formatSpotPassTime(item.publishedAt),
                         style = MaterialTheme.typography.labelSmall,
@@ -376,7 +372,6 @@ private fun formatSpotPassTime(epochMs: Long): String {
     val now = System.currentTimeMillis()
     val diff = now - epochMs
 
-    // Future
     if (diff < 0) {
         val ahead = -diff
         val minutes = ahead / 60_000
@@ -394,7 +389,6 @@ private fun formatSpotPassTime(epochMs: Long): String {
         }
     }
 
-    // Past
     val minutes = diff / 60_000
     val hours = diff / 3_600_000
     val days = diff / 86_400_000

@@ -79,7 +79,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// Challenge type colors
 private val RegionColor = Color(0xFF42A5F5) // blue
 private val HobbyColor = Color(0xFFEF5350) // red
 private val SocialColor = Color(0xFFAB47BC) // purple
@@ -186,7 +185,6 @@ fun MiiBingoScreen(onBack: () -> Unit) {
                     .fillMaxSize()
                     .verticalScroll(rememberScrollState())
             ) {
-                // Top Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -234,7 +232,6 @@ fun MiiBingoScreen(onBack: () -> Unit) {
                         }
                     )
                 } else {
-                    // Progress card
                     val completed = card.completedCount()
                     val total = card.cells.size
                     val linesCompleted = card.completedLines.size
@@ -295,7 +292,6 @@ fun MiiBingoScreen(onBack: () -> Unit) {
 
                             Spacer(modifier = Modifier.height(12.dp))
 
-                            // Progress bar
                             val isDarkProgress = LocalDarkMode.current
                             Box(
                                 modifier = Modifier
@@ -321,7 +317,6 @@ fun MiiBingoScreen(onBack: () -> Unit) {
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // Header
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -349,7 +344,6 @@ fun MiiBingoScreen(onBack: () -> Unit) {
                         }
                     }
 
-                    // Grid
                     BingoGrid(
                         card = card,
                         onCellClick = { cell -> selectedCell = cell; soundManager.playSelect() }
@@ -357,12 +351,10 @@ fun MiiBingoScreen(onBack: () -> Unit) {
 
                     Spacer(modifier = Modifier.height(16.dp))
 
-                    // Rewards
                     RewardsInfoCard(tokenMultiplier = tokenMultiplier)
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // New card button
                     if (card.isFullyComplete() && card.fullCardClaimed) {
                         AeroButton(
                             onClick = {
@@ -397,7 +389,6 @@ fun MiiBingoScreen(onBack: () -> Unit) {
                 }
             }
 
-        // Cell dialog
         if (selectedCell != null) {
             CellDetailDialog(
                 cell = selectedCell!!,
@@ -455,7 +446,6 @@ private fun EmptyBingoPrompt(onGenerate: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Icon
         Box(
             modifier = Modifier
                 .size(80.dp)
@@ -489,7 +479,6 @@ private fun EmptyBingoPrompt(onGenerate: () -> Unit) {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // Reward hints
         AeroCard(
             modifier = Modifier.fillMaxWidth(),
             cornerRadius = 12.dp,
@@ -564,7 +553,6 @@ private fun RewardsInfoCard(tokenMultiplier: Int) {
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Line reward
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "Line",
@@ -593,7 +581,6 @@ private fun RewardsInfoCard(tokenMultiplier: Int) {
                     .background(if (LocalDarkMode.current) Color(0xFF444444) else Color(0xFFE0E0E0))
             )
 
-            // Full card reward
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "Full Card",
@@ -622,7 +609,6 @@ private fun RewardsInfoCard(tokenMultiplier: Int) {
                     .background(if (LocalDarkMode.current) Color(0xFF444444) else Color(0xFFE0E0E0))
             )
 
-            // Reroll cost
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "Reroll",
@@ -644,7 +630,6 @@ private fun RewardsInfoCard(tokenMultiplier: Int) {
                 }
             }
 
-            // Multiplier badge
             if (tokenMultiplier > 1) {
                 Box(
                     modifier = Modifier
@@ -729,7 +714,6 @@ private fun BingoCellView(
             contentAlignment = Alignment.Center
         ) {
             if (isFree) {
-                // Free space
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         imageVector = Icons.Filled.Star,
@@ -746,7 +730,6 @@ private fun BingoCellView(
                     )
                 }
             } else if (cell.completed) {
-                // Completed
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         text = cellShortLabel(cell),
@@ -758,7 +741,6 @@ private fun BingoCellView(
                         fontSize = 12.sp,
                         modifier = Modifier.padding(horizontal = 2.dp)
                     )
-                    // Checkmark
                     Box(
                         modifier = Modifier
                             .size(28.dp)
@@ -775,7 +757,6 @@ private fun BingoCellView(
                     }
                 }
             } else {
-                // Incomplete
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
@@ -844,7 +825,6 @@ private fun CellDetailDialog(
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Status icon
                 Box(
                     modifier = Modifier
                         .size(56.dp)
@@ -874,7 +854,6 @@ private fun CellDetailDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Type badge
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
@@ -901,7 +880,6 @@ private fun CellDetailDialog(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Status pill
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))

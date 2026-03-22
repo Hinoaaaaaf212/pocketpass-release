@@ -129,7 +129,6 @@ fun AnimatedPlazaScreen(
     val authRepo = remember { AuthRepository() }
     val isLoggedIn = authRepo.currentUserId != null
 
-    // Interaction state
     var selectedEncounter by remember { mutableStateOf<Encounter?>(null) }
     var showProfileDetail by remember { mutableStateOf(false) }
     var friendshipStatus by remember { mutableStateOf("none") }
@@ -137,11 +136,9 @@ fun AnimatedPlazaScreen(
     var friendActionResult by remember { mutableStateOf<String?>(null) }
     var friendActionIsError by remember { mutableStateOf(false) }
 
-    // Entry animation
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { visible = true }
 
-    // Scene dimensions
     var sceneWidthPx by remember { mutableFloatStateOf(1080f) }
     var sceneHeightPx by remember { mutableFloatStateOf(1920f) }
 
@@ -156,17 +153,14 @@ fun AnimatedPlazaScreen(
         PlazaEnvironmentLoader(context, modelLoader, coroutineScope)
     }
 
-    // All nodes
     val combinedNodes by remember {
         derivedStateOf { environmentLoader.nodes + miiManager.nodes }
     }
 
-    // Load environment
     LaunchedEffect(Unit) {
         environmentLoader.loadEnvironment()
     }
 
-    // Cleanup
     DisposableEffect(miiManager, environmentLoader) {
         onDispose {
             miiManager.clear()
@@ -174,7 +168,6 @@ fun AnimatedPlazaScreen(
         }
     }
 
-    // Sync encounters
     val miiSubset = remember(encounters) {
         if (encounters.size > MAX_MIIS) encounters.shuffled(kotlin.random.Random(encounters.size)).take(MAX_MIIS) else encounters
     }
@@ -182,7 +175,6 @@ fun AnimatedPlazaScreen(
         miiManager.syncEncounters(miiSubset, userAvatarHex)
     }
 
-    // Add self
     LaunchedEffect(userAvatarHex, userCostume) {
         if (!userAvatarHex.isNullOrBlank()) {
             miiManager.addUserMii(userAvatarHex!!, userCostume)
@@ -219,7 +211,6 @@ fun AnimatedPlazaScreen(
     val cursorIndex by miiManager.selectedIndex
     val density = LocalDensity.current
 
-    // Mii selection handler
     fun selectMii(encounter: Encounter) {
         soundManager.playSelect()
         miiManager.onMiiTapped(encounter)
@@ -232,7 +223,6 @@ fun AnimatedPlazaScreen(
         }
     }
 
-    // D-pad focus
     val sceneFocusRequester = remember { FocusRequester() }
 
     // ── UI ──
@@ -246,7 +236,6 @@ fun AnimatedPlazaScreen(
             ) + fadeIn(animationSpec = tween(durationMillis = 350, easing = FastOutSlowInEasing))
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -275,7 +264,6 @@ fun AnimatedPlazaScreen(
                     Spacer(modifier = Modifier.width(48.dp))
                 }
 
-                // Scene area
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -328,7 +316,6 @@ fun AnimatedPlazaScreen(
                         sceneFocusRequester.requestFocus()
                     }
 
-                    // 3D SceneView
                     Plaza3DScene(
                         encounters = encounters.take(MAX_MIIS),
                         userAvatarHex = userAvatarHex,
@@ -344,7 +331,6 @@ fun AnimatedPlazaScreen(
                         modifier = Modifier.fillMaxSize()
                     )
 
-                    // Empty state
                     if (encounters.isEmpty()) {
                         Column(
                             modifier = Modifier
@@ -370,7 +356,6 @@ fun AnimatedPlazaScreen(
                         }
                     }
 
-                    // Gamepad cursor
                     if (cursorIndex >= 0) {
                         val nonUserMiis = miiManager.getNonUserMiiStates()
                         if (cursorIndex < nonUserMiis.size) {
@@ -379,7 +364,6 @@ fun AnimatedPlazaScreen(
                             val (screenX, screenY) = projectWorldToScreen(
                                 mii.positionX, Plaza3DMiiManager.MII_CENTER_Y, mii.positionZ, aspectRatio
                             )
-                            // Normalized → pixels
                             val selectorSizeDp = 64.dp
                             val selectorSizePx = with(density) { selectorSizeDp.toPx() }
                             val offsetX = (screenX * sceneWidthPx - selectorSizePx / 2f).toInt()
@@ -394,7 +378,6 @@ fun AnimatedPlazaScreen(
                         }
                     }
 
-                    // Tap → nearest Mii
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -688,7 +671,6 @@ fun AnimatedPlazaCompanionScreen(
     val encounters = LocalEncounters.current
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Top bar
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -728,7 +710,6 @@ fun AnimatedPlazaCompanionScreen(
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Avatar
                 Box(
                     modifier = Modifier
                         .size(100.dp)
@@ -772,7 +753,6 @@ fun AnimatedPlazaCompanionScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Greeting card
                 if (selectedEncounter.greeting.isNotBlank()) {
                     AeroCard(
                         cornerRadius = 16.dp,
@@ -803,7 +783,6 @@ fun AnimatedPlazaCompanionScreen(
 
                 Spacer(Modifier.height(12.dp))
 
-                // Profile details
                 AeroCard(
                     cornerRadius = 16.dp,
                     containerColor = if (isDark) Color(0xFF2A2A2A) else Color.White

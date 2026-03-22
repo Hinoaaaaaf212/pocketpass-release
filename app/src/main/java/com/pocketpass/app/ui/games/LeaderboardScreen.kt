@@ -112,7 +112,6 @@ fun LeaderboardScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.fillMaxSize()) {
-                // Top Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -148,7 +147,6 @@ fun LeaderboardScreen(
                     }
                 }
 
-                // Category tabs
                 LeaderboardCategoryTabs(
                     selected = selectedCategory,
                     onSelect = { soundManager.playNavigate(); selectedCategory = it }
@@ -156,7 +154,6 @@ fun LeaderboardScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Content
                 when {
                     isLoading -> {
                         Box(
@@ -289,7 +286,6 @@ private fun LeaderboardRow(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Rank number
             Box(
                 modifier = Modifier.width(36.dp),
                 contentAlignment = Alignment.Center
@@ -311,7 +307,6 @@ private fun LeaderboardRow(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Mii avatar
             Box(
                 modifier = Modifier
                     .size(40.dp)
@@ -335,7 +330,6 @@ private fun LeaderboardRow(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            // Name + origin
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -367,7 +361,6 @@ private fun LeaderboardRow(
                 }
             }
 
-            // Score
             Text(
                 text = "$score",
                 style = MaterialTheme.typography.titleMedium,

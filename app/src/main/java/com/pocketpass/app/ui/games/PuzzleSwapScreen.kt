@@ -94,7 +94,6 @@ fun PuzzleSwapScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-                // Top Bar
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -132,7 +131,6 @@ fun PuzzleSwapScreen(
                         .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Progress
                     item {
                         val totalPieces = panels.sumOf { it.totalPieces }
                         val totalCollected = panels.sumOf { progress.collectedCount(it.id) }
@@ -180,7 +178,6 @@ fun PuzzleSwapScreen(
                         }
                     }
 
-                    // Panels
                     items(panels, key = { it.id }) { panel ->
                         val collected = progress.collectedCount(panel.id)
                         val isComplete = progress.isPanelComplete(panel)
@@ -201,7 +198,6 @@ fun PuzzleSwapScreen(
                                     .padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                // Preview
                                 Box(
                                     modifier = Modifier
                                         .size(72.dp)
@@ -214,7 +210,6 @@ fun PuzzleSwapScreen(
                                     ) {
                                         drawFullPuzzle(panel.theme, panel.gridSize, panel.colorHex, panel.id)
                                     }
-                                    // Incomplete overlay
                                     if (!isComplete) {
                                         Box(
                                             modifier = Modifier
@@ -283,7 +278,6 @@ fun PuzzleSwapScreen(
                         }
                     }
 
-                    // Shop button
                     item {
                         Spacer(modifier = Modifier.height(4.dp))
                         AeroButton(
@@ -309,7 +303,6 @@ fun PuzzleSwapScreen(
                 }
             }
 
-        // Shop dialog
         if (showTokenShop) {
             TokenShopDialog(
                 tokenBalance = tokenBalance,
@@ -368,12 +361,10 @@ private fun TokenShopDialog(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Token balance
                 TokenBalanceChip(balance = tokenBalance)
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Purchase option
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
