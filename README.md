@@ -32,6 +32,5 @@ Needs Android 11 or later.
 - ariankordi: Piip creator and renderer
 - k0o1: official soundtrack
 - saby: official soundtrack, SFX
-- AYN Thor design by lnkd
 
 Not affiliated with Nintendo.
