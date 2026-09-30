@@ -8,7 +8,12 @@ Meet people nearby. Keep in touch.
 
 PocketPass is an app for meeting people nearby over Bluetooth and staying in touch through chat. It's built for dual-screen Android handhelds like the AYN Thor, with a single-screen layout for phones and tablets.
 
-**[Download the latest APK](https://github.com/Hinoaaaaaf212/pocketpass-release/releases/latest)** · [Website](https://pocketpass.xyz/) · [Discord](https://discord.gg/pocket) · [Ko-fi](https://ko-fi.com/pocketpass)
+<p align="center">
+  <a href="https://github.com/Hinoaaaaaf212/pocketpass-release/releases/latest"><img src="buttons/download.svg" alt="Download the latest APK" height="46"></a>
+  <a href="https://pocketpass.xyz/"><picture><source media="(prefers-color-scheme: dark)" srcset="buttons/website-dark.svg"><img src="buttons/website-light.svg" alt="Website" height="46"></picture></a>
+  <a href="https://discord.gg/pocket"><img src="buttons/discord.svg" alt="Join the Discord" height="46"></a>
+  <a href="https://ko-fi.com/pocketpass"><picture><source media="(prefers-color-scheme: dark)" srcset="buttons/kofi-dark.svg"><img src="buttons/kofi-light.svg" alt="Support on Ko-fi" height="46"></picture></a>
+</p>
 
 Needs Android 11 or later.
 
