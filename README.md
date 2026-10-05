@@ -30,12 +30,5 @@ Needs Android 11 or later.
 - **Step Rewards.** Walking earns 1 token per 400 steps, up to 25 a day.
 - **Settings.** Make PocketPass feel right for you, from its look and sounds to the notifications you receive.
 
-## Credits
-
-- simply: creator, code, UI integration
-- BrocoDev: UI redesign
-- ariankordi: Piip creator and renderer
-- k0o1: official soundtrack
-- saby: official soundtrack, SFX
 
 Not affiliated with Nintendo.
